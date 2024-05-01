@@ -19,16 +19,22 @@ class RunStates(Enum):
 class Instance:
     uuid:str
     workflow_name:str
-    state: RunStates = RunStates.Running
+    state: RunStates
 
     # Per Instance Variables - Initially populated with setup_variables and then runtime can mutate it
-    variables: dict[str, WorkVariable] = {}
+    variables: dict[str, WorkVariable]
 
     #We always start with the procedure named "start" and at its 0th step
-    processing_step:tuple[str,int] = ("start",0)
+    processing_step:tuple[str,int]
     # The next time we will want to be iterated on. This is not a precise time it will run, but a rough minimum before it gets run. Often gets set by the yield_* commands
     #next_processing_time:date_type_somewhere
 
+    def __init__(self) -> None:
+        self.uuid = ""
+        self.workflow_name = ""
+        self.state = RunStates.Running
+        self.variables = {}
+        self.processing_step = ("start", 0)
     def __str__(self) -> str:
         return f"Instance {self.uuid} - Workflow: {self.workflow_name} - {self.state.name}"
     def __repr__(self) -> str:
@@ -41,23 +47,28 @@ class Instance:
 
 class Workflow:
     name: str
-    constants: dict[str, WorkVariable] = {}
+    constants: dict[str, WorkVariable]
     # The values of these are the defaults when making a new instance for the workflow, and are copied to the instance
-    setup_variables: dict[str, WorkVariable] = {}
-    procedures: dict[str, Procedure] = {}
+    setup_variables: dict[str, WorkVariable]
+    procedures: dict[str, Procedure]
 
     # On startup and on set from the web UI, we will revalidate that everything looks correct
     # If something looks incorrect, we will mark it as invalid and skip processing
-    state: RunStates = RunStates.Running
+    state: RunStates
 
     # A free space for a user to leave notes for whatever reason. Probably a description of the workflow and reminder of how it works.
-    user_notes: str = ""
+    user_notes: str
+
+    def __init__(self) -> None:
+        self.name = ""
+        self.constants = {}
+        self.setup_variables = {}
+        self.procedures = {}
+        self.state = RunStates.Running
+        self.user_notes = ""
 
     # Create a new Instance with some variables. The setup variables are optional, and if not everything is specified, will be filled with defaults as setup in the workflow.
     def spawn_instance(self, setup_var_non_defaults: dict[str, WorkVariable] = {}) -> Instance:
-        if not hasattr(self,"name"):
-            self.state = RunStates.Error
-            raise ValueError("Workflow does not have a name and so cannot spawn an instance")
         #Note: Make sure Variables are a copy that we give to the instance, so the instance permuting does not change future workflow defaults
         new = Instance()
         new.uuid = str(uuid4())
