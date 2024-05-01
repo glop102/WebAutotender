@@ -14,39 +14,24 @@ from src import *
 #  variable setting
 #  instance variables overshadowing workflow variables
 
-workflows : dict[str,Workflow] = {}
-instances : list[Instance] = []
+# workflows : dict[str,Workflow] = {}
+# instances : list[Instance] = []
 
 test_workflow = Workflow()
+test_workflow.name = "Test Workflow"
+test_var: WorkVariable
 
-# First Variable in the workflow
-test_var:WorkVariable = Integer()
-test_var.reset_to_default()
+test_var = Integer()
+test_var.value = 6
 test_workflow.constants["Loop Iterations"] = test_var
 
-print(test_workflow.constants["Loop Iterations"].is_valid())
-test_workflow.constants["Loop Iterations"].value = 0
-print(test_workflow.constants["Loop Iterations"].is_valid())
-test_workflow.constants["Loop Iterations"].normalize()
-print(test_workflow.constants["Loop Iterations"].is_valid())
-
-# Second Variable as a setup variable
-test_var = WorkVariable()
-test_var.typename = "String"
-test_var.reset_to_default()
-
+test_var = String()
+test_var.value = "This is a debug message."
 test_workflow.setup_variables["Debug Message Echo"] = test_var
 
-#Third Variable that is another setup
-test_var = WorkVariable()
+test_var = Float()
 test_var.value = 10.0
-test_var.typename = "Float"
-
 test_workflow.setup_variables["Loop Delay"] = test_var
-
-
-# Lets limit it to only a few loops before it exits
-test_workflow.constants["Loop Iterations"].value = 0
 
 
 # Lets make the workflow go like this:
@@ -64,3 +49,6 @@ test_workflow.constants["Loop Iterations"].value = 0
 # - delete this instance
 # Note: make sure to have it gracefully handle going to a step that does not exist and then simply pausing the instance.
 # Might want to make it delete itself by default? But could be nice to have it pause and wait for reading logs to debug if it is going somewhere weird.
+
+test_instance = test_workflow.spawn_instance()
+print(test_instance.__repr__())

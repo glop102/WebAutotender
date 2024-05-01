@@ -37,5 +37,4 @@ class ProcessingStep:
     variables:dict[str,WorkVariable]
 
 
-class Procedure:
-    steps:list[ProcessingStep] = []
+class Procedure(list): pass

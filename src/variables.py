@@ -39,6 +39,9 @@ class WorkVariable:
     def reset_to_default(self)->None:
         self.value = None
 
+    def __str__(self)->str:
+        return f"{self.__class__.__name__}({self.value})"
+
 class String(WorkVariable):
     value:str
     def is_valid(self) -> bool:
