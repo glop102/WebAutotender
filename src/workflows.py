@@ -29,12 +29,16 @@ class Instance:
     # The next time we will want to be iterated on. This is not a precise time it will run, but a rough minimum before it gets run. Often gets set by the yield_* commands
     #next_processing_time:date_type_somewhere
 
+    #It is handy to debug things when there is actually feedback to the user
+    console_log:str
+
     def __init__(self) -> None:
         self.uuid = ""
         self.workflow_name = ""
         self.state = RunStates.Running
         self.variables = {}
         self.processing_step = ("start", 0)
+        self.console_log = ""
     def __str__(self) -> str:
         return f"Instance {self.uuid} - Workflow: {self.workflow_name} - {self.state.name}"
     def __repr__(self) -> str:
@@ -43,6 +47,10 @@ class Instance:
         for varname in self.variables:
             sss+=f"\n    {varname} = {self.variables[varname]}"
         return sss
+    
+    def log_line(self,line):
+        """Will add a line to the log. This will add its own newline to the end of the line"""
+        self.console_log += line+"\n"
 
 
 class Workflow:

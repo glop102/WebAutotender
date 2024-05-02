@@ -52,3 +52,9 @@ test_workflow.setup_variables["Loop Delay"] = test_var
 
 test_instance = test_workflow.spawn_instance()
 print(test_instance.__repr__())
+
+print()
+
+@Commands.register_command
+def test_command(inst: Instance, debug_msg: String) -> CommandReturnStatus:
+    return CommandReturnStatus.Success
