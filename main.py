@@ -4,7 +4,7 @@
 
 # app = FastAPI()
 
-from src import *
+from pipeline_backend import *
 
 #Test setup to think through the process and do an example tight yield loop
 # Have 1 test workflow
@@ -71,3 +71,7 @@ print(test_instance["Loop Delay"])
 print(test_instance["Debug Message Echo"])
 try: test_instance["Not A  Variaibjian"]
 except KeyError: print("Properly excepted of not finding a variable")
+test_instance["New Variable!"] = String()
+test_instance["New Variable!"].value = "This is it!"
+print(test_instance["New Variable!"])
+del test_instance["New Variable!"]

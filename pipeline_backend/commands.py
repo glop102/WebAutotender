@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Callable
 from inspect import signature
 from .variables import *
-import src.workflows as workflows
+import pipeline_backend.workflows as workflows
 
 # This is the place that registers and validates commands that can be called in procedures.
 

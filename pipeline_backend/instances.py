@@ -1,7 +1,7 @@
 from copy import deepcopy
 from .utils import *
 from .variables import *
-import src.workflows as workflows
+import pipeline_backend.workflows as workflows
 
 class Instance:
     uuid: str
@@ -57,7 +57,12 @@ class Instance:
             return deepcopy(w.constants[var_name])
         if var_name in w.setup_variables:
             return deepcopy(w.setup_variables[var_name])
-        raise KeyError(
-            f"Unable to find the variable named {var_name} - {self.workflow_name}/{self.uuid}")
+        raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_name}/{self.uuid}")
 
-    def __setitem__(self, var_name:str,value:WorkVariable) -> None: pass
+    def __setitem__(self, var_name:str,value:WorkVariable) -> None:
+        self.variables[var_name] = deepcopy(value)
+    
+    def __delitem__(self,var_name:str) -> None:
+        if not var_name in self.variables:
+            raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_name}/{self.uuid}")
+        del self.variables[var_name]
