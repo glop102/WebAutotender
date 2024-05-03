@@ -1,0 +1,63 @@
+from copy import deepcopy
+from .utils import *
+from .variables import *
+import src.workflows as workflows
+
+class Instance:
+    uuid: str
+    workflow_name: str
+    state: RunStates
+
+    # Per Instance Variables - Initially populated with setup_variables and then runtime can mutate it
+    variables: dict[str, WorkVariable]
+
+    # We always start with the procedure named "start" and at its 0th step
+    processing_step: tuple[str, int]
+    # The next time we will want to be iterated on. This is not a precise time it will run, but a rough minimum before it gets run. Often gets set by the yield_* commands
+    # next_processing_time:date_type_somewhere
+
+    # It is handy to debug things when there is actually feedback to the user
+    console_log: str
+
+    def __init__(self) -> None:
+        self.uuid = ""
+        self.workflow_name = ""
+        self.state = RunStates.Running
+        self.variables = {}
+        self.processing_step = ("start", 0)
+        self.console_log = ""
+
+    def __str__(self) -> str:
+        return f"Instance {self.uuid} - Workflow: {self.workflow_name} - {self.state.name}"
+
+    def __repr__(self) -> str:
+        sss = self.__str__()
+        sss += f"\n    {len(self.variables)} variables - {self.processing_step}"
+        for varname in self.variables:
+            sss += f"\n    {varname} = {self.variables[varname]}"
+        return sss
+
+    def __get_associated_workflow(self):
+        for w in workflows.global_workflows:
+            if w.name == self.workflow_name:
+                return w
+        raise ValueError(
+            f"Unable to find the associated workflow {self.workflow_name} for Instance {self.uuid}")
+
+    def log_line(self, line):
+        """Will add a line to the log. This will add its own newline to the end of the line"""
+        self.console_log += line+"\n"
+
+    def __getitem__(self, var_name: str) -> WorkVariable:
+        """Get the value of the variable of the given name. Will throw a KeyError if it cannot find the variable. This handles the complication of searching the associated workflow as well."""
+        if var_name in self.variables:
+            return deepcopy(self.variables[var_name])
+        w:workflows.Workflow = self.__get_associated_workflow()
+        if var_name in w.constants:
+            return deepcopy(w.constants[var_name])
+        if var_name in w.setup_variables:
+            return deepcopy(w.setup_variables[var_name])
+        raise KeyError(
+            f"Unable to find the variable named {var_name} - {self.workflow_name}/{self.uuid}")
+
+    def __setitem__(self, var_name:str,value:WorkVariable) -> None: pass

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Callable
 from inspect import signature
-import src.variables as variables
+from .variables import *
 import src.workflows as workflows
 
 # This is the place that registers and validates commands that can be called in procedures.
@@ -14,9 +14,16 @@ class CommandReturnStatus(Enum):
 class Commands:
     commands:dict[str,Callable] = {}
     @classmethod
+    def get_command_input_variables(cls,command_name:str) -> list[tuple[str,WorkVariable]]:
+        """Returns a in-order list of argument name and their type"""
+        if not command_name in cls.commands:
+            raise NameError(f"Unable to find a command with the name {command_name}")
+        sig = signature(cls.commands[command_name])
+        parms = sig.parameters
+        return [ (arg_name,parms[arg_name].annotation) for arg_name in list(parms.keys())[1:]]
 
     @classmethod
-    def register_command(cls,item:Callable):
+    def register_command(cls,item:Callable) -> Callable:
         sig = signature(item)
         function_arguments = list(sig.parameters.keys())
         if len(function_arguments) == 0:
@@ -26,7 +33,7 @@ class Commands:
         # Make sure they are only ever asking for types that are WorkVariable types
         if len(function_arguments) > 1:
             for arg_name in function_arguments[1:]:
-                if not sig.parameters[arg_name].annotation in variables.WorkVariable.__subclasses__():
+                if not sig.parameters[arg_name].annotation in WorkVariable.__subclasses__():
                     raise TypeError("Commands for processing must only accept WorkVariable classes")
                 
         # Make sure that it returns a valid type for telling us if it succedded or failed or whatnot
@@ -34,3 +41,10 @@ class Commands:
             raise TypeError("Commands for processing must return a CommandReturnStatus")
         
         cls.commands[item.__name__] = item
+        # Let that function keep existing wherever it is. We were only wanting to get a reference to it.
+        return item
+
+
+# And now some default commands that we will need for any of the basics of processing
+# This is not a preliminary testing of a addon system, just a way to get some things into the commands list
+# Probably will want to move these into a builtin-addons folder or something.

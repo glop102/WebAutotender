@@ -1,6 +1,6 @@
-from collections.abc import Callable
 from .variables import *
 from .commands import *
+from .workflows import *
 
 # =====================================================================================
 # Processing Steps
@@ -33,9 +33,19 @@ from .commands import *
 # - command(instance:Instance,variables:dict[str,WorkVariable])
 # - command(instance:Instance, var1:WorkVariable)
 
-class ProcessingStep:
-    command: Callable
-    variables:dict[str,WorkVariable]
 
-
-class Procedure(list): pass
+class ProcedureRunner:
+    def __init__(self,instance:Instance):
+        self.instance = instance
+    
+    def run_single_step(self):
+        """Runs a single step of the procedure of the instance"""
+        # skip checking if an instance is valid - we are a runner, not a checker
+        # get the current step
+        # get the command for that step
+        # get the variables for that command
+        # check the vars it needs and resolve references if it is asking for a more concrete type
+        # run command
+        # check return state
+        # update instance (we need to think about branches and who increments the step)
+        pass

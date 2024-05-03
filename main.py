@@ -19,6 +19,7 @@ from src import *
 
 test_workflow = Workflow()
 test_workflow.name = "Test Workflow"
+global_workflows.append(test_workflow)
 test_var: WorkVariable
 
 test_var = Integer()
@@ -58,3 +59,15 @@ print()
 @Commands.register_command
 def test_command(inst: Instance, debug_msg: String) -> CommandReturnStatus:
     return CommandReturnStatus.Success
+
+
+print(Commands.get_command_input_variables("test_command"))
+try:
+    print(Commands.get_command_input_variables("test_command_not_existing"))
+except: print("Raised exception for not existing correctly")
+
+print(test_instance["Loop Iterations"])
+print(test_instance["Loop Delay"])
+print(test_instance["Debug Message Echo"])
+try: test_instance["Not A  Variaibjian"]
+except KeyError: print("Properly excepted of not finding a variable")
