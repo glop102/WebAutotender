@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Callable
 from inspect import signature
 from .variables import *
-import pipeline_backend.workflows as workflows
+from .instances import *
 
 # This is the place that registers and validates commands that can be called in procedures.
 
@@ -28,7 +28,7 @@ class Commands:
         function_arguments = list(sig.parameters.keys())
         if len(function_arguments) == 0:
             raise TypeError("Commands for processing must at least take one variable of the Instance they are processing for")
-        if sig.parameters[function_arguments[0]].annotation != workflows.Instance:
+        if sig.parameters[function_arguments[0]].annotation != Instance:
             raise TypeError("Commands for processing must have their first argument be the Instance they are processing for")
         # Make sure they are only ever asking for types that are WorkVariable types
         if len(function_arguments) > 1:
@@ -43,6 +43,12 @@ class Commands:
         cls.commands[item.__name__] = item
         # Let that function keep existing wherever it is. We were only wanting to get a reference to it.
         return item
+    
+    @classmethod
+    def get_command_by_name(cls,command_name) -> Callable:
+        if not command_name in cls.commands:
+            raise KeyError(f"Unable to find {command_name} in the list of available commands")
+        return cls.commands[command_name]
 
 
 # And now some default commands that we will need for any of the basics of processing

@@ -58,6 +58,8 @@ print()
 
 @Commands.register_command
 def test_command(inst: Instance, debug_msg: String) -> CommandReturnStatus:
+    print(type(debug_msg))
+    print(debug_msg)
     return CommandReturnStatus.Success
 
 

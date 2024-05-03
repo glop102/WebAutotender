@@ -111,13 +111,4 @@ class VariableName(WorkVariable):
     def reset_to_default(self) -> None:
         self.value = ""
 
-if __name__ == "__main__":
-    test = WorkVariable()
-    test.value = "ABCD"
-    print(test.typename)
-    print(test.value)
-    test.typename = "String"
-    print(test.typename)
-    print(test.value)
-    test.value = "EFGH"
-    print(test.value)
+global_variables: dict[str,WorkVariable] = {}
