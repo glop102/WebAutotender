@@ -61,19 +61,44 @@ def test_command(inst: Instance, debug_msg: String) -> CommandReturnStatus:
     print(type(debug_msg))
     print(debug_msg)
     return CommandReturnStatus.Success
+@Commands.register_command
+def intentional_error_throw(inst: Instance) -> CommandReturnStatus:
+    raise Exception()
 
+print("Lets actually run a procedure now.")
+# First Procedure with a single command which is our debug message printing test_command
+test_procstep = ProcessingStep()
+test_workflow.procedures["start"] = [test_procstep]
+test_procstep.command_name = "test_command"
 
-print(Commands.get_command_input_variables("test_command"))
-try:
-    print(Commands.get_command_input_variables("test_command_not_existing"))
-except: print("Raised exception for not existing correctly")
+proc_runner = ProcedureRunner(test_instance)
+if CommandReturnStatus.Error == proc_runner.run_single_step():
+    print("Correctly detected incorrect number of variables in the processing step for the command given")
+    print(test_workflow.__repr__())
+    print(test_instance.__repr__())
+assert(test_instance.state == RunStates.Error)
 
-print(test_instance["Loop Iterations"])
-print(test_instance["Loop Delay"])
-print(test_instance["Debug Message Echo"])
-try: test_instance["Not A  Variaibjian"]
-except KeyError: print("Properly excepted of not finding a variable")
-test_instance["New Variable!"] = String()
-test_instance["New Variable!"].value = "This is it!"
-print(test_instance["New Variable!"])
-del test_instance["New Variable!"]
+test_instance.state = RunStates.Running #reset
+
+print("\nWonderful! Corectly failed when not having the arguments, so this time we added in an argument.")
+test_procstep.variables["debug_msg"] = VariableName()
+test_procstep.variables["debug_msg"].value = "Debug Message Echo"
+
+proc_runner.run_single_step()
+print(test_instance.__repr__())
+
+if CommandReturnStatus.Error == proc_runner.run_single_step():
+    print("Correctly detected running out of items in the procedure to be used as commands")
+    print(test_instance.__repr__())
+
+print("\n\nPrinting the console log")
+print(test_instance.console_log)
+
+print("\n\n Lets clear the log, add a new processing step, and then double check it handles a command throwing an error.")
+test_instance.console_log = ""
+test_procstep = ProcessingStep()
+test_workflow.procedures["start"].append(test_procstep)
+test_procstep.command_name = "intentional_error_throw"
+if CommandReturnStatus.Error == proc_runner.run_single_step():
+    print("Correctly did return an error status after the throw. Printing the instance console log now")
+    print(test_instance.console_log)

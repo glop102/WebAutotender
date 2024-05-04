@@ -15,6 +15,16 @@ class RunStates(Enum):
 class ProcessingStep:
     command_name: str
     variables: dict[str, variables.WorkVariable]
+    def __init__(self)->None:
+        self.command_name = ""
+        self.variables = {}
+    def __str__(self) -> str:
+        return f"ProcessingStep - {self.command_name} - {len(self.variables)} variables"
+    def __repr__(self)->str:
+        sss = self.__str__()
+        for var_name in self.variables:
+            sss += f"\n    {var_name} = {self.variables[var_name]}"
+        return sss
 
 class Workflow:
     name: str
@@ -50,6 +60,18 @@ class Workflow:
         for varname in setup_var_non_defaults:
             new.variables[varname] = deepcopy(setup_var_non_defaults[varname])
         return new
+
+    def __str__(self) -> str:
+        return f"Workflow {self.name} - {self.state.name}"
+
+    def __repr__(self) -> str:
+        sss = self.__str__()
+        sss += f"\n    {len(self.constants)} constants - {len(self.setup_variables)} setup_variables"
+        for varname in self.constants:
+            sss += f"\n    C:{varname} = {self.constants[varname]}"
+        for varname in self.setup_variables:
+            sss += f"\n    S:{varname} = {self.setup_variables[varname]}"
+        return sss
     
 # =====================================================================================
 # Tracking available items

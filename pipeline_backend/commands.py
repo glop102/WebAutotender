@@ -14,7 +14,7 @@ class CommandReturnStatus(Enum):
 class Commands:
     commands:dict[str,Callable] = {}
     @classmethod
-    def get_command_input_variables(cls,command_name:str) -> list[tuple[str,WorkVariable]]:
+    def get_command_input_variables(cls,command_name:str) -> list[tuple[str,type[WorkVariable]]]:
         """Returns a in-order list of argument name and their type"""
         if not command_name in cls.commands:
             raise NameError(f"Unable to find a command with the name {command_name}")
