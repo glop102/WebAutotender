@@ -41,6 +41,12 @@ class WorkVariable:
 
     def __str__(self)->str:
         return f"{self.__class__.__name__}({self.value})"
+    
+    def json_savable(self)->dict:
+        return {'value':self.value,'typename':self.typename}
+    def json_loadable(self,data:dict)->None:
+        self.value = data['value']
+        self.typename = data['typename']
 
 class String(WorkVariable):
     value:str

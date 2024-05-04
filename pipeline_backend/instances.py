@@ -1,7 +1,7 @@
 # To break the circular dependencies with Workflow, we do this other import style along with the __future__ to allow delayed type checking so everything is imported before the checking happens
 from __future__ import annotations
 from datetime import datetime
-from copy import deepcopy
+from copy import deepcopy,copy
 import pipeline_backend.variables as variables
 import pipeline_backend.workflows as workflows
 
@@ -41,11 +41,7 @@ class Instance:
         return sss
 
     def get_associated_workflow(self) -> workflows.Workflow:
-        for w in workflows.global_workflows:
-            if w.name == self.workflow_name:
-                return w
-        raise ValueError(
-            f"Unable to find the associated workflow {self.workflow_name} for Instance {self.uuid}")
+        return workflows.Workflow.get_by_name(self.workflow_name)
 
     def log_line(self, line):
         """Will add a line to the log. This will add its own newline to the end of the line"""
@@ -77,6 +73,33 @@ class Instance:
             self.state = workflows.RunStates.Error
             return False
         return datetime.now() > self.next_processing_time
+    
+
+    def json_savable(self) -> dict:
+        data = {
+            'uuid': copy(self.uuid),
+            'workflow_name': copy(self.workflow_name),
+            'state': copy(self.state.name),
+            'processing_step': copy(self.processing_step),
+            'next_processing_time': self.next_processing_time.isoformat(),
+            'console_log': copy(self.console_log),
+            'variables': {}
+            }
+        for var_name in self.variables:
+            data['variables'][var_name] = self.variables[var_name].json_savable()
+        return data
+
+    def json_loadable(self, data: dict) -> None:
+        self.uuid = data['uuid']
+        self.workflow_name = data['workflow_name']
+        self.state = workflows.RunStates[data['state']]
+        self.processing_step = tuple(data['processing_step'])
+        self.next_processing_time = datetime.fromisoformat( data['next_processing_time'] )
+        self.console_log = data['console_log']
+        for var_name in data['variables']:
+            var = variables.WorkVariable()
+            var.json_loadable(data['variables'][var_name])
+            self.variables[var_name] = var
 
 
 global_instances: list[Instance] = []

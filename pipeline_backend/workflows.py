@@ -1,7 +1,7 @@
 # To break the circular dependencies with Instance, we do this other import style along with the __future__ to allow delayed type checking so everything is imported before the checking happens
 from __future__ import annotations
 from enum import Enum
-from copy import deepcopy
+from copy import deepcopy,copy
 from uuid import uuid4
 import pipeline_backend.variables as variables
 import pipeline_backend.instances as instances
@@ -25,6 +25,22 @@ class ProcessingStep:
         for var_name in self.variables:
             sss += f"\n    {var_name} = {self.variables[var_name]}"
         return sss
+    
+    def json_savable(self) -> dict:
+        data = {
+            'command_name': copy(self.command_name),
+            'variables': {}
+        }
+        for var_name in self.variables:
+            data['variables'][var_name] = self.variables[var_name].json_savable()
+        return data
+
+    def json_loadable(self, data: dict) -> None:
+        self.command_name = data['command_name']
+        for var_name in data['variables']:
+            var = variables.WorkVariable()
+            var.json_loadable(data['variables'][var_name])
+            self.variables[var_name] = var
 
 class Workflow:
     name: str
@@ -49,7 +65,7 @@ class Workflow:
         self.user_notes = ""
 
     def spawn_instance(self, setup_var_non_defaults: dict[str, variables.WorkVariable] = {}) -> instances.Instance:
-        """Create a new Instance with some variables. The setup variables are optional, and if not everything is specified, will be filled with defaults as setup in the workflow. This will add the Instance to the global_instances array."""
+        """Create a new Instance with some variables. The setup variables are optional, and if not everything is specified, will be filled with defaults as setup in the workflow."""
         #Note: Make sure Variables are a copy that we give to the instance, so the instance permuting does not change future workflow defaults
         new = instances.Instance()
         new.uuid = str(uuid4())
@@ -59,10 +75,13 @@ class Workflow:
         new.variables = deepcopy(self.setup_variables)
         for varname in setup_var_non_defaults:
             new.variables[varname] = deepcopy(setup_var_non_defaults[varname])
+
+        if self in global_workflows:
+            instances.global_instances.append(new)
         return new
 
     def __str__(self) -> str:
-        return f"Workflow {self.name} - {self.state.name}"
+        return f"Workflow \"{self.name}\" - {self.state.name}"
 
     def __repr__(self) -> str:
         sss = self.__str__()
@@ -72,6 +91,51 @@ class Workflow:
         for varname in self.setup_variables:
             sss += f"\n    S:{varname} = {self.setup_variables[varname]}"
         return sss
+    
+    def json_savable(self) -> dict:
+        data = {
+            'name': copy(self.name),
+            'state': copy(self.state.name),
+            'user_notes': copy(self.user_notes),
+            'constants': {},
+            'setup_variables': {},
+            'procedures': {}
+        }
+        for var_name in self.constants:
+            data['constants'][var_name] = self.constants[var_name].json_savable()
+        for var_name in self.setup_variables:
+            data['setup_variables'][var_name] = self.setup_variables[var_name].json_savable()
+        for proc_name in self.procedures:
+            data['procedures'][proc_name] = [proc_step.json_savable() for proc_step in self.procedures[proc_name] ]
+        return data
+
+    def json_loadable(self, data: dict) -> None:
+        self.name = data['name']
+        self.state = RunStates[data['state']]
+        self.user_notes = data['user_notes']
+        for var_name in data['constants']:
+            var = variables.WorkVariable()
+            var.json_loadable(data['constants'][var_name])
+            self.constants[var_name] = var
+        for var_name in data['setup_variables']:
+            var = variables.WorkVariable()
+            var.json_loadable(data['setup_variables'][var_name])
+            self.setup_variables[var_name] = var
+        for proc_name in data['procedures']:
+            proc_steps:list[ProcessingStep] = []
+            for step_data in data['procedures'][proc_name]:
+                step = ProcessingStep()
+                step.json_loadable(step_data)
+                proc_steps.append(step)
+            self.procedures[proc_name] = proc_steps
+    
+    @classmethod
+    def get_by_name(cls,workflow_name:str)->Workflow:
+        for w in global_workflows:
+            if w.name == workflow_name:
+                return w
+        raise ValueError(
+            f"Unable to find the associated workflow {workflow_name}")
     
 # =====================================================================================
 # Tracking available items

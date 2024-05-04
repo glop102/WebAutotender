@@ -35,22 +35,6 @@ test_var.value = 10.0
 test_workflow.setup_variables["Loop Delay"] = test_var
 
 
-# Lets make the workflow go like this:
-# start:
-# - first make a loop counter variable with a value of 0
-# - divert to the main loop step of the procedure to actually loop
-# main loop:
-# - print debug message - TODO Make a log utility so an instance can be debugged without putting status information into variables. Runtime only lifetime, so not serialized.
-# - check if loop counter is equal to the loop iterations
-#   - if equal, goto loop end
-# - yield for loop delay time
-# - divert to main_loop
-# loop end:
-# - print constant string of "Done Looping!"
-# - delete this instance
-# Note: make sure to have it gracefully handle going to a step that does not exist and then simply pausing the instance.
-# Might want to make it delete itself by default? But could be nice to have it pause and wait for reading logs to debug if it is going somewhere weird.
-
 test_instance = test_workflow.spawn_instance()
 
 @Commands.register_command
@@ -83,6 +67,54 @@ if CommandReturnStatus.Error == proc_runner.run_single_step():
 if CommandReturnStatus.Error == proc_runner.run_instance_until_yield():
     print("Correctly did return an error status after the throw. Printing the instance console log now")
 
-print("\n\nPrinting the console log")
-print(test_instance.console_log)
 assert (test_instance.state == RunStates.Error)
+
+
+# TODO
+# persistence save/load functions
+# Something that is the main background process
+# - some setup of loading the persistent data
+# - loading some addons by including all sub-folders with __init__.py files in builtin_addons and user_addons
+# - mainloop() that makes a background thread or something and just starts processing away with appropriate long waits until the next due date
+# fastapi
+# - start the basic endpoints to read the workflows and instances, including all and by name/uuid
+# - endpoint to add new workflows
+# - endpoint to spawn new instances of a workflow
+# - endpoints to modify workflows and instances
+# web frontend : who knows
+
+
+# Lets make the workflow go like this:
+# start:
+# - first make a loop counter variable with a value of 0
+# - divert to the main loop step of the procedure to actually loop
+# main loop:
+# - print debug message - TODO Make a log utility so an instance can be debugged without putting status information into variables. Runtime only lifetime, so not serialized.
+# - check if loop counter is equal to the loop iterations
+#   - if equal, goto loop end
+# - yield for loop delay time
+# - divert to main_loop
+# loop end:
+# - print constant string of "Done Looping!"
+# - delete this instance
+
+# import json
+# test_json = json.dumps(test_instance.json_savable(),indent=4)
+# print(test_json)
+# test_another_instance = Instance()
+# test_another_instance.json_loadable(json.loads(test_json))
+# print(test_another_instance.__repr__())
+
+# print("\n\n")
+# print(test_workflow.__repr__())
+# test_json = json.dumps(test_workflow.json_savable(), indent=4)
+# print(test_json)
+# test_another_workflow = Workflow()
+# test_another_workflow.json_loadable(json.loads(test_json))
+# print(test_another_workflow.__repr__())
+
+save_pipeline_global_state_to_file("test_data.json")
+load_pipeline_global_state_from_file("test_data.json")
+
+for w in global_workflows: print(w.__repr__())
+for i in global_instances: print(i.__repr__())
