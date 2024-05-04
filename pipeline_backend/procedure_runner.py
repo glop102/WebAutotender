@@ -82,9 +82,11 @@ class ProcedureRunner:
             # Common case of giving a variable name but really we are wanting to pass the value of a variable
             # TODO - Have it recursivly look up variable references until getting a concrete type
             if given_var.__class__ == VariableName:
-                print(f"var_name {var_name} - dereferencing")
-                variables_for_command.append(self.instance[given_var.value])
-                continue
+                given_var = self.instance[given_var.value]
+                # If it is the same type, then we are good, otherwise let it continue which will try to convert it
+                if req_type == given_var.__class__:
+                    variables_for_command.append(deepcopy(given_var))
+                    continue
             # A Convenience case of type coercion - try to convert it to the requested type and pray that it works
             converted_var = deepcopy(given_var)
             converted_var.__class__ = req_type
