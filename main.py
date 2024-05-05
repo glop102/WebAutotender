@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from pipeline_backend import *
+from time import sleep
 
 test_workflow = Workflow()
 test_workflow.name = "Test Workflow"
@@ -23,10 +24,13 @@ test_procstep = ProcessingStep()
 test_procstep.command_name = "delete_this_instance"
 test_workflow.procedures["start"].append(test_procstep)
 
-proc_runner = ProcedureRunner(test_instance)
-proc_runner.run_instance_until_yield()
+manager = PipelineManager()
+manager.start()
+sleep(1)
 print(test_instance.console_log)
 print()
+manager.keep_running = False
+manager.join()
 
 # TODO
 # fastapi

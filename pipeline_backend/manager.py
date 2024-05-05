@@ -35,7 +35,7 @@ class PipelineManager(Thread):
         while self.keep_running:
             next_due_time = self.run_due_instances()
             current_time = datetime.now()
-            minimum_next_due_time = current_time + timedelta(seconds=15)
+            minimum_next_due_time = current_time + timedelta(seconds=5)
             if next_due_time == None or next_due_time < minimum_next_due_time:
                 next_due_time = minimum_next_due_time
 
