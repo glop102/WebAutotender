@@ -26,11 +26,9 @@ test_workflow.procedures["start"].append(test_procstep)
 
 manager = PipelineManager()
 manager.start()
-sleep(1)
-print(test_instance.console_log)
-print()
-manager.keep_running = False
+manager.stop()
 manager.join()
+print(test_instance.console_log)
 
 # TODO
 # fastapi

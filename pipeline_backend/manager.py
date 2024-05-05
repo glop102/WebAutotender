@@ -1,4 +1,4 @@
-from threading import Thread
+from threading import Thread, Event
 from datetime import datetime,timedelta
 from time import sleep
 from .instances import *
@@ -9,9 +9,11 @@ from .persistence import *
 
 class PipelineManager(Thread):
     keep_running:bool
+    something_happened:Event
     def __init__(self) -> None:
         super().__init__()
         self.keep_running = True
+        self.something_happened = Event()
     def restore_state(self,filename:str="pipeline_state.json"):
         load_pipeline_global_state_from_file(filename)
     def save_state(self, filename: str = "pipeline_state.json"):
@@ -33,12 +35,20 @@ class PipelineManager(Thread):
 
     def run(self):
         while self.keep_running:
+            self.something_happened.clear()
+            
             next_due_time = self.run_due_instances()
+            if next_due_time == None:
+                self.something_happened.wait()
+                continue
+        
             current_time = datetime.now()
-            minimum_next_due_time = current_time + timedelta(seconds=5)
-            if next_due_time == None or next_due_time < minimum_next_due_time:
+            minimum_next_due_time = current_time + timedelta(seconds=15)
+            if next_due_time < minimum_next_due_time:
                 next_due_time = minimum_next_due_time
-
-            #we check here instead of just the loop conditional so we can skip a sleep if the flag was changed during instances processing
-            if not self.keep_running: break
-            sleep((next_due_time-current_time).total_seconds())
+            self.something_happened.wait((next_due_time-current_time).total_seconds())
+    def notify_of_something_happening(self):
+        self.something_happened.set()
+    def stop(self):
+        self.keep_running = False
+        self.notify_of_something_happening()
