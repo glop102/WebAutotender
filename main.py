@@ -31,6 +31,8 @@ manager.join()
 print(test_instance.console_log)
 
 # TODO
+# the test workflow and any other basic commands I can think of
+# module importing of addons for things like the torrent commands
 # fastapi
 # - shutdown event triggers the background process to save
 # - start the basic endpoints to read the workflows and instances, including all and by name/uuid
