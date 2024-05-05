@@ -68,11 +68,13 @@ class Instance:
             raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_name}/{self.uuid}")
         del self.variables[var_name]
 
-    def past_time_to_run(self) -> bool:
+    def past_time_to_run(self,current_time:datetime=None) -> bool:
         if not self.next_processing_time:
             self.state = workflows.RunStates.Error
             return False
-        return datetime.now() > self.next_processing_time
+        if not current_time:
+            current_time = datetime.now()
+        return current_time > self.next_processing_time
     
 
     def json_savable(self) -> dict:
@@ -100,6 +102,14 @@ class Instance:
             var = variables.WorkVariable()
             var.json_loadable(data['variables'][var_name])
             self.variables[var_name] = var
+
+    @classmethod
+    def get_by_uuid(cls, instance_uuid: str) -> Instance:
+        for i in global_instances:
+            if i.uuid == instance_uuid:
+                return i
+        raise ValueError(
+            f"Unable to find the instance {instance_uuid}")
 
 
 global_instances: list[Instance] = []

@@ -65,13 +65,13 @@ class Workflow:
         self.user_notes = ""
 
     def spawn_instance(self, setup_var_non_defaults: dict[str, variables.WorkVariable] = {}) -> instances.Instance:
-        """Create a new Instance with some variables. The setup variables are optional, and if not everything is specified, will be filled with defaults as setup in the workflow."""
+        """Create a new Instance with some variables. The setup variables are optional, and if not everything is specified, will be filled with defaults as setup in the workflow. Can also be used to shadow values that are constants in the parent workflow."""
         #Note: Make sure Variables are a copy that we give to the instance, so the instance permuting does not change future workflow defaults
         new = instances.Instance()
         new.uuid = str(uuid4())
         new.workflow_name = str(self.name)
 
-        # Start with all defaults and then apply overrides - technically wastes making extra copies taht are thrown away, but we should not be copying all the much
+        # Start with all defaults and then apply overrides - technically wastes making extra copies that are thrown away, but we should not be copying all the much
         new.variables = deepcopy(self.setup_variables)
         for varname in setup_var_non_defaults:
             new.variables[varname] = deepcopy(setup_var_non_defaults[varname])

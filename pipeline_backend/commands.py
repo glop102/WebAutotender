@@ -49,8 +49,3 @@ class Commands:
         if not command_name in cls.commands:
             raise KeyError(f"Unable to find {command_name} in the list of available commands")
         return cls.commands[command_name]
-
-
-# And now some default commands that we will need for any of the basics of processing
-# This is not a preliminary testing of a addon system, just a way to get some things into the commands list
-# Probably will want to move these into a builtin-addons folder or something.

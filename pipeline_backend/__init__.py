@@ -1,5 +1,6 @@
 from .procedure_runner import *
 from .persistence import *
+from .manager import *
 
 """
 Generally the hierarchy so far

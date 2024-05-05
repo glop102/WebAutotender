@@ -20,20 +20,10 @@ from pipeline_backend import *
 test_workflow = Workflow()
 test_workflow.name = "Test Workflow"
 global_workflows.append(test_workflow)
-test_var: WorkVariable
 
-test_var = Integer()
-test_var.value = 6
-test_workflow.constants["Loop Iterations"] = test_var
-
-test_var = String()
-test_var.value = "This is a debug message."
-test_workflow.setup_variables["Debug Message Echo"] = test_var
-
-test_var = Float()
-test_var.value = 10.0
-test_workflow.setup_variables["Loop Delay"] = test_var
-
+test_workflow.constants["Loop Iterations"] = Integer(6)
+test_workflow.setup_variables["Debug Message Echo"] = String("This is a debug message.")
+test_workflow.setup_variables["Loop Delay"] = Float(10.0)
 
 test_instance = test_workflow.spawn_instance()
 
@@ -71,12 +61,12 @@ assert (test_instance.state == RunStates.Error)
 
 
 # TODO
-# persistence save/load functions
 # Something that is the main background process
 # - some setup of loading the persistent data
 # - loading some addons by including all sub-folders with __init__.py files in builtin_addons and user_addons
 # - mainloop() that makes a background thread or something and just starts processing away with appropriate long waits until the next due date
 # fastapi
+# - shutdown event triggers the background process to save
 # - start the basic endpoints to read the workflows and instances, including all and by name/uuid
 # - endpoint to add new workflows
 # - endpoint to spawn new instances of a workflow
@@ -89,7 +79,7 @@ assert (test_instance.state == RunStates.Error)
 # - first make a loop counter variable with a value of 0
 # - divert to the main loop step of the procedure to actually loop
 # main loop:
-# - print debug message - TODO Make a log utility so an instance can be debugged without putting status information into variables. Runtime only lifetime, so not serialized.
+# - print debug message
 # - check if loop counter is equal to the loop iterations
 #   - if equal, goto loop end
 # - yield for loop delay time
@@ -118,3 +108,9 @@ load_pipeline_global_state_from_file("test_data.json")
 
 for w in global_workflows: print(w.__repr__())
 for i in global_instances: print(i.__repr__())
+
+# from fastapi import FastAPI
+# import uvicorn
+# app = FastAPI()
+# uvicorn.run(app, port=6778)
+#TODO - finally statement or something to have the pipeline manager stop running and save its state

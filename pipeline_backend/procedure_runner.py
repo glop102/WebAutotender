@@ -15,17 +15,6 @@ from .workflows import *
 # Important Programmer Note : deepcopy variables that go into the funtion to prevent
 # unintended sideeffects of changing the Constants of the ProcessingStep or values
 # of the Instance variables when just naivly using the values in an addon
-#
-# Some built in commands that we will need to have
-# yield_for(time)
-# yield_until(time)
-# delete_this_instance()
-# make_new_instance(arg_list)
-# goto_if_equal/notequal/greaterthan/lessthan(var1,var2,destination_precedure_name)
-# set_variable(var_name,value_expression)
-# error(message)
-# regex(expression,value,destination_var)
-# string_builder(stringlist_commands,destination_var) - takes in strings and combines it together with some operations on segments like leftpad() so we can get a complicated string built up
 
 
 class ProcedureRunner:
@@ -79,6 +68,12 @@ class ProcedureRunner:
             if req_type == given_var.__class__:
                 variables_for_command.append(deepcopy(given_var))
                 continue
+            # Weird Case of wanting to accept anything
+            # Honestly not sure if I want to allow this potential can of worms. It is like having a void pointer!
+            if req_type == WorkVariable:
+                variables_for_command.append(deepcopy(given_var))
+                continue
+
             # Common case of giving a variable name but really we are wanting to pass the value of a variable
             # TODO - Have it recursivly look up variable references until getting a concrete type
             if given_var.__class__ == VariableName:
@@ -90,7 +85,9 @@ class ProcedureRunner:
             # A Convenience case of type coercion - try to convert it to the requested type and pray that it works
             converted_var = deepcopy(given_var)
             converted_var.__class__ = req_type
-            converted_var.normalize()
+            try:
+                converted_var.normalize()
+            except: pass # error handling for this failure is done in the following else
             if converted_var.is_valid():
                 variables_for_command.append(converted_var)
             else:
