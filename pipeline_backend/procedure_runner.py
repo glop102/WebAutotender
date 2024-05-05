@@ -102,7 +102,7 @@ class ProcedureRunner:
             command_finish_state:CommandReturnStatus = command(*variables_for_command)
         except Exception as e:
             self.instance.state = RunStates.Error
-            self.instance.log_line(f"\nError: Exception thrown by the command {proc_step.command_name} in instance {self.workflow.name}/{self.instance.uuid}")
+            self.instance.log_line(f"\nError: Exception thrown by the command {proc_step.command_name} in instance:")
             self.instance.log_line(self.instance.__repr__())
             self.instance.log_line(traceback.format_exc())
             return CommandReturnStatus.Error

@@ -33,8 +33,8 @@ class Commands:
         # Make sure they are only ever asking for types that are WorkVariable types
         if len(function_arguments) > 1:
             for arg_name in function_arguments[1:]:
-                if not sig.parameters[arg_name].annotation in WorkVariable.__subclasses__():
-                    raise TypeError("Commands for processing must only accept WorkVariable classes")
+                if not sig.parameters[arg_name].annotation in WorkVariable.__subclasses__() and not sig.parameters[arg_name].annotation == WorkVariable:
+                    raise TypeError(f"Commands for processing must only accept WorkVariable classes. Instead of {sig.parameters[arg_name].annotation}")
                 
         # Make sure that it returns a valid type for telling us if it succedded or failed or whatnot
         if not sig.return_annotation == CommandReturnStatus:

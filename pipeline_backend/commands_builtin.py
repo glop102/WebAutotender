@@ -50,12 +50,12 @@ def make_new_instance(instance: Instance, workflow_name:String, setup_vars:Dicti
 
 @Commands.register_command
 def log(instance: Instance, msg: String) -> CommandReturnStatus:
-    instance.log_line(msg)
+    instance.log_line(msg.value)
     return CommandReturnStatus.Success
 
 @Commands.register_command
 def error(instance: Instance, msg: String) -> CommandReturnStatus:
-    instance.log_line(msg)
+    instance.log_line(msg.value)
     return CommandReturnStatus.Error
 
 # TODO - Have string formatting versions so it can print variables and whatnot inbetween
