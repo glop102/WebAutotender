@@ -59,9 +59,9 @@ class ProcedureRunner:
         if type(command_finish_state) != CommandReturnStatus:
             return self.__mark_error(f"Error: Command {proc_step.command_name} returned a value that is not a CommandReturnStatus but instead a {type(command_finish_state)}")
         match(command_finish_state):
-            case CommandReturnStatus.Error:
+            case x if CommandReturnStatus.Error in x:
                 self.instance.state = RunStates.Error
-            case CommandReturnStatus.Yield | CommandReturnStatus.Success:
+            case x if CommandReturnStatus.Yield in x or CommandReturnStatus.Success in x:
                 if not CommandReturnStatus.Keep_Position in command_finish_state:
                     self.instance.processing_step = (proc_name,step_idx+1)
             case _:

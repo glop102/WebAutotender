@@ -90,6 +90,8 @@ class Workflow:
             sss += f"\n    C:{varname} = {self.constants[varname]}"
         for varname in self.setup_variables:
             sss += f"\n    S:{varname} = {self.setup_variables[varname]}"
+        for proc_name in self.procedures:
+            sss += f"\n    Proc: {proc_name} - {len(self.procedures[proc_name])}"
         return sss
     
     def json_savable(self) -> dict:

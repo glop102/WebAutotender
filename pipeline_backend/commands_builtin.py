@@ -6,7 +6,6 @@ from datetime import datetime,timedelta
 import re
 
 # Some built in commands that we will need to have
-# goto_if_equal/notequal/greaterthan/lessthan(var1,var2,destination_precedure_name)
 # string_builder(stringlist_commands,destination_var) - takes in strings and combines it together with some operations on segments like leftpad() so we can get a complicated string built up
 
 # TODO! Have a doc string with all of these commands and then also have the commands registry have a function to pull those doc strings to serve as hints or instructions that get sent to the UI
@@ -17,7 +16,12 @@ import re
 # ====================================================================
 
 @Commands.register_command
-def yield_for_minutes(instance:Instance,num_minutes:Integer)->CommandReturnStatus:
+def yield_for_seconds(instance:Instance,num_seconds:Integer|Float)->CommandReturnStatus:
+    instance.next_processing_time = datetime.now() + timedelta(seconds=num_seconds.value)
+    return CommandReturnStatus.Yield
+
+@Commands.register_command
+def yield_for_minutes(instance:Instance,num_minutes:Integer|Float)->CommandReturnStatus:
     instance.next_processing_time = datetime.now() + timedelta(minutes=num_minutes.value)
     return CommandReturnStatus.Yield
 
@@ -44,6 +48,11 @@ def make_new_instance(instance: Instance, workflow_name:String, setup_vars:Dicti
     workflow.spawn_instance(setup_vars.value)
     return CommandReturnStatus.Success
 
+@Commands.register_command
+def pause_this_instance(instance: Instance) -> CommandReturnStatus:
+    instance.state = RunStates.Paused
+    return CommandReturnStatus.Yield
+
 # ====================================================================
 # Logging and Messages
 # ====================================================================
@@ -68,7 +77,7 @@ def error(instance: Instance, msg: String) -> CommandReturnStatus:
 @Commands.register_command
 def jump_to_procedure(instance: Instance, procedure_name: String) -> CommandReturnStatus:
     workflow = instance.get_associated_workflow()
-    if not procedure_name in workflow.procedures:
+    if not procedure_name.value in workflow.procedures:
         instance.log_line(f"Error: Cannot jump to the procedure {procedure_name} because it does not exist in the workflow {instance.workflow_name}")
         return CommandReturnStatus.Error
     instance.processing_step = (procedure_name.value,0)
@@ -109,6 +118,34 @@ def goto_if_first_larger(instance: Instance, procedure_name: String, value1: Int
     if value1.value > value2.value:
         return jump_to_procedure(instance, procedure_name)
 
+    return CommandReturnStatus.Success
+
+# ====================================================================
+# Basic Math
+# ====================================================================
+
+@Commands.register_command
+def math_add(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+    first.value += second.value
+    instance[output_variable] = first
+    return CommandReturnStatus.Success
+
+@Commands.register_command
+def math_subtract(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+    first.value -= second.value
+    instance[output_variable] = first
+    return CommandReturnStatus.Success
+
+@Commands.register_command
+def math_multiply(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+    first.value *= second.value
+    instance[output_variable] = first
+    return CommandReturnStatus.Success
+
+@Commands.register_command
+def math_divide(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+    first.value /= second.value
+    instance[output_variable] = first
     return CommandReturnStatus.Success
 
 # ====================================================================

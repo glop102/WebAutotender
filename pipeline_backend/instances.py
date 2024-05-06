@@ -47,8 +47,10 @@ class Instance:
         """Will add a line to the log. This will add its own newline to the end of the line"""
         self.console_log += line+"\n"
 
-    def __getitem__(self, var_name: str) -> variables.WorkVariable:
+    def __getitem__(self, var_name: str|variables.VariableName) -> variables.WorkVariable:
         """Get the value of the variable of the given name. Will throw a KeyError if it cannot find the variable. This handles the complication of searching the associated workflow as well."""
+        if type(var_name) == variables.VariableName:
+            var_name = var_name.value
         if var_name in self.variables:
             return deepcopy(self.variables[var_name])
         w:workflows.Workflow = self.get_associated_workflow()
@@ -60,10 +62,14 @@ class Instance:
             return deepcopy(variables.global_variables[var_name])
         raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_name}/{self.uuid}")
 
-    def __setitem__(self, var_name: str, value: variables.WorkVariable) -> None:
+    def __setitem__(self, var_name: str|variables.VariableName, value: variables.WorkVariable) -> None:
+        if type(var_name) == variables.VariableName:
+            var_name = var_name.value
         self.variables[var_name] = deepcopy(value)
     
-    def __delitem__(self,var_name:str) -> None:
+    def __delitem__(self,var_name:str|variables.VariableName) -> None:
+        if type(var_name) == variables.VariableName:
+            var_name = var_name.value
         if not var_name in self.variables:
             raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_name}/{self.uuid}")
         del self.variables[var_name]
