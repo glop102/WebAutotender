@@ -15,9 +15,11 @@ class RunStates(Enum):
 class ProcessingStep:
     command_name: str
     variables: dict[str, variables.WorkVariable]
-    def __init__(self)->None:
-        self.command_name = ""
-        self.variables = {}
+    def __init__(self,command_name:str="",**kwargs)->None:
+        self.command_name = command_name
+        for vals in kwargs.values():
+            assert(issubclass(vals.__class__,variables.WorkVariable))
+        self.variables = kwargs
     def __str__(self) -> str:
         return f"ProcessingStep - {self.command_name} - {len(self.variables)} variables"
     def __repr__(self)->str:

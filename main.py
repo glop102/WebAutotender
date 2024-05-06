@@ -13,60 +13,53 @@ test_workflow.setup_variables["Loop Delay"] = Float(5.0)
 test_instance = test_workflow.spawn_instance()
 
 test_workflow.procedures["start"] = []
-test_procstep = ProcessingStep()
-test_procstep.command_name = "set_variable_value"
-test_procstep.variables["variable_name"] = VariableName("Loop Counter")
-test_procstep.variables["value"] = Integer(0)
-test_workflow.procedures["start"].append(test_procstep)
-
-test_procstep = ProcessingStep()
-test_procstep.command_name = "jump_to_procedure"
-test_procstep.variables["procedure_name"] = String("main loop")
-test_workflow.procedures["start"].append(test_procstep)
+test_workflow.procedures["start"].append(ProcessingStep(
+    "set_variable_value",
+    variable_name=VariableName("Loop Counter"),
+    value=Integer(0)
+    ))
+test_workflow.procedures["start"].append(ProcessingStep(
+    "jump_to_procedure",
+    procedure_name=String("main loop")
+    ))
 
 test_workflow.procedures["main loop"] = []
-test_procstep = ProcessingStep()
-test_procstep.command_name = "goto_if_equal"
-test_procstep.variables["procedure_name"] = String("cleanup")
-test_procstep.variables["value1"] = VariableName("Loop Counter")
-test_procstep.variables["value2"] = VariableName("Loop Iterations")
-test_workflow.procedures["main loop"].append(test_procstep)
-
-test_procstep = ProcessingStep()
-test_procstep.command_name = "log"
-test_procstep.variables["msg"] = String("Looping...")
-test_workflow.procedures["main loop"].append(test_procstep)
-
-test_procstep = ProcessingStep()
-test_procstep.command_name = "math_add"
-test_procstep.variables["output_variable"] = VariableName("Loop Counter")
-test_procstep.variables["first"] = VariableName("Loop Counter")
-test_procstep.variables["second"] = Integer(1)
-test_workflow.procedures["main loop"].append(test_procstep)
-
-test_procstep = ProcessingStep()
-test_procstep.command_name = "yield_for_seconds"
-test_procstep.variables["num_seconds"] = VariableName("Loop Delay")
-test_workflow.procedures["main loop"].append(test_procstep)
-
-test_procstep = ProcessingStep()
-test_procstep.command_name = "jump_to_procedure"
-test_procstep.variables["procedure_name"] = String("main loop")
-test_workflow.procedures["main loop"].append(test_procstep)
+test_workflow.procedures["main loop"].append(ProcessingStep(
+    "goto_if_equal",
+    procedure_name=String("cleanup"),
+    value1=VariableName("Loop Counter"),
+    value2=VariableName("Loop Iterations")
+    ))
+test_workflow.procedures["main loop"].append(ProcessingStep(
+    "log",
+    msg=String("Looping...")
+    ))
+test_workflow.procedures["main loop"].append(ProcessingStep(
+    "math_add",
+    output_variable=VariableName("Loop Counter"),
+    first=VariableName("Loop Counter"),
+    second=Integer(1)
+    ))
+test_workflow.procedures["main loop"].append(ProcessingStep(
+    "yield_for_seconds",
+    num_seconds=VariableName("Loop Delay")
+    ))
+test_workflow.procedures["main loop"].append(ProcessingStep(
+    "jump_to_procedure",
+    procedure_name=String("main loop")
+    ))
 
 test_workflow.procedures["cleanup"] = []
-test_procstep = ProcessingStep()
-test_procstep.command_name = "log"
-test_procstep.variables["msg"] = String("Loop Done!")
-test_workflow.procedures["cleanup"].append(test_procstep)
-
-test_procstep = ProcessingStep()
-test_procstep.command_name = "pause_this_instance"
-test_workflow.procedures["cleanup"].append(test_procstep)
-
-test_procstep = ProcessingStep()
-test_procstep.command_name = "delete_this_instance"
-test_workflow.procedures["cleanup"].append(test_procstep)
+test_workflow.procedures["cleanup"].append(ProcessingStep(
+    "log",
+    msg=String("Loop Done!")
+    ))
+test_workflow.procedures["cleanup"].append(ProcessingStep(
+    "pause_this_instance"
+    ))
+test_workflow.procedures["cleanup"].append(ProcessingStep(
+    "delete_this_instance"
+    ))
 
 manager = PipelineManager()
 manager.start()
