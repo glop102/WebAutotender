@@ -62,6 +62,18 @@ class WorkVariable:
         self.value = data['value']
         self.typename = data['typename']
 
+    def coerce_into_type(self,new_type:type[Self])->Self|None:
+        """Makes a copy of itself and attempt to coerce it into the new_type. Will return None if unsucsessful."""
+        converted_var = deepcopy(self)
+        converted_var.__class__ = new_type
+        try:
+            converted_var.normalize()
+        except:
+            return None
+        if converted_var.is_valid():
+            return converted_var
+        return None
+
 class String(WorkVariable):
     value:str
     def __init__(self, value: str | Self | None = None):

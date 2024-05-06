@@ -14,11 +14,20 @@ test_workflow.setup_variables["Loop Delay"] = Float(10.0)
 test_instance = test_workflow.spawn_instance()
 
 test_workflow.procedures["start"] = []
-for _ in range(10):
-    test_procstep = ProcessingStep()
-    test_procstep.command_name = "log"
-    test_procstep.variables["msg"] = VariableName("Debug Message Echo")
-    test_workflow.procedures["start"].append(test_procstep)
+test_procstep = ProcessingStep()
+test_procstep.command_name = "log"
+test_procstep.variables["msg"] = VariableName("Debug Message Echo")
+test_workflow.procedures["start"].append(test_procstep)
+
+@Commands.register_command
+def test_multi(instance:Instance,msg:String|Integer) -> CommandReturnStatus:
+    pipeline_backend.commands_builtin.log(instance,String(msg.value))
+    return CommandReturnStatus.Success
+
+test_procstep = ProcessingStep()
+test_procstep.command_name = "test_multi"
+test_procstep.variables["msg"] = VariableName("Debug Message Echo")
+test_workflow.procedures["start"].append(test_procstep)
 
 test_procstep = ProcessingStep()
 test_procstep.command_name = "delete_this_instance"
@@ -58,7 +67,7 @@ print(test_instance.console_log)
 
 
 
-print("Displaying all global Workflows and Instances")
+print("\nDisplaying all global Workflows and Instances")
 for w in global_workflows: print(w.__repr__())
 for i in global_instances: print(i.__repr__())
 

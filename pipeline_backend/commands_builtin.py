@@ -72,6 +72,43 @@ def jump_to_procedure(instance: Instance, procedure_name: String) -> CommandRetu
         instance.log_line(f"Error: Cannot jump to the procedure {procedure_name} because it does not exist in the workflow {instance.workflow_name}")
         return CommandReturnStatus.Error
     instance.processing_step = (procedure_name.value,0)
+    return CommandReturnStatus.Success | CommandReturnStatus.Keep_Position
+
+@Commands.register_command
+def goto_if_equal(instance: Instance, procedure_name: String, value1:WorkVariable, value2:WorkVariable) -> CommandReturnStatus:
+    while type(value1) == VariableName:
+        value1 = instance[value1.value]
+    while type(value2) == VariableName:
+        value2 = instance[value2.value]
+    
+    if type(value1) == type(value2) and value1.value == value2.value:
+        return jump_to_procedure(instance,procedure_name)
+    if str(value1.value) == str(value2.value):
+        return jump_to_procedure(instance, procedure_name)
+
+    # Nothing was equal so continue without jumping
+    return CommandReturnStatus.Success
+
+
+@Commands.register_command
+def goto_if_not_equal(instance: Instance, procedure_name: String, value1: WorkVariable, value2: WorkVariable) -> CommandReturnStatus:
+    while type(value1) == VariableName:
+        value1 = instance[value1.value]
+    while type(value2) == VariableName:
+        value2 = instance[value2.value]
+
+    if type(value1) == type(value2) and value1.value != value2.value:
+        return jump_to_procedure(instance, procedure_name)
+    if str(value1.value) != str(value2.value):
+        return jump_to_procedure(instance, procedure_name)
+
+    return CommandReturnStatus.Success
+
+@Commands.register_command
+def goto_if_first_larger(instance: Instance, procedure_name: String, value1: Integer|Float, value2: Integer|Float) -> CommandReturnStatus:
+    if value1.value > value2.value:
+        return jump_to_procedure(instance, procedure_name)
+
     return CommandReturnStatus.Success
 
 # ====================================================================
