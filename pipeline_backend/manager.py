@@ -50,8 +50,9 @@ class PipelineManager(Thread):
             else:
                 next_due_time = self.get_next_due_time()
                 self.something_happened.wait((next_due_time-datetime.now()).total_seconds())
-    def notify_of_something_happening(self):
-        self.something_happened.set()
+    @classmethod
+    def notify_of_something_happening(cls):
+        cls.something_happened.set()
     def stop(self):
         self.keep_running = False
         self.notify_of_something_happening()

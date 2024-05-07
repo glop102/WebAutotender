@@ -81,6 +81,9 @@ class Workflow:
         if self in global_workflows:
             instances.global_instances.append(new)
         return new
+    
+    def get_instances(self) -> list[instances.Instance]:
+        return [i for i in instances.global_instances if i.workflow_name == self.name]
 
     def __str__(self) -> str:
         return f"Workflow \"{self.name}\" - {self.state.name}"
