@@ -9,11 +9,10 @@ from .persistence import *
 
 class PipelineManager(Thread):
     keep_running:bool
-    something_happened:Event
+    something_happened: Event = Event() # Shared event to simplify the notify scheme
     def __init__(self) -> None:
         super().__init__()
         self.keep_running = True
-        self.something_happened = Event()
     def restore_state(self,filename:str="pipeline_state.json"):
         load_pipeline_global_state_from_file(filename)
     def save_state(self, filename: str = "pipeline_state.json"):

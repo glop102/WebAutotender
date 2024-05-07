@@ -45,6 +45,10 @@ def load_pipeline_global_state(state:str) -> None:
         global_variables[var_name] = var
 
 def load_pipeline_global_state_from_file(filepath: str) -> None:
-    f = open(filepath,"r")
+    try:
+        f = open(filepath,"r")
+    except FileNotFoundError:
+        print(f"Unable to open filepath {filepath} - skipping restoring state")
+        return
     load_pipeline_global_state(f.read())
     f.close()
