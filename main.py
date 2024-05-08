@@ -7,7 +7,6 @@ import pipeline_backend.fastpi_endpoints
 from time import sleep
 
 # TODO
-# module importing of addons for things like the torrent commands
 # web frontend - htmx
 # - static content endpoints - security check by path normalizing and making sure it is not outside the static directory
 #   - /index.html and / for the main initial html page
@@ -29,8 +28,12 @@ async def lifespan(app:FastAPI):
         prefix="/api"
         )
 
-    #TODO Module Loader for addons
-    #TODO Module Loader for addons also tries to load router modules
+    for module in manager.import_addons_from_folder("builtin_addons"):
+        if hasattr(module,"router"):
+            app.include_router(module.router)
+    for module in manager.import_addons_from_folder("user_addons"):
+        if hasattr(module, "router"):
+            app.include_router(module.router)
 
     yield
 

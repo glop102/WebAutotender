@@ -1,13 +1,18 @@
 <html>
     <head>
+        <script src="/js/htmx.1.9.12.min.js"></script>
         <script>
             function make_workflow_total_html_listing(workflow){
-                
+                return JSON.stringify(workflow,space=4);
             }
             function list_all_workflows(this) {
                 fetch("/api/workflows").then(function (response){
+                    container.innerHTML = "";
                     let workflows = JSON.parse(response);
                     let container = document.getElementById("workflow_list");
+                    for(let w of workflows){
+                        container.innerHTML += make_workflow_total_html_listing(w);
+                    }
                 })
             }
         </script>

@@ -1,11 +1,12 @@
 from threading import Thread, Event
 from datetime import datetime,timedelta
 from time import sleep
+import importlib.util
+import pathlib
 from .instances import *
 from .procedure_runner import *
 from .persistence import *
 
-# TODO - loading some addons by including all sub-folders with __init__.py files in builtin_addons and user_addons
 # TODO - Add in callbacks for certain events to enable things like websockets
 
 class PipelineManager(Thread):
@@ -57,3 +58,23 @@ class PipelineManager(Thread):
     def stop(self):
         self.keep_running = False
         self.notify_of_something_happening()
+
+    @classmethod
+    def import_addons_from_folder(cls,foldername:str) -> list:
+        """This will attempt to import all the folders in a folder in the assumption they are modules. This will let them run naturally and do things like register commands. It will return a list of these sucessfully imported modules."""
+        modules_parent = pathlib.Path(foldername)
+        if not modules_parent.exists():
+            print(f"Unable to find the location {foldername}")
+            return []
+        succesful_modules = []
+        for module_path in modules_parent.iterdir():
+            if not module_path.is_dir(): continue
+            try:
+                spec = importlib.util.spec_from_file_location("module.name", module_path.as_posix()+"/__init__.py")
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+            except Exception as e:
+                print(traceback.format_exc())
+                continue
+            succesful_modules.append(module)
+        return succesful_modules
