@@ -28,6 +28,9 @@ async def lifespan(app:FastAPI):
         prefix="/api"
         )
 
+    #TODO Module Loader for addons
+    #TODO Module Loader for addons also tries to load router modules
+
     yield
 
     print("Shutting down Pipeline")
@@ -36,7 +39,3 @@ async def lifespan(app:FastAPI):
     manager.save_state()
 
 app = FastAPI(lifespan=lifespan)
-
-# import uvicorn
-# uvicorn.run(app, port=6778)
-#TODO - finally statement or something to have the pipeline manager stop running and save its state

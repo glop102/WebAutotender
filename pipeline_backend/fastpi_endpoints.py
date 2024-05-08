@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from .workflows import *
 from .instances import *
 from .variables import *
+from .commands import *
 from .manager import PipelineManager
 
 router = APIRouter()
@@ -161,3 +162,24 @@ async def create_global_var(var_name: str, data: dict):
     else:
         global_variables[var_name] = new_var
         return Response(status_code=status.HTTP_201_CREATED)
+
+# ===================================================================
+# Commands
+
+@router.get("/commands")
+async def get_all_command_details():
+    return Commands.json_savable_all_commands_with_args()
+
+@router.get("/commands/{command_name}")
+async def get_command_detail(command_name:str):
+    try:
+        return Commands.json_savable_command_information(command_name)
+    except:
+        return Response(status_code=status.HTTP_404_NOT_FOUND)
+
+# ===================================================================
+# Variable Types
+
+@router.get("/variable_types")
+async def get_all_variable_types():
+    return [cls.__name__ for cls in WorkVariable.__subclasses__()]

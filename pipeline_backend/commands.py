@@ -22,7 +22,9 @@ class Commands:
     commands:dict[str,Callable] = {}
     @classmethod
     def get_command_input_variables(cls, command_name: str) -> list[tuple[str, type[WorkVariable]|tuple[type[WorkVariable]]]]:
-        """Returns a in-order list of argument name and their type"""
+        """Returns a in-order list of argument name and their type."""
+        # Note to future me - do not change this from a list to a dict to reduce the type complexity. The list maintains order, the dict keys do not maintain order
+        # This was used in the ProcedureRunner to build an args list to pass to the command function, which is order dependent
         if not command_name in cls.commands:
             raise NameError(f"Unable to find a command with the name {command_name}")
         sig = signature(cls.commands[command_name])
@@ -73,3 +75,28 @@ class Commands:
         if not command_name in cls.commands:
             raise KeyError(f"Unable to find {command_name} in the list of available commands")
         return cls.commands[command_name]
+
+    @classmethod
+    def json_savable_all_commands_with_args(cls) -> dict:
+        coms_with_args = {}
+        for name in cls.commands:
+            coms_with_args[name] = cls.json_savable_command_information(name)
+        return coms_with_args
+    
+    @classmethod
+    def json_savable_command_information(cls,command_name:str) -> dict:
+        # TODO - Also pass back the doc string
+        args = cls.get_command_input_variables(command_name)
+        args_str = {}
+        for arg in args:
+            arg_name = arg[0]
+            arg_types = arg[1]
+            if type(arg_types) == tuple:
+                args_str[arg_name] = [vt.__name__ for vt in arg_types]
+            else:
+                args_str[arg_name] = arg_types.__name__
+        return {"arguments":args_str}
+
+    @classmethod
+    def json_savable_all_command_names(cls) -> list:
+        return [name for name in cls.commands]
