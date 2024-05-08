@@ -1,0 +1,1 @@
+Drop of clone your addons into this folder to keep them seperated from the built in addons.

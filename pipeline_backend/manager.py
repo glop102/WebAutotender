@@ -6,6 +6,7 @@ from .procedure_runner import *
 from .persistence import *
 
 # TODO - loading some addons by including all sub-folders with __init__.py files in builtin_addons and user_addons
+# TODO - Add in callbacks for certain events to enable things like websockets
 
 class PipelineManager(Thread):
     keep_running:bool

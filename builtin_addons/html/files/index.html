@@ -1,0 +1,19 @@
+<html>
+    <head>
+        <script>
+            function make_workflow_total_html_listing(workflow){
+                
+            }
+            function list_all_workflows(this) {
+                fetch("/api/workflows").then(function (response){
+                    let workflows = JSON.parse(response);
+                    let container = document.getElementById("workflow_list");
+                })
+            }
+        </script>
+    </head>
+    <body>
+        <button onclick="">Workflows Listing</button>
+        <div id="workflow_list"></div>
+    </body>
+</html>
