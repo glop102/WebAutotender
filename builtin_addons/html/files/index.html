@@ -3,22 +3,53 @@
         <script src="/js/htmx.1.9.12.min.js"></script>
         <script>
             function make_workflow_total_html_listing(workflow){
-                return JSON.stringify(workflow,space=4);
+                const template = document.querySelector("#template_workflow_details");
+                const clone = template.content.cloneNode(true);
+                clone.querySelector(".workflow_details_name").textContent = workflow.name;
+                clone.querySelector(".workflow_details_state").textContent = workflow.state;
+                clone.querySelector(".workflow_details_user_notes").textContent = workflow.user_notes;
+                return clone;
             }
-            function list_all_workflows(this) {
-                fetch("/api/workflows").then(function (response){
-                    container.innerHTML = "";
-                    let workflows = JSON.parse(response);
-                    let container = document.getElementById("workflow_list");
-                    for(let w of workflows){
-                        container.innerHTML += make_workflow_total_html_listing(w);
-                    }
-                })
+            async function list_all_workflows() {
+                const response = await fetch("/api/workflows");
+                const workflows = await response.json();
+                let container = document.getElementById("workflow_list");
+                container.innerHTML = "";
+                for(let w of workflows){
+                    container.appendChild( make_workflow_total_html_listing(w) );
+                }
+            }
+            function make_instance_total_html_listing(instance) {
+                return "<p>" + JSON.stringify(instance) + "</p>";
+            }
+            async function list_all_instances() {
+                const response = await fetch("/api/instances");
+                const instance = await response.json();
+                let container = document.getElementById("instance_list");
+                container.innerHTML = "";
+                for (let i of instance) {
+                    container.innerHTML += make_instance_total_html_listing(i);
+                }
             }
         </script>
+        <template id="template_workflow_details">
+            <div class="workflow_details">
+                <h1 class="workflow_details_name"></h1>
+                <p class="workflow_details_state"></p>
+                <p class="workflow_details_user_notes"></p>
+                <h2 class="workflow_details_section_title">Constants:</h2>
+                <div class="workflow_details_constents"></div>
+                <h2 class="workflow_details_section_title">SetupVariables:</h2>
+                <div class="workflow_details_setup_variables"></div>
+                <h2 class="workflow_details_section_title">Procedures:</h2>
+                <div class="workflow_details_procedures"></div>
+            </div>
+        </template>
     </head>
     <body>
-        <button onclick="">Workflows Listing</button>
+        <button onclick="list_all_workflows()">Workflows Listing</button>
         <div id="workflow_list"></div>
+        <button onclick="list_all_instances()">Instances Listing</button>
+        <div id="instance_list"></div>
     </body>
 </html>
