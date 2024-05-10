@@ -2,12 +2,49 @@
     <head>
         <script src="/js/htmx.1.9.12.min.js"></script>
         <script>
+            function make_command_html_listing(command_object){
+                const template = document.querySelector("#template_command_details");
+                const clone = template.content.cloneNode(true);
+                clone.querySelector(".command_details_name").textContent = command_object.command_name;
+                for(let v in command_object.variables){
+                    clone.querySelector(".command_details_variables").appendChild(make_variable_html_listing(v,command_object.variables[v]));
+                }
+                return clone;
+            }
+            function make_procedure_html_listing(proc_name,proc_array){
+                const template = document.querySelector("#template_procedure_details");
+                const clone = template.content.cloneNode(true);
+                clone.querySelector(".procedure_details_name").textContent = proc_name;
+                for(let com of proc_array){
+                    clone.querySelector(".procedure_details_commands").appendChild(make_command_html_listing(com));
+                }
+                return clone;
+            }
+            function make_variable_html_listing(variable_name,variable_object){
+                const template = document.querySelector("#template_variable_details");
+                const clone = template.content.cloneNode(true);
+                clone.querySelector(".variable_details_name").textContent = variable_name;
+                clone.querySelector(".variable_details_typename").textContent = variable_object.typename;
+                clone.querySelector(".variable_details_value").textContent = variable_object.value;
+                return clone;
+            }
             function make_workflow_total_html_listing(workflow){
+                console.log(workflow);
                 const template = document.querySelector("#template_workflow_details");
                 const clone = template.content.cloneNode(true);
                 clone.querySelector(".workflow_details_name").textContent = workflow.name;
                 clone.querySelector(".workflow_details_state").textContent = workflow.state;
                 clone.querySelector(".workflow_details_user_notes").textContent = workflow.user_notes;
+
+                for(let v in workflow.constants){
+                    clone.querySelector(".workflow_details_constants").appendChild(make_variable_html_listing(v,workflow.constants[v]));
+                }
+                for (let v in workflow.setup_variables) {
+                    clone.querySelector(".workflow_details_setup_variables").appendChild(make_variable_html_listing(v, workflow.setup_variables[v]));
+                }
+                for (let v in workflow.procedures) {
+                    clone.querySelector(".workflow_details_procedures").appendChild(make_procedure_html_listing(v, workflow.procedures[v]));
+                }
                 return clone;
             }
             async function list_all_workflows() {
@@ -38,11 +75,30 @@
                 <p class="workflow_details_state"></p>
                 <p class="workflow_details_user_notes"></p>
                 <h2 class="workflow_details_section_title">Constants:</h2>
-                <div class="workflow_details_constents"></div>
+                <div class="workflow_details_constants"></div>
                 <h2 class="workflow_details_section_title">SetupVariables:</h2>
                 <div class="workflow_details_setup_variables"></div>
                 <h2 class="workflow_details_section_title">Procedures:</h2>
                 <div class="workflow_details_procedures"></div>
+            </div>
+        </template>
+        <template id="template_variable_details">
+            <div class="variable_details_details">
+                <div class="variable_details_name"></div>
+                <div class="variable_details_typename"></div>
+                <div class="variable_details_value"></div>
+            </div>
+        </template>
+        <template id="template_procedure_details">
+            <div class="procedure_details">
+                <div class="procedure_details_name"></div>
+                <div class="procedure_details_commands"></div>
+            </div>
+        </template>
+        <template id="template_command_details">
+            <div class="command_details">
+                <div class="command_details_name"></div>
+                <div class="command_details_variables"></div>
             </div>
         </template>
     </head>
