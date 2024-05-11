@@ -7,7 +7,7 @@ from .instances import *
 from .procedure_runner import *
 from .persistence import *
 
-# TODO - Add in callbacks for certain events to enable things like websockets
+# TODO - Add in callbacks for certain events to enable things like websockets giving useful information
 
 class PipelineManager(Thread):
     keep_running:bool

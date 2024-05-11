@@ -29,7 +29,6 @@
                 return clone;
             }
             function make_workflow_total_html_listing(workflow){
-                console.log(workflow);
                 const template = document.querySelector("#template_workflow_details");
                 const clone = template.content.cloneNode(true);
                 clone.querySelector(".workflow_details_name").textContent = workflow.name;
@@ -57,7 +56,19 @@
                 }
             }
             function make_instance_total_html_listing(instance) {
-                return "<p>" + JSON.stringify(instance) + "</p>";
+                const template = document.querySelector("#template_instance_details");
+                const clone = template.content.cloneNode(true);
+                clone.querySelector(".instance_details_uuid").textContent = instance.uuid;
+                clone.querySelector(".instance_details_workflow_name").textContent = instance.workflow_name;
+                clone.querySelector(".instance_details_state").textContent = instance.state;
+                clone.querySelector(".instance_details_process_name").textContent = instance.processing_step[0];
+                clone.querySelector(".instance_details_process_step").textContent = instance.processing_step[1];
+                clone.querySelector(".instance_details_next_processing_time").textContent = instance.next_processing_time;
+                clone.querySelector(".instance_details_console_log").textContent = instance.console_log;
+                for(let v in instance.variables){
+                    clone.querySelector(".instance_details_variables").appendChild( make_variable_html_listing(v,instance.variables[v]) );
+                }
+                return clone;
             }
             async function list_all_instances() {
                 const response = await fetch("/api/instances");
@@ -65,7 +76,23 @@
                 let container = document.getElementById("instance_list");
                 container.innerHTML = "";
                 for (let i of instance) {
-                    container.innerHTML += make_instance_total_html_listing(i);
+                    container.appendChild( make_instance_total_html_listing(i) );
+                }
+            }
+            function collapsed_section_toggle(caller_node){
+                let section = caller_node.nextElementSibling;
+                while(section){
+                    if( section.classList.contains("collapsable") ){
+                        section.classList.remove("collapsable");
+                        section.classList.add("collapsable_disabled");
+                        return;
+                    }
+                    if( section.classList.contains("collapsable_disabled") ){
+                        section.classList.remove("collapsable_disabled");
+                        section.classList.add("collapsable");
+                        return;
+                    }
+                    section = section.nextElementSibling;
                 }
             }
         </script>
@@ -74,12 +101,13 @@
                 <h1 class="workflow_details_name"></h1>
                 <p class="workflow_details_state"></p>
                 <p class="workflow_details_user_notes"></p>
-                <h2 class="workflow_details_section_title">Constants:</h2>
-                <div class="workflow_details_constants"></div>
-                <h2 class="workflow_details_section_title">SetupVariables:</h2>
-                <div class="workflow_details_setup_variables"></div>
-                <h2 class="workflow_details_section_title">Procedures:</h2>
-                <div class="workflow_details_procedures"></div>
+                <button type="button" class="collapse_button" onclick="collapsed_section_toggle(this)"><h2 class="workflow_details_section_title">Constants:</h2></button>
+                <div class="workflow_details_constants collapsable"></div>
+                <button type="button" class="collapse_button" onclick="collapsed_section_toggle(this)"><h2 class="workflow_details_section_title">SetupVariables:</h2></button>
+                <div class="workflow_details_setup_variables collapsable"></div>
+                <button type="button" class="collapse_button" onclick="collapsed_section_toggle(this)"><h2 class="workflow_details_section_title">Procedures:</h2></button>
+                <div class="workflow_details_procedures collapsable"></div>
+                <div class="workflow_details_instances"></div>
             </div>
         </template>
         <template id="template_variable_details">
@@ -91,7 +119,7 @@
         </template>
         <template id="template_procedure_details">
             <div class="procedure_details">
-                <div class="procedure_details_name"></div>
+                <h3 class="procedure_details_name"></h3>
                 <div class="procedure_details_commands"></div>
             </div>
         </template>
@@ -101,6 +129,58 @@
                 <div class="command_details_variables"></div>
             </div>
         </template>
+        </template>
+        <template id="template_instance_details">
+            <div class="instance_details">
+                <button type="button" class="collapse_button" onclick="collapsed_section_toggle(this)"><h3 class="instance_details_section_title">Instance:</h3></button>
+                <div class="instance_details_uuid" style="display: none;"></div>
+                <div class="instance_details_workflow_name" style="display: none;"></div>
+                <div class="instance_details_next_processing_time"></div>
+                <div class="instance_details_state"></div>
+                <div class="collapsable">
+                    <div class="instance_details_process_name"></div>
+                    <div class="instance_details_process_step"></div>
+                    <div class="instance_details_console_log"></div>
+                    <div class="instance_details_variables"></div>
+                </div>
+            </div>
+        </template>
+        <style>
+            .variable_details_details
+            {
+                display: block;
+                border-left: solid 0.1em;
+                padding-left: 0.5em;
+                margin-left: 1em;
+            }
+            .procedure_details, .template_command_details, .instance_details
+            {
+                display: block;
+                border-left: solid 0.1em;
+                padding-left: 1em;
+                margin-bottom: 1em;
+            }
+            .variable_details_name, .variable_details_typename, .variable_details_value
+            {
+                display: inline-block;
+            }
+            .variable_details_typename
+            {
+                color:grey;
+            }
+            .workflow_details_constants, .workflow_details_setup_variables, .workflow_details_procedures{
+                padding-left: 1em;
+            }
+            .workflow_details_section_title, .workflow_details_name, .instance_details_section_title{
+                margin-top: 0;
+                margin-bottom: 0;
+                display: inline;
+            }
+            .collapsable{
+                display: none;
+                overflow: hidden;
+            }
+        </style>
     </head>
     <body>
         <button onclick="list_all_workflows()">Workflows Listing</button>

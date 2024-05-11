@@ -8,10 +8,6 @@ from time import sleep
 
 # TODO
 # web frontend - htmx
-# - static content endpoints - security check by path normalizing and making sure it is not outside the static directory
-#   - /index.html and / for the main initial html page
-#   - /js/{scriptname} for javascript files
-#   - /images/{imagename} for image files
 # - htmlapi endpoints for doing the same stuff as the json ones but without me needing to the templating in native javascript
 #   - still need to figure out how the submission process works for htmx
 # - websocket with Manager callbacks to let the UI know when to refresh certain elements
