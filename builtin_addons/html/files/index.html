@@ -15,8 +15,13 @@
                 const template = document.querySelector("#template_procedure_details");
                 const clone = template.content.cloneNode(true);
                 clone.querySelector(".procedure_details_name").textContent = proc_name;
+                let command_container = clone.querySelector(".procedure_details_commands");
                 for(let com of proc_array){
-                    clone.querySelector(".procedure_details_commands").appendChild(make_command_html_listing(com));
+                    let newnode = make_command_html_listing(com);
+                    if(command_container.childElementCount %2 == 1){
+                        newnode.querySelector(".command_details").classList.add("list_odd_item");
+                    }
+                    command_container.appendChild(newnode);
                 }
                 return clone;
             }
@@ -98,20 +103,20 @@
         </script>
         <template id="template_workflow_details">
             <div class="workflow_details">
-                <h1 class="workflow_details_name"></h1>
+                <div class="workflow_details_name"></div>
                 <p class="workflow_details_state"></p>
                 <p class="workflow_details_user_notes"></p>
-                <button type="button" class="collapse_button" onclick="collapsed_section_toggle(this)"><h2 class="workflow_details_section_title">Constants:</h2></button>
+                <button type="button" class="collapse_button workflow_details_section_title" onclick="collapsed_section_toggle(this)">Constants:</button>
                 <div class="workflow_details_constants collapsable"></div>
-                <button type="button" class="collapse_button" onclick="collapsed_section_toggle(this)"><h2 class="workflow_details_section_title">SetupVariables:</h2></button>
+                <button type="button" class="collapse_button workflow_details_section_title" onclick="collapsed_section_toggle(this)">SetupVariables:</button>
                 <div class="workflow_details_setup_variables collapsable"></div>
-                <button type="button" class="collapse_button" onclick="collapsed_section_toggle(this)"><h2 class="workflow_details_section_title">Procedures:</h2></button>
+                <button type="button" class="collapse_button workflow_details_section_title" onclick="collapsed_section_toggle(this)">Procedures:</button>
                 <div class="workflow_details_procedures collapsable"></div>
                 <div class="workflow_details_instances"></div>
             </div>
         </template>
         <template id="template_variable_details">
-            <div class="variable_details_details">
+            <div class="variable_details">
                 <div class="variable_details_name"></div>
                 <div class="variable_details_typename"></div>
                 <div class="variable_details_value"></div>
@@ -119,7 +124,7 @@
         </template>
         <template id="template_procedure_details">
             <div class="procedure_details">
-                <h3 class="procedure_details_name"></h3>
+                <div class="procedure_details_name"></div>
                 <div class="procedure_details_commands"></div>
             </div>
         </template>
@@ -132,7 +137,7 @@
         </template>
         <template id="template_instance_details">
             <div class="instance_details">
-                <button type="button" class="collapse_button" onclick="collapsed_section_toggle(this)"><h3 class="instance_details_section_title">Instance:</h3></button>
+                <button type="button" class="collapse_button instance_details_section_title" onclick="collapsed_section_toggle(this)">Instance:</button>
                 <div class="instance_details_uuid" style="display: none;"></div>
                 <div class="instance_details_workflow_name" style="display: none;"></div>
                 <div class="instance_details_next_processing_time"></div>
@@ -146,14 +151,38 @@
             </div>
         </template>
         <style>
-            .variable_details_details
+            .variable_details
             {
-                display: block;
-                border-left: solid 0.1em;
-                padding-left: 0.5em;
-                margin-left: 1em;
+                display: inline-block;
+                border: solid 0.1em;
+                padding: 0.5em;
+                margin: 0.25em;
+                border-radius: 1em;
             }
-            .procedure_details, .template_command_details, .instance_details
+
+
+            .command_details
+            {
+            }
+            .command_details_variables .command_details_name
+            {
+                display: inline-block;
+            }
+
+            .list_odd_item
+            {
+                background-color: lightgray;
+            }
+
+
+            .procedure_details
+            {
+                display: inline-block;
+                border-left: solid 0.1em;
+                padding-left: 1em;
+                margin-bottom: 1em;
+            }
+            .instance_details
             {
                 display: block;
                 border-left: solid 0.1em;
@@ -183,6 +212,7 @@
         </style>
     </head>
     <body>
+        <!-- <p hx-post="/htmx">Click Me</p> -->
         <button onclick="list_all_workflows()">Workflows Listing</button>
         <div id="workflow_list"></div>
         <button onclick="list_all_instances()">Instances Listing</button>
