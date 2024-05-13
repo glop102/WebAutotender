@@ -36,6 +36,7 @@
             function make_workflow_total_html_listing(workflow){
                 const template = document.querySelector("#template_workflow_details");
                 const clone = template.content.cloneNode(true);
+                clone.querySelector(".workflow_details").id = workflow.name;
                 clone.querySelector(".workflow_details_name").textContent = workflow.name;
                 clone.querySelector(".workflow_details_state").textContent = workflow.state;
                 clone.querySelector(".workflow_details_user_notes").textContent = workflow.user_notes;
@@ -60,9 +61,12 @@
                     container.appendChild( make_workflow_total_html_listing(w) );
                 }
             }
+
+
             function make_instance_total_html_listing(instance) {
                 const template = document.querySelector("#template_instance_details");
                 const clone = template.content.cloneNode(true);
+                clone.querySelector(".instance_details").id = instance.uuid;
                 clone.querySelector(".instance_details_uuid").textContent = instance.uuid;
                 clone.querySelector(".instance_details_workflow_name").textContent = instance.workflow_name;
                 clone.querySelector(".instance_details_state").textContent = instance.state;
@@ -78,12 +82,31 @@
             async function list_all_instances() {
                 const response = await fetch("/api/instances");
                 const instance = await response.json();
-                let container = document.getElementById("instance_list");
-                container.innerHTML = "";
+                let orphan_container = document.getElementById("orphan_instance_list");
+                orphan_container.innerHTML = "";
                 for (let i of instance) {
-                    container.appendChild( make_instance_total_html_listing(i) );
+                    let inode = make_instance_total_html_listing(i);
+                    let wnode = undefined;
+                    try{
+                        wnode = document.getElementById(i.workflow_name);
+                    } catch (e) {
+                        console.error(e);
+                    }
+                    if(!wnode){
+                        orphan_container.appendChild( inode );
+                    } else {
+                        wnode.getElementsByClassName("workflow_details_instances")[0].appendChild(inode);
+                    }
                 }
             }
+
+
+            async function refresh_total_page(){
+                await list_all_workflows();
+                list_all_instances();
+            }
+
+
             function collapsed_section_toggle(caller_node){
                 let section = caller_node.nextElementSibling;
                 while(section){
@@ -100,14 +123,18 @@
                     section = section.nextElementSibling;
                 }
             }
+
+
             window.addEventListener("load",()=>{
                 console.log("Load Setup");
                 // for( let x of document.getElementsByClassName("collapse_button") ){
                 //     console.log(x);
                 //     x.addEventListener("click",collapsed_section_toggle.bind(x));
                 // }
+                refresh_total_page()
             });
         </script>
+
         <template id="template_workflow_details">
             <div class="workflow_details">
                 <div class="workflow_details_name"></div>
@@ -125,26 +152,21 @@
                 <div class="workflow_details_instances"></div>
             </div>
         </template>
-        <template id="template_variable_details">
-            <div class="variable_details">
-                <div class="variable_details_name"></div>
-                <div class="variable_details_typename"></div>
-                <div class="variable_details_value"></div>
-            </div>
-        </template>
+
         <template id="template_procedure_details">
             <div class="procedure_details">
                 <div class="procedure_details_name"></div>
                 <div class="procedure_details_commands"></div>
             </div>
         </template>
+
         <template id="template_command_details">
             <div class="command_details">
                 <div class="command_details_name"></div>
                 <div class="command_details_variables"></div>
             </div>
         </template>
-        </template>
+
         <template id="template_instance_details">
             <div class="instance_details">
                 <button type="button" class="collapse_button instance_details_section_title" onclick="collapsed_section_toggle(this)">Instance:</button>
@@ -160,6 +182,15 @@
                 </div>
             </div>
         </template>
+
+        <template id="template_variable_details">
+            <div class="variable_details">
+                <div class="variable_details_name"></div>
+                <div class="variable_details_typename"></div>
+                <div class="variable_details_value"></div>
+            </div>
+        </template>
+
         <style>
             .variable_details
             {
@@ -213,7 +244,7 @@
                 border: solid 0.1em;
                 padding: 0.5em;
                 margin: 1em;
-                border-radius: 1em;
+                border-radius: 0em 1em 1em;
             }
 
             .workflow_details_constants, .workflow_details_setup_variables, .workflow_details_procedures{
@@ -232,9 +263,10 @@
     </head>
     <body>
         <!-- <p hx-post="/htmx">Click Me</p> -->
+        <div id="summary_status"></div>
         <button onclick="list_all_workflows()">Workflows Listing</button>
-        <div id="workflow_list"></div>
         <button onclick="list_all_instances()">Instances Listing</button>
-        <div id="instance_list"></div>
+        <div id="workflow_list"></div>
+        <div id="orphan_instance_list"></div>
     </body>
 </html>
