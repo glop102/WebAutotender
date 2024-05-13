@@ -61,6 +61,21 @@
                     container.appendChild( make_workflow_total_html_listing(w) );
                 }
             }
+            async function workflow_toggle_state(button){
+                let current_state = button.textContent;
+                let workflow_node = button.parentNode;
+                let name = workflow_node.querySelector(".workflow_details_name").textContent;
+
+                let uri_path = "/api/workflows/"+name;
+                if(current_state == "Running"){
+                    uri_path += "/pause";
+                }else{
+                    uri_path += "/unpause";
+                }
+                fetch(uri_path,{
+                    method: "POST"
+                }).then(refresh_total_page);
+            }
 
 
             function make_instance_total_html_listing(instance) {
@@ -74,6 +89,7 @@
                 clone.querySelector(".instance_details_process_step").textContent = instance.processing_step[1];
                 clone.querySelector(".instance_details_next_processing_time").textContent = instance.next_processing_time;
                 clone.querySelector(".instance_details_console_log").textContent = instance.console_log;
+                clone.querySelector(".instance_details_console_log_display").innerHTML = instance.console_log.replace(/\n/g,"<br>");
                 for(let v in instance.variables){
                     clone.querySelector(".instance_details_variables").appendChild( make_variable_html_listing(v,instance.variables[v]) );
                 }
@@ -98,6 +114,21 @@
                         wnode.getElementsByClassName("workflow_details_instances")[0].appendChild(inode);
                     }
                 }
+            }
+            async function instance_toggle_state(button){
+                let current_state = button.textContent;
+                let instance_node = button.parentNode;
+                let uuid = instance_node.querySelector(".instance_details_uuid").textContent;
+
+                let uri_path = "/api/instances/"+uuid;
+                if(current_state == "Running"){
+                    uri_path += "/pause";
+                }else{
+                    uri_path += "/unpause";
+                }
+                fetch(uri_path, {
+                    method: "POST"
+                }).then(refresh_total_page);
             }
 
 
@@ -131,14 +162,14 @@
                 //     console.log(x);
                 //     x.addEventListener("click",collapsed_section_toggle.bind(x));
                 // }
-                refresh_total_page()
+                refresh_total_page();
             });
         </script>
 
         <template id="template_workflow_details">
             <div class="workflow_details">
                 <div class="workflow_details_name"></div>
-                <p class="workflow_details_state"></p>
+                <button type="button" class="workflow_details_state" onclick="workflow_toggle_state(this)"></button>
                 <p class="workflow_details_user_notes"></p>
                 <button class="collapse_button" onclick="collapsed_section_toggle(this)">Details</button>
                 <div class="collapsable">
@@ -170,14 +201,15 @@
         <template id="template_instance_details">
             <div class="instance_details">
                 <button type="button" class="collapse_button instance_details_section_title" onclick="collapsed_section_toggle(this)">Instance:</button>
+                <button type="button" class="instance_details_state" onclick="instance_toggle_state(this)"></button>
                 <div class="instance_details_uuid" style="display: none;"></div>
                 <div class="instance_details_workflow_name" style="display: none;"></div>
                 <div class="instance_details_next_processing_time"></div>
-                <div class="instance_details_state"></div>
+                <div class="instance_details_console_log" style="display: none;"></div>
                 <div class="collapsable">
                     <div class="instance_details_process_name"></div>
                     <div class="instance_details_process_step"></div>
-                    <div class="instance_details_console_log"></div>
+                    <div class="instance_details_console_log_display"></div>
                     <div class="instance_details_variables"></div>
                 </div>
             </div>
@@ -218,25 +250,23 @@
                 border-radius: 1em; */
                 padding: 0.5em;
             }
-            .command_details_variables .command_details_name
+            .command_details_variables
             {
                 display: inline-block;
-            }
-
-            .list_odd_item
-            {
-                background-color: lightgray;
             }
 
 
             .procedure_details
             {
-                display: inline-block;
+                display: block;
                 border: solid 0.1em;
                 padding: 0.5em;
                 margin: 0.25em;
                 border-radius: 1em;
+                width: fit-content;
             }
+
+
 
             .instance_details
             {
@@ -246,6 +276,15 @@
                 margin: 1em;
                 border-radius: 0em 1em 1em;
             }
+            .instance_details_console_log_display
+            {
+                background-color: lightgray;
+            }
+            .instance_details_process_step, .instance_details_process_name, .instance_details_state
+            {
+                display: inline-block;
+            }
+
 
             .workflow_details_constants, .workflow_details_setup_variables, .workflow_details_procedures{
                 padding-left: 1em;
@@ -254,6 +293,12 @@
                 margin-top: 0;
                 margin-bottom: 0;
                 display: inline;
+            }
+
+
+            .list_odd_item
+            {
+                background-color: lightgray;
             }
             .collapsable{
                 display: none;
@@ -264,8 +309,7 @@
     <body>
         <!-- <p hx-post="/htmx">Click Me</p> -->
         <div id="summary_status"></div>
-        <button onclick="list_all_workflows()">Workflows Listing</button>
-        <button onclick="list_all_instances()">Instances Listing</button>
+        <button onclick="refresh_total_page()">Refresh</button>
         <div id="workflow_list"></div>
         <div id="orphan_instance_list"></div>
     </body>

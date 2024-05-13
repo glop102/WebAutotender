@@ -7,6 +7,17 @@ from fastapi.responses import HTMLResponse
 
 import pipeline_backend
 
+"""
+TODO
+- summary status at the top of the page with some sort of info
+- instances have variable pinning to give some differentiating information that is useful
+- editing popups
+- buttons for pausing/running an instance
+  - and to force an instance to run right away
+- realtime updates from callbacks of the pipeline manager over a websocket for updating the page
+- when hovering over a processing step in an instance, highlight the process and step of the process in the workflow details
+"""
+
 root_file_folder = pathlib.Path(__file__).absolute().parent / "files"
 
 router = APIRouter()

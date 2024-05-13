@@ -53,7 +53,8 @@ async def spawn_instance_of_workflow(workflow_name: str, setup_variables:dict):
             setup_variables[arg_name] = arg_data
     except:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
-    JSONResponse(w.spawn_instance(setup_variables).json_savable(), status_code=status.HTTP_201_CREATED)
+    PipelineManager.notify_of_something_happening()
+    return JSONResponse(w.spawn_instance(setup_variables).json_savable(), status_code=status.HTTP_201_CREATED)
 
 @router.get("/workflows/{workflow_name}/instances")
 async def get_workflow_instances(workflow_name: str):
@@ -62,6 +63,22 @@ async def get_workflow_instances(workflow_name: str):
     except:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     return [i.json_savable() for i in w.get_instances()]
+
+@router.post("/workflows/{workflow_name}/pause", status_code=status.HTTP_204_NO_CONTENT)
+async def pause_workflow(workflow_name: str):
+    try:
+        w = Workflow.get_by_name(workflow_name)
+    except:
+        return Response(status_code=status.HTTP_404_NOT_FOUND)
+    w.state = RunStates.Paused
+
+@router.post("/workflows/{workflow_name}/unpause", status_code=status.HTTP_204_NO_CONTENT)
+async def unpause_workflow(workflow_name: str):
+    try:
+        w = Workflow.get_by_name(workflow_name)
+    except:
+        return Response(status_code=status.HTTP_404_NOT_FOUND)
+    w.state = RunStates.Running
 
 # ===================================================================
 # Instances
