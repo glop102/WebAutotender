@@ -100,18 +100,28 @@
                     section = section.nextElementSibling;
                 }
             }
+            window.addEventListener("load",()=>{
+                console.log("Load Setup");
+                // for( let x of document.getElementsByClassName("collapse_button") ){
+                //     console.log(x);
+                //     x.addEventListener("click",collapsed_section_toggle.bind(x));
+                // }
+            });
         </script>
         <template id="template_workflow_details">
             <div class="workflow_details">
                 <div class="workflow_details_name"></div>
                 <p class="workflow_details_state"></p>
                 <p class="workflow_details_user_notes"></p>
-                <button type="button" class="collapse_button workflow_details_section_title" onclick="collapsed_section_toggle(this)">Constants:</button>
-                <div class="workflow_details_constants collapsable"></div>
-                <button type="button" class="collapse_button workflow_details_section_title" onclick="collapsed_section_toggle(this)">SetupVariables:</button>
-                <div class="workflow_details_setup_variables collapsable"></div>
-                <button type="button" class="collapse_button workflow_details_section_title" onclick="collapsed_section_toggle(this)">Procedures:</button>
-                <div class="workflow_details_procedures collapsable"></div>
+                <button class="collapse_button" onclick="collapsed_section_toggle(this)">Details</button>
+                <div class="collapsable">
+                    <div class="workflow_details_section_title">Constants:</div>
+                    <div class="workflow_details_constants"></div>
+                    <div class="workflow_details_section_title">SetupVariables:</div>
+                    <div class="workflow_details_setup_variables"></div>
+                    <div class="workflow_details_section_title">Procedures:</div>
+                    <div class="workflow_details_procedures"></div>
+                </div>
                 <div class="workflow_details_instances"></div>
             </div>
         </template>
@@ -159,10 +169,23 @@
                 margin: 0.25em;
                 border-radius: 1em;
             }
+            .variable_details_name, .variable_details_typename, .variable_details_value
+            {
+                display: inline-block;
+            }
+            .variable_details_typename
+            {
+                color:grey;
+            }
 
 
             .command_details
             {
+                /* border: solid 0.1em;
+                padding: 0.5em;
+                margin: 0.25em;
+                border-radius: 1em; */
+                padding: 0.5em;
             }
             .command_details_variables .command_details_name
             {
@@ -178,25 +201,21 @@
             .procedure_details
             {
                 display: inline-block;
-                border-left: solid 0.1em;
-                padding-left: 1em;
-                margin-bottom: 1em;
+                border: solid 0.1em;
+                padding: 0.5em;
+                margin: 0.25em;
+                border-radius: 1em;
             }
+
             .instance_details
             {
-                display: block;
-                border-left: solid 0.1em;
-                padding-left: 1em;
-                margin-bottom: 1em;
-            }
-            .variable_details_name, .variable_details_typename, .variable_details_value
-            {
                 display: inline-block;
+                border: solid 0.1em;
+                padding: 0.5em;
+                margin: 1em;
+                border-radius: 1em;
             }
-            .variable_details_typename
-            {
-                color:grey;
-            }
+
             .workflow_details_constants, .workflow_details_setup_variables, .workflow_details_procedures{
                 padding-left: 1em;
             }
