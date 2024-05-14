@@ -9,6 +9,10 @@ import pipeline_backend
 
 """
 TODO
+- spawn instance
+  - popup window figured out
+  - loading only a single instance after it spawns
+  - consolidate the put/get info for the HTML <-> Object representations for easier API state syncing
 - summary status at the top of the page with some sort of info
 - instances have variable pinning to give some differentiating information that is useful
 - editing popups
@@ -31,6 +35,14 @@ def get_homepage_file():
         return HTMLResponse("Unable to find the UI File",status_code=status.HTTP_404_NOT_FOUND)
     return f.read()
 
+@router.get("/index2.html", response_class=HTMLResponse)
+def get_homepage_file():
+    try:
+        f = open(root_file_folder / "index2.html")
+    except FileNotFoundError:
+        return HTMLResponse("Unable to find the UI File", status_code=status.HTTP_404_NOT_FOUND)
+    return f.read()
+
 @router.get("/js/{filename}")
 def get_javascript_file(filename:str):
     js_folder = root_file_folder / "js"
@@ -42,7 +54,7 @@ def get_javascript_file(filename:str):
     if not req_js_path.is_file():
         return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
     f = open(req_js_path)
-    return Response(f.read())
+    return Response(f.read(), media_type="text/javascript")
 
 @router.get("/image/{filename}")
 def get_image_file(filename: str):
@@ -55,4 +67,17 @@ def get_image_file(filename: str):
     if not req_image_path.is_file():
         return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
     f = open(req_image_path)
-    return Response(f.read())
+    return Response(f.read(), media_type="image")
+
+@router.get("/styles/{filename}")
+def get_css_style_file(filename: str):
+    js_folder = root_file_folder / "styles"
+    req_js_path = (js_folder / filename).resolve()
+    if not js_folder in req_js_path.parents:
+        return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
+    if not req_js_path.exists():
+        return Response("Unable to find the File", status_code=status.HTTP_404_NOT_FOUND)
+    if not req_js_path.is_file():
+        return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
+    f = open(req_js_path)
+    return Response(f.read(), media_type="text/css")
