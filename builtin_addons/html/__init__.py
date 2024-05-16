@@ -71,13 +71,23 @@ def get_image_file(filename: str):
 
 @router.get("/styles/{filename}")
 def get_css_style_file(filename: str):
-    js_folder = root_file_folder / "styles"
-    req_js_path = (js_folder / filename).resolve()
-    if not js_folder in req_js_path.parents:
+    style_folder = root_file_folder / "styles"
+    req_style_path = (style_folder / filename).resolve()
+    if not style_folder in req_style_path.parents:
         return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
-    if not req_js_path.exists():
+    if not req_style_path.exists():
         return Response("Unable to find the File", status_code=status.HTTP_404_NOT_FOUND)
-    if not req_js_path.is_file():
+    if not req_style_path.is_file():
         return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
-    f = open(req_js_path)
+    f = open(req_style_path)
     return Response(f.read(), media_type="text/css")
+
+@router.get("/favicon.ico")
+def get_favicon_file():
+    favicon = root_file_folder / "image" / "favicon.ico"
+    if not favicon.exists():
+        return Response("Unable to find the File", status_code=status.HTTP_404_NOT_FOUND)
+    if not favicon.is_file():
+        return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
+    f = open(favicon,"rb")
+    return Response(f.read(), media_type="image/ico")
