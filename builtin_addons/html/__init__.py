@@ -22,7 +22,7 @@ TODO
 - when hovering over a processing step in an instance, highlight the process and step of the process in the workflow details
 """
 
-root_file_folder = pathlib.Path(__file__).absolute().parent / "files"
+root_file_folder = pathlib.Path(__file__).absolute().parent / "static"
 
 router = APIRouter()
 
@@ -85,9 +85,7 @@ def get_css_style_file(filename: str):
 @router.get("/favicon.ico")
 def get_favicon_file():
     favicon = root_file_folder / "image" / "favicon.ico"
-    if not favicon.exists():
+    if not favicon.exists() or not favicon.is_file():
         return Response("Unable to find the File", status_code=status.HTTP_404_NOT_FOUND)
-    if not favicon.is_file():
-        return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
     f = open(favicon,"rb")
     return Response(f.read(), media_type="image/ico")
