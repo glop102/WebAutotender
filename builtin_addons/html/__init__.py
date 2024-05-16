@@ -1,6 +1,7 @@
 # Serves static HTML pages, static JS scripts, and also HTMX endpoints
 
 import pathlib
+import mimetypes
 
 from fastapi import Response,status,APIRouter
 from fastapi.responses import HTMLResponse
@@ -43,48 +44,23 @@ def get_homepage_file():
         return HTMLResponse("Unable to find the UI File", status_code=status.HTTP_404_NOT_FOUND)
     return f.read()
 
-@router.get("/js/{filename}")
-def get_javascript_file(filename:str):
-    js_folder = root_file_folder / "js"
-    req_js_path = (js_folder / filename).resolve()
-    if not js_folder in req_js_path.parents:
+@router.get("/assets/{filename}")
+def get_asset_file(filename:str):
+    asset_folder = root_file_folder / "assets"
+    req_asset_path = (asset_folder / filename).resolve()
+    if not asset_folder in req_asset_path.parents:
         return Response("Forbidden",status_code=status.HTTP_403_FORBIDDEN)
-    if not req_js_path.exists():
+    if not req_asset_path.exists():
         return Response("Unable to find the File", status_code=status.HTTP_404_NOT_FOUND)
-    if not req_js_path.is_file():
+    if not req_asset_path.is_file():
         return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
-    f = open(req_js_path)
-    return Response(f.read(), media_type="text/javascript")
-
-@router.get("/image/{filename}")
-def get_image_file(filename: str):
-    image_folder = root_file_folder / "image"
-    req_image_path = (image_folder / filename).resolve()
-    if not image_folder in req_image_path.parents:
-        return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
-    if not req_image_path.exists():
-        return Response("Unable to find the File", status_code=status.HTTP_404_NOT_FOUND)
-    if not req_image_path.is_file():
-        return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
-    f = open(req_image_path)
-    return Response(f.read(), media_type="image")
-
-@router.get("/styles/{filename}")
-def get_css_style_file(filename: str):
-    style_folder = root_file_folder / "styles"
-    req_style_path = (style_folder / filename).resolve()
-    if not style_folder in req_style_path.parents:
-        return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
-    if not req_style_path.exists():
-        return Response("Unable to find the File", status_code=status.HTTP_404_NOT_FOUND)
-    if not req_style_path.is_file():
-        return Response("Forbidden", status_code=status.HTTP_403_FORBIDDEN)
-    f = open(req_style_path)
-    return Response(f.read(), media_type="text/css")
+    f = open(req_asset_path,"rb")
+    mimetype,encoding = mimetypes.guess_type(req_asset_path)
+    return Response(f.read(), media_type=mimetype)
 
 @router.get("/favicon.ico")
 def get_favicon_file():
-    favicon = root_file_folder / "image" / "favicon.ico"
+    favicon = root_file_folder / "assets" / "favicon.ico"
     if not favicon.exists() or not favicon.is_file():
         return Response("Unable to find the File", status_code=status.HTTP_404_NOT_FOUND)
     f = open(favicon,"rb")
