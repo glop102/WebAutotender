@@ -10,12 +10,13 @@ router = APIRouter()
 
 # ===================================================================
 # Workflows
+workflow_router = APIRouter(tags=["workflows"])
 
-@router.get("/workflows")
+@workflow_router.get("/workflows")
 async def get_all_workflows():
     return [w.json_savable() for w in global_workflows]
 
-@router.get("/workflows/{workflow_name}")
+@workflow_router.get("/workflows/{workflow_name}")
 async def get_workflow(workflow_name: str):
     try:
         w = Workflow.get_by_name(workflow_name)
@@ -23,7 +24,7 @@ async def get_workflow(workflow_name: str):
     except:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
 
-@router.put("/workflows/{workflow_name}", status_code=status.HTTP_204_NO_CONTENT)
+@workflow_router.put("/workflows/{workflow_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def edit_workflow(workflow_name: str, data: dict):
     """Will create a new workflow or edit a workflow that already exists."""
     try:
@@ -37,7 +38,7 @@ async def edit_workflow(workflow_name: str, data: dict):
     except: pass
     global_workflows.append(w_new)
 
-@router.post("/workflows/{workflow_name}/spawn_instance")
+@workflow_router.post("/workflows/{workflow_name}/spawn_instance")
 async def spawn_instance_of_workflow(workflow_name: str, setup_variables:dict):
     """Give a json list of WorkVariables to be used to setup the Instance that is spawned."""
     if not setup_variables:
@@ -56,7 +57,7 @@ async def spawn_instance_of_workflow(workflow_name: str, setup_variables:dict):
     PipelineManager.notify_of_something_happening()
     return JSONResponse(w.spawn_instance(setup_variables).json_savable(), status_code=status.HTTP_201_CREATED)
 
-@router.get("/workflows/{workflow_name}/instances")
+@workflow_router.get("/workflows/{workflow_name}/instances")
 async def get_workflow_instances(workflow_name: str):
     try:
         w = Workflow.get_by_name(workflow_name)
@@ -64,7 +65,7 @@ async def get_workflow_instances(workflow_name: str):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     return [i.json_savable() for i in w.get_instances()]
 
-@router.post("/workflows/{workflow_name}/pause", status_code=status.HTTP_204_NO_CONTENT)
+@workflow_router.post("/workflows/{workflow_name}/pause", status_code=status.HTTP_204_NO_CONTENT)
 async def pause_workflow(workflow_name: str):
     try:
         w = Workflow.get_by_name(workflow_name)
@@ -72,7 +73,7 @@ async def pause_workflow(workflow_name: str):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     w.state = RunStates.Paused
 
-@router.post("/workflows/{workflow_name}/unpause", status_code=status.HTTP_204_NO_CONTENT)
+@workflow_router.post("/workflows/{workflow_name}/unpause", status_code=status.HTTP_204_NO_CONTENT)
 async def unpause_workflow(workflow_name: str):
     try:
         w = Workflow.get_by_name(workflow_name)
@@ -82,17 +83,18 @@ async def unpause_workflow(workflow_name: str):
 
 # ===================================================================
 # Instances
+instance_router = APIRouter(tags=["instances"])
 
-@router.get("/instances")
+@instance_router.get("/instances")
 async def get_all_instances():
     return [i.json_savable() for i in global_instances]
 
-@router.get("/instances/orphans")
+@instance_router.get("/instances/orphans")
 async def get_instance_orphans():
     workflow_names = [w.name for w in global_workflows]
     return [i.json_savable() for i in global_instances if not i.workflow_name in workflow_names]
 
-@router.get("/instances/{uuid}")
+@instance_router.get("/instances/{uuid}")
 async def get_instance(uuid: str):
     try:
         i = Instance.get_by_uuid(uuid)
@@ -100,7 +102,7 @@ async def get_instance(uuid: str):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     return i.json_savable()
 
-@router.delete("/instances/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
+@instance_router.delete("/instances/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_instance(uuid:str):
     try:
         i = Instance.get_by_uuid(uuid)
@@ -108,7 +110,7 @@ async def delete_instance(uuid:str):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     global_instances.remove(i)
 
-@router.put("/instances/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
+@instance_router.put("/instances/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def edit_instance(uuid:str,data:dict):
     try:
         i_orig = Instance.get_by_uuid(uuid)
@@ -123,7 +125,7 @@ async def edit_instance(uuid:str,data:dict):
     global_instances.append(i_new)
     PipelineManager.notify_of_something_happening()
 
-@router.post("/instances/{uuid}/pause", status_code=status.HTTP_204_NO_CONTENT)
+@instance_router.post("/instances/{uuid}/pause", status_code=status.HTTP_204_NO_CONTENT)
 async def pause_instance(uuid: str):
     try:
         i = Instance.get_by_uuid(uuid)
@@ -131,7 +133,7 @@ async def pause_instance(uuid: str):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     i.state = RunStates.Paused
 
-@router.post("/instances/{uuid}/unpause", status_code=status.HTTP_204_NO_CONTENT)
+@instance_router.post("/instances/{uuid}/unpause", status_code=status.HTTP_204_NO_CONTENT)
 async def unpause_instance(uuid: str):
     try:
         i = Instance.get_by_uuid(uuid)
@@ -140,7 +142,7 @@ async def unpause_instance(uuid: str):
     i.state = RunStates.Running
     PipelineManager.notify_of_something_happening()
 
-@router.post("/instances/{uuid}/run_now", status_code=status.HTTP_204_NO_CONTENT)
+@instance_router.post("/instances/{uuid}/run_now", status_code=status.HTTP_204_NO_CONTENT)
 async def run_now_instance(uuid: str):
     try:
         i = Instance.get_by_uuid(uuid)
@@ -153,24 +155,25 @@ async def run_now_instance(uuid: str):
 
 # ===================================================================
 # Global Variables
+variable_router = APIRouter(tags=["variables"])
 
-@router.get("/global_variables")
+@variable_router.get("/global_variables")
 async def get_all_global_vars():
     return global_variables
 
-@router.get("/global_vars/{var_name}")
+@variable_router.get("/global_vars/{var_name}")
 async def get_global_var(var_name:str):
     if var_name in global_variables:
         return global_variables[var_name].json_savable()
     return Response(status_code=status.HTTP_404_NOT_FOUND)
 
-@router.delete("/global_vars/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
+@variable_router.delete("/global_vars/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_global_var(var_name:str):
     if not var_name in global_variables:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     del global_variables[var_name]
 
-@router.put("/global_vars/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
+@variable_router.put("/global_vars/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def create_global_var(var_name: str, data: dict):
     new_var = WorkVariable()
     try:
@@ -187,12 +190,13 @@ async def create_global_var(var_name: str, data: dict):
 
 # ===================================================================
 # Commands
+command_router = APIRouter(tags=["commands"])
 
-@router.get("/commands")
+@command_router.get("/commands")
 async def get_all_command_details():
     return Commands.json_savable_all_commands_with_args()
 
-@router.get("/commands/{command_name}")
+@command_router.get("/commands/{command_name}")
 async def get_command_detail(command_name:str):
     try:
         return Commands.json_savable_command_information(command_name)
@@ -202,6 +206,11 @@ async def get_command_detail(command_name:str):
 # ===================================================================
 # Variable Types
 
-@router.get("/variable_types")
+@variable_router.get("/variable_types")
 async def get_all_variable_types():
     return [cls.__name__ for cls in WorkVariable.__subclasses__()]
+
+router.include_router(workflow_router)
+router.include_router(instance_router)
+router.include_router(variable_router)
+router.include_router(command_router)
