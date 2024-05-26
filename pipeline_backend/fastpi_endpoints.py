@@ -87,6 +87,11 @@ async def unpause_workflow(workflow_name: str):
 async def get_all_instances():
     return [i.json_savable() for i in global_instances]
 
+@router.get("/instances/orphans")
+async def get_instance_orphans():
+    workflow_names = [w.name for w in global_workflows]
+    return [i.json_savable() for i in global_instances if not i.workflow_name in workflow_names]
+
 @router.get("/instances/{uuid}")
 async def get_instance(uuid: str):
     try:
