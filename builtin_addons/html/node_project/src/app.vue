@@ -19,6 +19,7 @@ import { orphans,workflows } from './server_com';
         <div id="summary_status"></div>
     </header>
     <main>
+        <!-- TODO: A section for global variables -->
         <h2>Workflows</h2>
         <section id="workflow_list">
             <Workflow v-for="w in workflows" :key="w.name" :workflow="w" />

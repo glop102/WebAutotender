@@ -8,12 +8,16 @@ const props = defineProps({
 
 <style>
 .procedure_details {
-    display: block;
-    border: solid 0.1em;
+    display: inline-block;
     padding: 0.5em;
     margin: 0.25em;
-    border-radius: 0.25em;
     width: fit-content;
+}
+.procedure_details_commands {
+  border-left: solid 0.1em;
+}
+.procedure_details_name {
+  border-bottom: solid 0.1em;
 }
 </style>
 

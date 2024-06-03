@@ -32,10 +32,10 @@ def yield_until(instance: Instance, iso_datetime:String) -> CommandReturnStatus:
 
 @Commands.register_command
 def delete_this_instance(instance: Instance) -> CommandReturnStatus:
-    if not instance in global_instances:
-        instance.log_line(f"Error: Unable to delete an instance that is not in the global_instances array. The pipeline lib only supports a single global pipeline state for many operations.")
+    if not instance.uuid in global_instances:
+        instance.log_line(f"Error: Unable to delete an instance that is not in the global_instances dictionary. The pipeline lib only supports a single global pipeline state for many operations.")
         return CommandReturnStatus.Error
-    global_instances.remove(instance)
+    del global_instances[instance]
     return CommandReturnStatus.Yield
 
 @Commands.register_command

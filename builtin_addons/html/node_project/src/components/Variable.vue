@@ -29,7 +29,8 @@ const props = defineProps({
 <template>
     <div class="variable_details">
         <div class="variable_details_name">{{ name }}</div>
-        <div class="variable_details_typename">{{ variable.typename }}</div>
+        <!-- <div class="variable_details_typename">{{ variable.typename }}</div> -->
+        <br>
         <div class="variable_details_value">{{ variable.value }}</div>
     </div>
 </template>

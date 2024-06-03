@@ -52,7 +52,7 @@ function toggle_processing_state(){
             <div class="instance_details_process_step">{{ instance.processing_step[1] }}</div>
             <div class="instance_details_console_log_display">{{ instance.console_log }}</div>
             <div class="instance_details_variables">
-                <Variable :name="v" :variable="instance.variables[v]" v-for="v in Object.keys(instance.variables)" :key="v"/>
+                <Variable v-for="v in Object.keys(instance.variables)" :key="v" :name="v" :variable="instance.variables[v]" />
             </div>
         </div>
     </div>

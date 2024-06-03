@@ -115,11 +115,10 @@ class Instance:
 
     @classmethod
     def get_by_uuid(cls, instance_uuid: str) -> Instance:
-        for i in global_instances:
-            if i.uuid == instance_uuid:
-                return i
+        if instance_uuid in global_instances:
+            return global_instances[instance_uuid]
         raise ValueError(
             f"Unable to find the instance {instance_uuid}")
 
 
-global_instances: list[Instance] = []
+global_instances: list[Instance] = {}

@@ -78,12 +78,12 @@ class Workflow:
         for varname in setup_var_non_defaults:
             new.variables[varname] = deepcopy(setup_var_non_defaults[varname])
 
-        if self in global_workflows:
-            instances.global_instances.append(new)
+        if self.name in global_workflows:
+            instances.global_instances[new.uuid] = new
         return new
     
     def get_instances(self) -> list[instances.Instance]:
-        return [i for i in instances.global_instances if i.workflow_name == self.name]
+        return [i for i in instances.global_instances.values() if i.workflow_name == self.name]
 
     def __str__(self) -> str:
         return f"Workflow \"{self.name}\" - {self.state.name}"
@@ -138,9 +138,8 @@ class Workflow:
     
     @classmethod
     def get_by_name(cls,workflow_name:str)->Workflow:
-        for w in global_workflows:
-            if w.name == workflow_name:
-                return w
+        if workflow_name in global_workflows:
+            return global_workflows[workflow_name]
         raise ValueError(
             f"Unable to find the associated workflow {workflow_name}")
     
@@ -151,4 +150,4 @@ class Workflow:
 # have commands that create or delete instances, so we need to track what is available
 # internally to the module.
 
-global_workflows:list[Workflow] = []
+global_workflows:list[Workflow] = {}

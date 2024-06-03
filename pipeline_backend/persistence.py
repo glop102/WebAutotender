@@ -8,8 +8,8 @@ import json
 
 def save_pipeline_global_state() -> str:
     persistant_data = {
-        "workflows": [w.json_savable() for w in global_workflows],
-        "instances": [i.json_savable() for i in global_instances],
+        "workflows": [w.json_savable() for w in global_workflows.values()],
+        "instances": [i.json_savable() for i in global_instances.values()],
         "variables": {}
     }
     for var_name in global_variables:
@@ -30,13 +30,13 @@ def load_pipeline_global_state(state:str) -> None:
     for workflow_data in persistant_data["workflows"]:
         workflow = Workflow()
         workflow.json_loadable(workflow_data)
-        global_workflows.append(workflow)
+        global_workflows[workflow.name]=workflow
     
     global_instances.clear()
     for instance_data in persistant_data["instances"]:
         instance = Instance()
         instance.json_loadable(instance_data)
-        global_instances.append(instance)
+        global_instances[instance.uuid]=instance
     
     global_variables.clear()
     for var_name in persistant_data["variables"]:

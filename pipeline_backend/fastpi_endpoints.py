@@ -14,7 +14,7 @@ workflow_router = APIRouter(tags=["workflows"])
 
 @workflow_router.get("/workflows")
 async def get_all_workflows():
-    return [w.json_savable() for w in global_workflows]
+    return {w_name: global_workflows[w_name].json_savable() for w_name in global_workflows}
 
 @workflow_router.get("/workflows/{workflow_name}")
 async def get_workflow(workflow_name: str):
@@ -32,11 +32,9 @@ async def edit_workflow(workflow_name: str, data: dict):
         w_new.json_loadable(data)
     except:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
-    try:
-        w_orig = Workflow.get_by_name(workflow_name)
-        global_workflows.remove(w_orig)
-    except: pass
-    global_workflows.append(w_new)
+    if workflow_name != w_new.name:
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+    global_workflows[workflow_name] = w_new
 
 @workflow_router.post("/workflows/{workflow_name}/spawn_instance")
 async def spawn_instance_of_workflow(workflow_name: str, setup_variables:dict):
@@ -63,7 +61,7 @@ async def get_workflow_instances(workflow_name: str):
         w = Workflow.get_by_name(workflow_name)
     except:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    return [i.json_savable() for i in w.get_instances()]
+    return {i.uuid:i.json_savable() for i in w.get_instances()}
 
 @workflow_router.post("/workflows/{workflow_name}/pause", status_code=status.HTTP_204_NO_CONTENT)
 async def pause_workflow(workflow_name: str):
@@ -81,18 +79,33 @@ async def unpause_workflow(workflow_name: str):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     w.state = RunStates.Running
 
+@workflow_router.post("/workflows/{workflow_name}/toggle_pause", status_code=status.HTTP_204_NO_CONTENT)
+async def pause_workflow(workflow_name: str):
+    try:
+        w = Workflow.get_by_name(workflow_name)
+    except:
+        return Response(status_code=status.HTTP_404_NOT_FOUND)
+    if w.state == RunStates.Running:
+        w.state = RunStates.Paused
+    else:
+        w.state = RunStates.Running
+
 # ===================================================================
 # Instances
 instance_router = APIRouter(tags=["instances"])
 
 @instance_router.get("/instances")
 async def get_all_instances():
-    return [i.json_savable() for i in global_instances]
+    return {i_name: global_instances[i_name].json_savable() for i_name in global_instances}
 
 @instance_router.get("/instances/orphans")
 async def get_instance_orphans():
-    workflow_names = [w.name for w in global_workflows]
-    return [i.json_savable() for i in global_instances if not i.workflow_name in workflow_names]
+    workflow_names = list(global_workflows.keys())
+    return { 
+        i_uuid: global_instances[i_uuid].json_savable() 
+        for i_uuid in global_instances 
+        if not global_instances[i_uuid].workflow_name in workflow_names
+    }
 
 @instance_router.get("/instances/{uuid}")
 async def get_instance(uuid: str):
@@ -104,25 +117,20 @@ async def get_instance(uuid: str):
 
 @instance_router.delete("/instances/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_instance(uuid:str):
-    try:
-        i = Instance.get_by_uuid(uuid)
-    except:
+    if not uuid in global_instances:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    global_instances.remove(i)
+    del global_instances[uuid]
 
 @instance_router.put("/instances/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def edit_instance(uuid:str,data:dict):
-    try:
-        i_orig = Instance.get_by_uuid(uuid)
-    except:
-        return Response(status_code=status.HTTP_404_NOT_FOUND)
     try:
         i_new = Instance()
         i_new.json_loadable(data)
     except:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
-    global_instances.remove(i_orig)
-    global_instances.append(i_new)
+    if uuid != i_new.uuid:
+        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+    global_instances[uuid] = i_new
     PipelineManager.notify_of_something_happening()
 
 @instance_router.post("/instances/{uuid}/pause", status_code=status.HTTP_204_NO_CONTENT)
@@ -141,6 +149,17 @@ async def unpause_instance(uuid: str):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     i.state = RunStates.Running
     PipelineManager.notify_of_something_happening()
+
+@instance_router.post("/instances/{uuid}/toggle_pause", status_code=status.HTTP_204_NO_CONTENT)
+async def pause_instance(uuid: str):
+    try:
+        i = Instance.get_by_uuid(uuid)
+    except:
+        return Response(status_code=status.HTTP_404_NOT_FOUND)
+    if i.state == RunStates.Running:
+        i.state = RunStates.Paused
+    else:
+        i.state = RunStates.Running
 
 @instance_router.post("/instances/{uuid}/run_now", status_code=status.HTTP_204_NO_CONTENT)
 async def run_now_instance(uuid: str):
