@@ -1,14 +1,11 @@
 <script setup>
 import Variable from './Variable.vue'
 import {ref} from "vue"
-import { toggle_instance_pause } from '@/server_com';
+import { toggle_instance_pause,show_instance_edit } from '@/server_com';
 const props = defineProps({
     instance: Object
 })
 const show_details = ref(false);
-function toggle_details_visibility(){
-    show_details.value = !show_details.value;
-}
 </script>
 
 <style>
@@ -41,9 +38,10 @@ function toggle_details_visibility(){
 </style>
 
 <template>
-    <div :id="instance.uuid" class="instance_details">
-        <button type="button" class="collapse_button instance_details_section_title" @click="toggle_details_visibility">Instance:</button>
+    <div class="instance_details">
+        <button type="button" class="instance_details_section_title" @click="show_details = !show_details">Instance:</button>
         <button type="button" class="instance_details_state" @click="toggle_instance_pause(instance.uuid)">{{instance.state}}</button>
+        <button type="button" class="instance_details_state" @click="show_instance_edit(instance.uuid)" v-if="show_details">Edit</button>
         <div class="instance_details_next_processing_time">{{ instance.next_processing_time }}</div>
         <div>TODO: Status Variable</div>
         <div v-if="show_details">
