@@ -12,6 +12,15 @@ export async function refresh_instances() {
         console.log("Unable to fetch the instances list");
     }
 }
+export async function refresh_instance(uuid) {
+    const response = await fetch("/api/instances/" + uuid);
+    if (response.ok) {
+        const inst = await response.json();
+        instances.value[uuid] = inst;
+    } else {
+        console.log("Unable to fetch the workflow " + workflow_name);
+    }
+}
 refresh_instances();
 
 export async function refresh_workflows() {
@@ -62,5 +71,14 @@ export async function toggle_workflow_pause(workflow_name){
         refresh_workflow(workflow_name);
     }else{
         console.log("Unable to toggle the running state for workflow "+workflow_name);
+    }
+}
+export async function toggle_instance_pause(uuid) {
+    const request = await fetch("/api/instances/" + uuid + "/toggle_pause", { method: "POST", cache: "no-cache" });
+    if (request.ok) {
+        await request.text();
+        refresh_instance(uuid);
+    } else {
+        console.log("Unable to toggle the running state for workflow " + workflow_name);
     }
 }

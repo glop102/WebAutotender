@@ -37,6 +37,9 @@ function toggle_details_visibility(){
     border-left: solid 0.1em;
     padding-left: 1em;
 }
+.workflow_details_instances{
+    display: flex;
+}
 </style>
 
 <template>
@@ -44,6 +47,8 @@ function toggle_details_visibility(){
         <div class="workflow_details_name">{{ workflow.name }}</div>
         <button class="collapse_button" @click="toggle_details_visibility()">Details</button>
         <button type="button" class="workflow_details_state" @click="toggle_workflow_pause(workflow.name)">{{ workflow.state }}</button>
+        -
+        <button type="button" class="workflow_details_spawn_instance">Spawn Instance</button>
         <p class="workflow_details_user_notes" v-if="workflow.user_notes.length > 0">{{ workflow.user_notes }}</p>
         <div v-if="show_details" class="workflow_details_collapsable">
             <div class="workflow_details_section_title">Constants:</div>

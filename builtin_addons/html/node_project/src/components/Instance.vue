@@ -1,14 +1,12 @@
 <script setup>
 import Variable from './Variable.vue'
 import {ref} from "vue"
+import { toggle_instance_pause } from '@/server_com';
 const props = defineProps({
     instance: Object
 })
 const show_details = ref(false);
 function toggle_details_visibility(){
-    show_details.value = !show_details.value;
-}
-function toggle_processing_state(){
     show_details.value = !show_details.value;
 }
 </script>
@@ -25,6 +23,8 @@ function toggle_processing_state(){
 .instance_details_console_log_display {
     background-color: lightgray;
     white-space: pre;
+    max-height: 25em;
+    overflow: scroll;
 }
 
 .instance_details_process_step,
@@ -43,7 +43,7 @@ function toggle_processing_state(){
 <template>
     <div :id="instance.uuid" class="instance_details">
         <button type="button" class="collapse_button instance_details_section_title" @click="toggle_details_visibility">Instance:</button>
-        <button type="button" class="instance_details_state" @click="toggle_processing_state">{{instance.state}}TODO:Toggle</button>
+        <button type="button" class="instance_details_state" @click="toggle_instance_pause(instance.uuid)">{{instance.state}}</button>
         <div class="instance_details_next_processing_time">{{ instance.next_processing_time }}</div>
         <div>TODO: Status Variable</div>
         <div v-if="show_details">
