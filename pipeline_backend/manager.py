@@ -24,7 +24,7 @@ class PipelineManager(Thread):
         """Runs all the instances that are due to be run until they yield."""
         current_time = datetime.now()
         due_instances = [i for i in global_instances 
-                         if i.state==RunStates.Running and i.past_time_to_run(current_time)]
+                         if i.is_allowed_to_run() and i.past_time_to_run(current_time)]
         for instance in due_instances:
             if not self.keep_running:
                 return
@@ -37,7 +37,7 @@ class PipelineManager(Thread):
         minimum_next_due_time = current_time + timedelta(seconds=1)
 
         due_instances = [i for i in global_instances
-                         if i.state == RunStates.Running]
+                         if i.is_allowed_to_run()]
         for instance in due_instances:
             next_due_time = min(next_due_time,instance.next_processing_time)
         return max(next_due_time,minimum_next_due_time)

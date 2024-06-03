@@ -81,6 +81,10 @@ class Instance:
         if not current_time:
             current_time = datetime.now()
         return current_time > self.next_processing_time
+
+    def is_allowed_to_run(self):
+        #TODO have a lock check in here for the UI doing an edit
+        return self.state == workflows.RunStates.Running and self.get_associated_workflow().state == workflows.RunStates.Running
     
 
     def json_savable(self) -> dict:
