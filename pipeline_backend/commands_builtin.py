@@ -35,7 +35,7 @@ def delete_this_instance(instance: Instance) -> CommandReturnStatus:
     if not instance.uuid in global_instances:
         instance.log_line(f"Error: Unable to delete an instance that is not in the global_instances dictionary. The pipeline lib only supports a single global pipeline state for many operations.")
         return CommandReturnStatus.Error
-    del global_instances[instance]
+    del global_instances[instance.uuid]
     return CommandReturnStatus.Yield
 
 @Commands.register_command
