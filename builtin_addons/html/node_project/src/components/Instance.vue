@@ -32,6 +32,12 @@ function toggle_processing_state(){
 .instance_details_state {
     display: inline-block;
 }
+
+.instance_details_section_title {
+    margin-top: 0;
+    margin-bottom: 0;
+    display: inline;
+}
 </style>
 
 <template>
@@ -39,7 +45,7 @@ function toggle_processing_state(){
         <button type="button" class="collapse_button instance_details_section_title" @click="toggle_details_visibility">Instance:</button>
         <button type="button" class="instance_details_state" @click="toggle_processing_state">{{instance.state}}TODO:Toggle</button>
         <div class="instance_details_next_processing_time">{{ instance.next_processing_time }}</div>
-        <p>TODO: Some sort of way to tell ourselves to pin variables or status or something to differentiate instances at a glance</p>
+        <div>TODO: Status Variable</div>
         <div v-if="show_details">
             <div class="instance_details_workflow_name">{{ instance.workflow_name }}</div>
             <div class="instance_details_process_name">{{ instance.processing_step[0] }}</div>:

@@ -2,26 +2,42 @@
 import Instance from "./Instance.vue"
 import Procedure from "./Procedure.vue"
 import Variable from "./Variable.vue";
-import {ref,onMounted} from "vue"
+import {ref} from "vue"
+import { workflow_instances } from "@/server_com";
 
 const props = defineProps({
     workflow: Object
 });
+const instances = workflow_instances(props.workflow.name);
+
 const show_details = ref(false);
-const instances = ref([]);
 function toggle_details_visibility(){
     show_details.value = !show_details.value;
 }
 function toggle_processing_state(){
     show_details.value = !show_details.value;
 }
-
-async function refresh_instances(){
-    const response = await fetch("/api/workflows/"+props.workflow.name+"/instances");
-    instances.value = await response.json();
-}
-onMounted(refresh_instances);
 </script>
+
+<style>
+.workflow_details_constants,
+.workflow_details_setup_variables,
+.workflow_details_procedures {
+    padding-left: 1em;
+}
+
+.workflow_details_name{
+    margin-top: 0;
+    margin-bottom: 0;
+    display: inline;
+}
+
+.workflow_details_section_title {
+    margin-top: 0;
+    margin-bottom: 0;
+    display: inline;
+}
+</style>
 
 <template>
     <div class="workflow_details">

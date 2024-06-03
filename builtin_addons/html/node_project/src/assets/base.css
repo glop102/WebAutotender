@@ -43,47 +43,6 @@ button:hover {
 }
 
 
-.command_details {
-    /* border: solid 0.1em;
-                padding: 0.5em;
-                margin: 0.25em;
-                border-radius: 1em; */
-    padding: 0.5em;
-}
-
-.command_details_variables {
-    display: inline-block;
-}
-
-
-.procedure_details {
-    display: block;
-    border: solid 0.1em;
-    padding: 0.5em;
-    margin: 0.25em;
-    border-radius: 0.25em;
-    width: fit-content;
-}
-
-
-.workflow_details_constants,
-.workflow_details_setup_variables,
-.workflow_details_procedures {
-    padding-left: 1em;
-}
-
-.workflow_details_name{
-    margin-top: 0;
-    margin-bottom: 0;
-    display: inline;
-}
-.workflow_details_section_title,
-.instance_details_section_title {
-    margin-top: 0;
-    margin-bottom: 0;
-    display: inline;
-}
-
 
 .list_odd_item {
     background-color: lightgray;

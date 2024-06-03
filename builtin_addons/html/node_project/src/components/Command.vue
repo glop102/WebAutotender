@@ -5,6 +5,20 @@ const props = defineProps({
 });
 </script>
 
+<style>
+.command_details {
+    /* border: solid 0.1em;
+                padding: 0.5em;
+                margin: 0.25em;
+                border-radius: 1em; */
+    padding: 0.5em;
+}
+
+.command_details_variables {
+    display: inline-block;
+}
+</style>
+
 <template>
     <div class="command_details">
         <div class="command_details_name">{{ command.command_name }}</div>

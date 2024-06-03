@@ -6,6 +6,17 @@ const props = defineProps({
 });
 </script>
 
+<style>
+.procedure_details {
+    display: block;
+    border: solid 0.1em;
+    padding: 0.5em;
+    margin: 0.25em;
+    border-radius: 0.25em;
+    width: fit-content;
+}
+</style>
+
 <template>
     <div class="procedure_details">
         <div class="procedure_details_name">{{ name }}</div>
