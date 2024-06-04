@@ -1,5 +1,6 @@
 # WebAutotender
-The intended goal is to have a Web UI (probably react based, maybe htmx) to let you more easily interact with and modify the state of ongoing processes.
+Essentially this is another take on a CI pipeline, but for general processsing and not code development.
+
 This is intended to be a more general and more useful rep0lacment for my RSS Feed automator which did processing on RSS Feed data and the configuration was in a text file.
 
 ### General Usage
