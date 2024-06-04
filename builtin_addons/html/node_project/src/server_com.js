@@ -114,7 +114,7 @@ export const orphans = computed(
 //===================================================================
 // Instance Editor
 //===================================================================
-export const instance_edit_state = ref({"show":false});
+export const instance_edit_state = ref({"show":false,"uuid":""});
 export function show_instance_edit(uuid){
     instance_edit_state.value = {
         "show":true,
@@ -125,6 +125,7 @@ export function show_instance_edit(uuid){
 export function close_instance_edit() {
     instance_edit_state.value = {
         "show": false,
+        "uuid": ""
     }
 }
 export function save_and_close_instance_edit(){
