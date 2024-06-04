@@ -2,12 +2,11 @@
 import Variable from './Variable.vue'
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
-import {ref, watchPostEffect} from "vue"
+import {ref} from "vue"
 import { instance_edit_state,close_instance_edit,save_and_close_instance_edit } from '@/server_com';
 
+instance_edit_state.value.tempspace.next_processing_time = instance_edit_state.value.tempspace.next_processing_time.slice(0, 19);
 const inst_copy = ref(instance_edit_state.value.tempspace);
-const processing_time = ref(new Date(inst_copy.value.next_processing_time));
-watchPostEffect(()=>inst_copy.value.next_processing_time = processing_time.value.toISOString());
 </script>
 
 <style>
@@ -38,7 +37,7 @@ watchPostEffect(()=>inst_copy.value.next_processing_time = processing_time.value
             <h1>Instance: {{ inst_copy.uuid }}</h1>
             <button type="button" class="instance_edit_cancel_button" @click="close_instance_edit">Cancel</button>
             <button type="button" class="instance_edit_save_button" @click="save_and_close_instance_edit">Save</button>
-            <VueDatePicker v-model="processing_time"></VueDatePicker>
+            <input type="datetime-local" v-model="inst_copy.next_processing_time" step="1" />
             <div class="instance_edit_workflow_name">{{ inst_copy.workflow_name }}</div>
             <div class="instance_edit_process_name">{{ inst_copy.processing_step[0] }}</div>
             <div class="instance_edit_process_step">{{ inst_copy.processing_step[1] }}</div>
