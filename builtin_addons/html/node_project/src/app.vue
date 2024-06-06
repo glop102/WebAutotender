@@ -31,6 +31,7 @@ import { instance_edit_state } from './server_com';
         <section id="orphan_instance_list">
             <Instance v-for="inst in orphans" :key="inst.uuid" :instance="inst" />
         </section>
+        <!-- The Edit components use a *copy* of what is being edited so that it can be mutated and then thrown away on a cancel. Check server_com for the copies -->
         <InstanceEdit v-if="instance_edit_state.show" />
     </main>
     <footer>

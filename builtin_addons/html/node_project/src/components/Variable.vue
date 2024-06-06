@@ -18,7 +18,7 @@ const props = defineProps({
 .variable_details_name,
 .variable_details_typename,
 .variable_details_value {
-    display: inline-block;
+    display: block;
 }
 
 .variable_details_typename {
@@ -29,8 +29,12 @@ const props = defineProps({
 <template>
     <div class="variable_details">
         <div class="variable_details_name">{{ name }}</div>
-        <!-- <div class="variable_details_typename">{{ variable.typename }}</div> -->
-        <br>
-        <div class="variable_details_value">{{ variable.value }}</div>
+        <div v-if="variable.typename=='StringList' || variable.typename=='VariableNameList'">
+            <div class="variable_details_value" v-for="(v,idx) in variable.value" :key="idx">{{ v }}</div>
+        </div>
+        <div v-else-if="variable.typename=='Dictionary'">
+            <Variable v-for="vname in Object.keys(variable.value)" :key="vname" :name="vname" :variable="variable.value[vname]"/>
+        </div>
+        <div v-else class="variable_details_value">{{ variable.value }}</div>
     </div>
 </template>

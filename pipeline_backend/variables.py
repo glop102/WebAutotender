@@ -173,8 +173,10 @@ class VariableNameList(WorkVariable):
     def reset_to_default(self) -> None:
         self.value = []
 
-# I have tried to get around needing a comples mapping type like this, but in the end, I just need
-# to have a map of varname to value for the spawning of a workflow instance command
+# I have tried to get around needing a complete mapping type like this, but in the end, I just need
+# to have a map of varname to WorkVariable for the spawning of an Instance.
+# If I don't have this Dictionary that has WorkVariables as values, then to spawn an instance, you
+# would need to save every value to a variable and then pass in VariableNameList
 class Dictionary(WorkVariable):
     value:dict[str,WorkVariable]
     def __init__(self, value: dict[str,WorkVariable] | Self | None = None):

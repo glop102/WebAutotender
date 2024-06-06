@@ -1,5 +1,5 @@
 <script setup>
-import Variable from './Variable.vue'
+import VariableEdit from './VariableEdit.vue'
 import VueDatePicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css'
 import {ref,computed} from "vue"
@@ -13,21 +13,51 @@ const instance = ref(instance_edit_state.value.tempspace);
 const original_workflow_name = workflow_names.value.includes(instance.value.workflow_name) ? undefined : instance.value.workflow_name;
 
 const available_procedure_names = computed(
-    ()=>Object.keys(workflows.value[instance.value.workflow_name].procedures)
+    ()=>
+        workflows.value[instance.value.workflow_name] ? 
+        Object.keys(workflows.value[instance.value.workflow_name].procedures)
+        : [instance.value.processing_step[0]]
 );
 const available_procedure_steps = computed(
     ()=>
-        workflows.value[instance.value.workflow_name]
-        .procedures[instance.value.processing_step[0]]
-        .map((proc_step)=>proc_step.command_name)
+        workflows.value[instance.value.workflow_name] ? // if the workflow exists
+            workflows.value[instance.value.workflow_name]
+            .procedures[instance.value.processing_step[0]] ? // if a procedure with the current name exists
+                workflows.value[instance.value.workflow_name] // give an array of command names in that procedure
+                .procedures[instance.value.processing_step[0]]
+                .map((proc_step)=>proc_step.command_name)
+            : []
+        : []
 );
+
+const new_var_name = ref("");
+function add_new_variable(){
+    let var_name = new_var_name.value;
+    if(var_name.length == 0){
+        return;
+    }
+    if(Object.keys(instance.value.variables).includes(var_name)){
+        return;
+    }
+    instance.value.variables[var_name] = {
+        "value":"",
+        "typename":"String"
+    };
+    new_var_name.value="";
+}
+function delete_variable(var_name){
+    if(!Object.keys(instance.value.variables).includes(var_name)){
+        return;
+    }
+    delete instance.value.variables[var_name];
+}
 </script>
 
 <style>
 .instance_edit{
     width: 100%;
     height: 100%;
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     background-color: rgba(128, 128, 128, 0.5);
@@ -53,6 +83,7 @@ label{
 </style>
 
 <template>
+    <!-- TODO Add in the workflow variables to the side for more easily knowing what to reference -->
     <div class="instance_edit" @click.self="close_instance_edit">
         <section class="instance_edit_content_section">
             <h1>Instance: {{ instance.uuid }}</h1>
@@ -71,6 +102,7 @@ label{
                 <option v-for="proc_name in available_procedure_names" :key="proc_name" :value="proc_name">{{ proc_name }}</option>
             </select>
             <select v-model="instance.processing_step[1]">
+                <option v-if="available_procedure_steps.length==0" :value="instance.processing_step[1]">{{instance.processing_step[1]}} - unknown</option>
                 <option v-for="(command_name,idx) in available_procedure_steps" :key="idx" :value="idx">{{idx}} - {{ command_name }}</option>
             </select>
             <div class="instance_edit_console_display" v-if="instance.console_log.length">
@@ -79,9 +111,10 @@ label{
                 <button type="button" class="instance_edit_console_clear_button" @click="instance.console_log=''">Clear</button>
             </div>
             <div class="instance_edit_variables">
-                <!-- Needed items for variables: delete button, name input field, variable type, variable value -->
-                <!-- Probably will want a VariableEdit component so we can have some specialized inputs like a color picker -->
-                <Variable v-for="v in Object.keys(instance.variables)" :key="v" :name="v" :variable="instance.variables[v]" />
+                <VariableEdit v-for="v in Object.keys(instance.variables)" :key="v" v-model="instance.variables[v]" @requested_deletion="delete_variable(v)">{{ v }}</VariableEdit>
+                <label>Add Variable</label>
+                <input type="text" placeholder="Variable Name" v-model="new_var_name"/>
+                <button type="button" @click="add_new_variable">Add</button>
             </div>
         </section>
     </div>

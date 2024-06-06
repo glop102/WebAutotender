@@ -31,7 +31,7 @@ export async function toggle_instance_pause(uuid) {
     const request = await fetch("/api/instances/" + uuid + "/toggle_pause", { method: "POST", cache: "no-cache" });
     if (request.ok) {
         await request.text();
-        refresh_instance(uuid);
+        // refresh_instance(uuid);
     } else {
         console.log("Unable to toggle the running state for workflow " + workflow_name);
     }
@@ -133,3 +133,22 @@ export function save_and_close_instance_edit(){
     push_instance_state(instance_edit_state.value.uuid)
     close_instance_edit();
 }
+
+
+//===================================================================
+// Variables
+//===================================================================
+export const variable_types = ref([])
+export async function refresh_variable_types(){
+    const response = await fetch("/api/variable_types");
+    if (response.ok) {
+        variable_types.value = await response.json();
+    } else {
+        console.log("Unable to fetch the list of variable_types");
+    }
+}
+refresh_variable_types();
+
+//===================================================================
+// Commands
+//===================================================================

@@ -45,6 +45,8 @@ def make_new_instance(instance: Instance, workflow_name:String, setup_vars:Dicti
     except:
         instance.log_line(f"Error: Unable to find a Workflow with the name {workflow_name} to spawn an instance of.")
         return CommandReturnStatus.Error
+    #TODO Uhhhh... what do we do to pull values *out* of the source workflow? And VariableReference in the Dictionary will only point at the new workflow, so pulling values from the source instance/workflow like a show title will not work.
+    #Maybe it would be easiest to follow the workflow thought of having constants and references. The references get added to the constants before handing it to the workflow we are spawning. Obviously dereference the references.
     workflow.spawn_instance(setup_vars.value)
     return CommandReturnStatus.Success
 
