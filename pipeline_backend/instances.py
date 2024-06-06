@@ -86,10 +86,9 @@ class Instance:
         #TODO have a lock check in here for the UI doing an edit
         try:
             asoc_wf = self.get_associated_workflow()
-            return self.state == workflows.RunStates.Running and asoc_wf.state == workflows.RunStates.Running
         except ValueError:
-            #print("Likely an orphan")
-            return self.state == workflows.RunStates.Running
+            return False
+        return self.state == workflows.RunStates.Running and asoc_wf.state == workflows.RunStates.Running
     
 
     def json_savable(self) -> dict:
