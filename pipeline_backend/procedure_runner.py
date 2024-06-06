@@ -22,11 +22,16 @@ class ProcedureRunner:
     workflow:Workflow
     def __init__(self,instance:Instance):
         self.instance = instance
-        self.workflow = instance.get_associated_workflow()
+        try:
+            self.workflow = instance.get_associated_workflow()
+        except:
+            self.workflow = None
     
     def run_single_step(self) -> CommandReturnStatus:
         """Runs a single step of the procedure of the instance. Does most sanity checking and setup for calling a command. Wrap this in a try:except block """
 
+        if not self.workflow:
+            return self.__mark_error("No Associated Workflow - This Is An Orphan")
         # get the command for the current step
         proc_name,step_idx = self.instance.processing_step
         try:
