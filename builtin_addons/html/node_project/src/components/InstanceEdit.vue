@@ -1,31 +1,29 @@
 <script setup>
 import VariableEdit from './VariableEdit.vue'
-import VueDatePicker from '@vuepic/vue-datepicker';
-import '@vuepic/vue-datepicker/dist/main.css'
 import {ref,computed} from "vue"
 import { instance_edit_state,close_instance_edit,save_and_close_instance_edit } from '@/server_com';
-import { workflow_names,workflows } from '@/server_com';
+import { workflows } from '@/server_com';
 
 instance_edit_state.value.tempspace.next_processing_time = instance_edit_state.value.tempspace.next_processing_time.slice(0, 19);
 const instance = ref(instance_edit_state.value.tempspace);
 
 //For orphans to have their original workflow name be an option to select because the workflow name otherwise does not exist
-const original_workflow_name = workflow_names.value.includes(instance.value.workflow_name) ? undefined : instance.value.workflow_name;
+const original_workflow_uuid = Object.keys(workflows.value).includes(instance.value.workflow_uuid) ? undefined : instance.value.workflow_uuid;
 
 const available_procedure_names = computed(
     ()=>
-        workflows.value[instance.value.workflow_name] ? 
-        Object.keys(workflows.value[instance.value.workflow_name].procedures)
+        workflows.value[instance.value.workflow_uuid] ? 
+        Object.keys(workflows.value[instance.value.workflow_uuid].procedures)
         : [instance.value.processing_step[0]]
 );
 const available_procedure_steps = computed(
     ()=>
-        workflows.value[instance.value.workflow_name] ? // if the workflow exists
-            workflows.value[instance.value.workflow_name]
+        workflows.value[instance.value.workflow_uuid] ? // if the workflow exists
+            workflows.value[instance.value.workflow_uuid]
             .procedures[instance.value.processing_step[0]] ? // if a procedure with the current name exists
-                workflows.value[instance.value.workflow_name] // give an array of command names in that procedure
+                workflows.value[instance.value.workflow_uuid] // give an array of command names in that procedure
                 .procedures[instance.value.processing_step[0]]
-                .map((proc_step)=>proc_step.command_name)
+                .map((proc_step)=>proc_step.command_uuid)
             : []
         : []
 );
@@ -83,19 +81,20 @@ label{
 </style>
 
 <template>
-    <!-- TODO Add in the workflow variables to the side for more easily knowing what to reference -->
+    <!-- TODO Have the instance edit only close when it was successful in pushing state. Otherwise have it sit around disabled or something. -->
+    <!-- TODO Have some warning headers in red at the top of the instance to alert when the server has changed it. -->
+
     <div class="instance_edit" @click.self="close_instance_edit">
         <section class="instance_edit_content_section">
             <h1>Instance: {{ instance.uuid }}</h1>
             <button type="button" class="instance_edit_cancel_button" @click="close_instance_edit">Cancel</button>
-            <button type="button" class="instance_edit_save_button" @click="save_and_close_instance_edit">Save</button> -
-            <button type="button" class="instance_edit_delete_button" @click="">Delete</button>
+            <button type="button" class="instance_edit_save_button" @click="save_and_close_instance_edit">Save</button>
             <label>Next Processing Time</label>
             <input type="datetime-local" v-model="instance.next_processing_time" step="1" />
             <label>Associated Workflow</label>
-            <select v-model="instance.workflow_name">
-                <option v-if="original_workflow_name" :value="original_workflow_name">{{ original_workflow_name }}</option> <!-- For orphans since the workflow they have does not exist -->
-                <option v-for="name in workflow_names" :key="name" :value="name">{{ name }}</option>
+            <select v-model="instance.workflow_uuid">
+                <option v-if="original_workflow_uuid" :value="original_workflow_uuid">{{ original_workflow_uuid }}</option> <!-- For orphans since the workflow they have does not exist -->
+                <option v-for="w_uuid in Object.keys(workflows)" :key="w_uuid" :value="w_uuid">{{ workflows[w_uuid].name }}</option>
             </select>
             <label>Processing Step</label>
             <select v-model="instance.processing_step[0]">
@@ -112,10 +111,10 @@ label{
             </div>
             <div class="instance_edit_variables">
                 <VariableEdit v-for="v in Object.keys(instance.variables)" :key="v" v-model="instance.variables[v]" @requested_deletion="delete_variable(v)">{{ v }}</VariableEdit>
-                <label>Add Variable</label>
-                <input type="text" placeholder="Variable Name" v-model="new_var_name"/>
-                <button type="button" @click="add_new_variable">Add</button>
             </div>
+            <label>Add Variable</label>
+            <input type="text" placeholder="Variable Name" v-model="new_var_name"/>
+            <button type="button" @click="add_new_variable">Add</button>
         </section>
     </div>
 </template>

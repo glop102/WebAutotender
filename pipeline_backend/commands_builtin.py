@@ -39,14 +39,13 @@ def delete_this_instance(instance: Instance) -> CommandReturnStatus:
     return CommandReturnStatus.Yield
 
 @Commands.register_command
-def make_new_instance(instance: Instance, workflow_name:String, setup_vars:Dictionary) -> CommandReturnStatus:
-    try:
-        workflow = Workflow.get_by_name(workflow_name.value)
-    except:
-        instance.log_line(f"Error: Unable to find a Workflow with the name {workflow_name} to spawn an instance of.")
+def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dictionary) -> CommandReturnStatus:
+    if not workflow_uuid.value in global_workflows:
+        instance.log_line(f"Error: Unable to find a Workflow with the uuid {workflow_uuid.value} to spawn an instance of.")
         return CommandReturnStatus.Error
     #TODO Uhhhh... what do we do to pull values *out* of the source workflow? And VariableReference in the Dictionary will only point at the new workflow, so pulling values from the source instance/workflow like a show title will not work.
     #Maybe it would be easiest to follow the workflow thought of having constants and references. The references get added to the constants before handing it to the workflow we are spawning. Obviously dereference the references.
+    workflow = global_workflows[workflow_uuid.value]
     workflow.spawn_instance(setup_vars.value)
     return CommandReturnStatus.Success
 
@@ -80,7 +79,7 @@ def error(instance: Instance, msg: String) -> CommandReturnStatus:
 def jump_to_procedure(instance: Instance, procedure_name: String) -> CommandReturnStatus:
     workflow = instance.get_associated_workflow()
     if not procedure_name.value in workflow.procedures:
-        instance.log_line(f"Error: Cannot jump to the procedure {procedure_name} because it does not exist in the workflow {instance.workflow_name}")
+        instance.log_line(f"Error: Cannot jump to the procedure {procedure_name} because it does not exist in the workflow {instance.workflow_uuid}")
         return CommandReturnStatus.Error
     instance.processing_step = (procedure_name.value,0)
     return CommandReturnStatus.Success | CommandReturnStatus.Keep_Position
@@ -185,7 +184,10 @@ def set_variable_value(instance: Instance, variable_name: VariableName, value:Wo
 
 @Commands.register_command
 def set_variable_value_in_another_instance(instance: Instance, instance_uuid:String, variable_name: VariableName, value: WorkVariable) -> CommandReturnStatus:
-    other_instance = Instance.get_by_uuid(instance_uuid.value)
+    if not instance_uuid.value in global_instances:
+        instance.log_line(f"Unable to find an instance with the UUID {instance_uuid.value} to set a variable in")
+        return CommandReturnStatus.Error
+    other_instance = global_instances[instance_uuid.value]
     other_instance[variable_name.value] = value
     return CommandReturnStatus.Success
 

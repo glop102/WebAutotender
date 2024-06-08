@@ -46,6 +46,7 @@ class ProcessingStep:
 
 class Workflow:
     name: str
+    uuid: str
     constants: dict[str, variables.WorkVariable]
     # The values of these are the defaults when making a new instance for the workflow, and are copied to the instance
     setup_variables: dict[str, variables.WorkVariable]
@@ -60,6 +61,7 @@ class Workflow:
 
     def __init__(self) -> None:
         self.name = ""
+        self.uuid = ""
         self.constants = {}
         self.setup_variables = {}
         self.procedures = {}
@@ -71,19 +73,19 @@ class Workflow:
         #Note: Make sure Variables are a copy that we give to the instance, so the instance permuting does not change future workflow defaults
         new = instances.Instance()
         new.uuid = str(uuid4())
-        new.workflow_name = str(self.name)
+        new.workflow_uuid = str(self.uuid)
 
         # Start with all defaults and then apply overrides - technically wastes making extra copies that are thrown away, but we should not be copying all the much
         new.variables = deepcopy(self.setup_variables)
         for varname in setup_var_non_defaults:
             new.variables[varname] = deepcopy(setup_var_non_defaults[varname])
 
-        if self.name in global_workflows:
+        if self.uuid in global_workflows:
             instances.global_instances[new.uuid] = new
         return new
     
     def get_instances(self) -> list[instances.Instance]:
-        return [i for i in instances.global_instances.values() if i.workflow_name == self.name]
+        return [i for i in instances.global_instances.values() if i.workflow_uuid == self.uuid]
 
     def __str__(self) -> str:
         return f"Workflow \"{self.name}\" - {self.state.name}"
@@ -100,24 +102,19 @@ class Workflow:
         return sss
     
     def json_savable(self) -> dict:
-        data = {
+        return {
             'name': copy(self.name),
             'state': copy(self.state.name),
+            'uuid': copy(self.uuid),
             'user_notes': copy(self.user_notes),
-            'constants': {},
-            'setup_variables': {},
-            'procedures': {}
+            'constants':       {name:v.json_savable() for name,v in self.constants.items()},
+            'setup_variables': {name:v.json_savable() for name,v in self.setup_variables.items()},
+            'procedures':      {name:[step.json_savable() for step in proc] for name,proc in self.procedures.items()}
         }
-        for var_name in self.constants:
-            data['constants'][var_name] = self.constants[var_name].json_savable()
-        for var_name in self.setup_variables:
-            data['setup_variables'][var_name] = self.setup_variables[var_name].json_savable()
-        for proc_name in self.procedures:
-            data['procedures'][proc_name] = [proc_step.json_savable() for proc_step in self.procedures[proc_name] ]
-        return data
 
     def json_loadable(self, data: dict) -> None:
         self.name = data['name']
+        self.uuid = data['uuid']
         self.state = RunStates[data['state']]
         self.user_notes = data['user_notes']
         for var_name in data['constants']:
@@ -135,13 +132,6 @@ class Workflow:
                 step.json_loadable(step_data)
                 proc_steps.append(step)
             self.procedures[proc_name] = proc_steps
-    
-    @classmethod
-    def get_by_name(cls,workflow_name:str)->Workflow:
-        if workflow_name in global_workflows:
-            return global_workflows[workflow_name]
-        raise ValueError(
-            f"Unable to find the associated workflow {workflow_name}")
     
 # =====================================================================================
 # Tracking available items

@@ -7,7 +7,7 @@ import pipeline_backend.workflows as workflows
 
 class Instance:
     uuid: str
-    workflow_name: str
+    workflow_uuid: str
     state: workflows.RunStates
 
     # Per Instance Variables - Initially populated with setup_variables and then runtime can mutate it
@@ -23,7 +23,7 @@ class Instance:
 
     def __init__(self) -> None:
         self.uuid = ""
-        self.workflow_name = ""
+        self.workflow_uuid = ""
         self.state = workflows.RunStates.Running
         self.variables = {}
         self.processing_step = ("start", 0)
@@ -31,7 +31,7 @@ class Instance:
         self.console_log = ""
 
     def __str__(self) -> str:
-        return f"Instance {self.uuid} - Workflow: {self.workflow_name} - {self.state.name}"
+        return f"Instance {self.uuid} - Workflow: {self.workflow_uuid} - {self.state.name}"
 
     def __repr__(self) -> str:
         sss = self.__str__()
@@ -41,7 +41,7 @@ class Instance:
         return sss
 
     def get_associated_workflow(self) -> workflows.Workflow:
-        return workflows.Workflow.get_by_name(self.workflow_name)
+        return workflows.global_workflows[self.workflow_uuid]
 
     def log_line(self, line):
         """Will add a line to the log. This will add its own newline to the end of the line"""
@@ -60,7 +60,7 @@ class Instance:
             return deepcopy(w.setup_variables[var_name])
         if var_name in variables.global_variables:
             return deepcopy(variables.global_variables[var_name])
-        raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_name}/{self.uuid}")
+        raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_uuid}/{self.uuid}")
 
     def __setitem__(self, var_name: str|variables.VariableName, value: variables.WorkVariable) -> None:
         if type(var_name) == variables.VariableName:
@@ -71,7 +71,7 @@ class Instance:
         if type(var_name) == variables.VariableName:
             var_name = var_name.value
         if not var_name in self.variables:
-            raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_name}/{self.uuid}")
+            raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_uuid}/{self.uuid}")
         del self.variables[var_name]
 
     def past_time_to_run(self,current_time:datetime=None) -> bool:
@@ -86,7 +86,7 @@ class Instance:
         #TODO have a lock check in here for the UI doing an edit
         try:
             asoc_wf = self.get_associated_workflow()
-        except ValueError:
+        except:
             return False
         return self.state == workflows.RunStates.Running and asoc_wf.state == workflows.RunStates.Running
     
@@ -94,7 +94,7 @@ class Instance:
     def json_savable(self) -> dict:
         data = {
             'uuid': copy(self.uuid),
-            'workflow_name': copy(self.workflow_name),
+            'workflow_uuid': copy(self.workflow_uuid),
             'state': copy(self.state.name),
             'processing_step': copy(self.processing_step),
             'next_processing_time': self.next_processing_time.isoformat(),
@@ -107,7 +107,7 @@ class Instance:
 
     def json_loadable(self, data: dict) -> None:
         self.uuid = data['uuid']
-        self.workflow_name = data['workflow_name']
+        self.workflow_uuid = data['workflow_uuid']
         self.state = workflows.RunStates[data['state']]
         self.processing_step = tuple(data['processing_step'])
         self.next_processing_time = datetime.fromisoformat( data['next_processing_time'] )
@@ -116,13 +116,6 @@ class Instance:
             var = variables.WorkVariable()
             var.json_loadable(data['variables'][var_name])
             self.variables[var_name] = var
-
-    @classmethod
-    def get_by_uuid(cls, instance_uuid: str) -> Instance:
-        if instance_uuid in global_instances:
-            return global_instances[instance_uuid]
-        raise ValueError(
-            f"Unable to find the instance {instance_uuid}")
 
 
 global_instances: list[Instance] = {}

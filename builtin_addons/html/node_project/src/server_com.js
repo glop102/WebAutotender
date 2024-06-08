@@ -24,26 +24,23 @@ export async function refresh_instance(uuid) {
         const inst = await response.json();
         instances.value[uuid] = inst;
     } else {
-        console.log("Unable to fetch the workflow " + workflow_name);
+        console.log("Unable to fetch the instance " + uuid);
     }
 }
 export async function toggle_instance_pause(uuid) {
     const request = await fetch("/api/instances/" + uuid + "/toggle_pause", { method: "POST", cache: "no-cache" });
     if (request.ok) {
         await request.text();
-        // refresh_instance(uuid);
+        refresh_instance(uuid);
     } else {
-        console.log("Unable to toggle the running state for workflow " + workflow_name);
+        console.log("Unable to toggle the running state for instance " + uuid);
     }
 }
-export function workflow_instances(workflow_name) {
-    //Yeah, the name, and not the reference object of the workflow
-    //The name of a workflow is effectivly the primary key of the workflow and thus is not allowed to be changed in the UI
-    //If it ever changes, then it would orphan a bunch of instances. That also happens if it is deleted, but well, you are deleting things
+export function workflow_instances(workflow_uuid) {
     return computed(
         () => Object.fromEntries(
             Object.entries(instances.value)
-                .filter((inst) => inst[1].workflow_name == workflow_name))
+                .filter((inst) => inst[1].workflow_uuid == workflow_uuid))
     )
 }
 export async function push_instance_state(uuid) {
@@ -59,7 +56,20 @@ export async function push_instance_state(uuid) {
     );
     if (response.ok) {
     } else {
-        console.log("Unable to fetch the workflow " + workflow_name);
+        console.log("Unable to push Instance state " + uuid);
+    }
+}
+export async function delete_instance(uuid) {
+    const response = await fetch("/api/instances/" + uuid,
+        {
+            method: "DELETE",
+            cache: "no-cache"
+        }
+    );
+    if (response.ok) {
+        delete instances.value[uuid];
+    } else {
+        console.log("Unable to fetch the workflow " + uuid);
     }
 }
 
@@ -77,35 +87,59 @@ export async function refresh_workflows() {
 }
 refresh_workflows();
 
-export async function refresh_workflow(workflow_name) {
-    const response = await fetch("/api/workflows/"+workflow_name);
+export async function refresh_workflow(workflow_uuid) {
+    const response = await fetch("/api/workflows/"+workflow_uuid);
     if (response.ok) {
         const workflow = await response.json();
-        workflows.value[workflow_name] = workflow;
+        workflows.value[workflow_uuid] = workflow;
     } else {
-        console.log("Unable to fetch the workflow "+workflow_name);
+        console.log("Unable to fetch the workflow "+workflow_uuid);
     }
 }
-export async function toggle_workflow_pause(workflow_name) {
-    const request = await fetch("/api/workflows/" + workflow_name + "/toggle_pause", { method: "POST", cache: "no-cache" });
+export async function toggle_workflow_pause(workflow_uuid) {
+    const request = await fetch("/api/workflows/" + workflow_uuid + "/toggle_pause", { method: "POST", cache: "no-cache" });
     if (request.ok) {
         await request.text();
-        refresh_workflow(workflow_name);
+        refresh_workflow(workflow_uuid);
     } else {
-        console.log("Unable to toggle the running state for workflow " + workflow_name);
+        console.log("Unable to toggle the running state for workflow " + workflow_uuid);
+    }
+}
+export async function push_workflow_state(uuid) {
+    const response = await fetch("/api/workflows/" + uuid,
+        {
+            method: "PUT",
+            cache: "no-cache",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(workflows.value[uuid])
+        }
+    );
+    if (response.ok) {
+    } else {
+        console.log("Unable to push Workflow state " + uuid);
+    }
+}
+export async function delete_workflow(workflow_uuid) {
+    if(!confirm("Are you sure you want to delete the workflow:\n"+workflow_uuid)){
+        return;
+    }
+    const request = await fetch("/api/workflows/" + workflow_uuid, { method: "DELETE", cache: "no-cache" });
+    if (request.ok) {
+        delete workflows.value[workflow_uuid];
+    } else {
+        console.log("Unable to delete the workflow " + workflow_uuid);
     }
 }
 
 //===================================================================
 // Orphans
 //===================================================================
-export const workflow_names = computed(
-    () => Object.keys(workflows.value)
-);
 export const orphans = computed(
     () => Object.fromEntries(
         Object.entries(instances.value)
-        .filter((inst) => !workflow_names.value.includes(inst[1].workflow_name))
+        .filter((inst) => !Object.keys(workflows.value).includes(inst[1].workflow_uuid))
     )
 );
 
@@ -129,9 +163,46 @@ export function close_instance_edit() {
     }
 }
 export function save_and_close_instance_edit(){
+    // TODO Make this not just blindly push, but have it wait before closing the edit dialog and on failure of pushing, leave the edit dialog open
     instances.value[instance_edit_state.value.uuid] = instance_edit_state.value.tempspace;
     push_instance_state(instance_edit_state.value.uuid)
     close_instance_edit();
+}
+
+
+//===================================================================
+// Workflow Editor
+//===================================================================
+export const workflow_edit_state = ref({ "show": false, "uuid": "" });
+export function show_workflow_edit(uuid) {
+    workflow_edit_state.value = {
+        "show": true,
+        "uuid": uuid,
+        "tempspace": JSON.parse(JSON.stringify(workflows.value[uuid])),
+    }
+}
+export function add_new_workflow_edit() {
+    const default_workflow = {
+        "name": "",
+        "state": "Running",
+        "uuid": "",
+        "user_notes": "",
+        "constants": {},
+        "setup_variables": {},
+        "procedures": {}
+    };
+}
+export function close_workflow_edit() {
+    workflow_edit_state.value = {
+        "show": false,
+        "uuid": ""
+    }
+}
+export function save_and_close_workflow_edit() {
+    // TODO Make this not just blindly push, but have it wait before closing the edit dialog and on failure of pushing, leave the edit dialog open
+    workflows.value[workflow_edit_state.value.uuid] = workflow_edit_state.value.tempspace;
+    push_workflow_state(workflow_edit_state.value.uuid)
+    close_workflow_edit();
 }
 
 

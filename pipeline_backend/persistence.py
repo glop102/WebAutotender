@@ -8,12 +8,10 @@ import json
 
 def save_pipeline_global_state() -> str:
     persistant_data = {
-        "workflows": [w.json_savable() for w in global_workflows.values()],
-        "instances": [i.json_savable() for i in global_instances.values()],
-        "variables": {}
+        "workflows": {uuid:w.json_savable() for uuid,w in global_workflows.items()},
+        "instances": {uuid:i.json_savable() for uuid,i in global_instances.items()},
+        "variables": {name:v.json_savable() for name,v in global_variables.items()}
     }
-    for var_name in global_variables:
-        persistant_data["variables"][var_name] = global_variables[var_name].json_savable()
     return json.dumps(persistant_data,indent=4)
 
 def save_pipeline_global_state_to_file(filepath: str) -> None:
@@ -27,21 +25,21 @@ def load_pipeline_global_state(state:str) -> None:
     persistant_data = json.loads(state)
 
     global_workflows.clear()
-    for workflow_data in persistant_data["workflows"]:
+    for uuid,workflow_data in persistant_data["workflows"].items():
         workflow = Workflow()
         workflow.json_loadable(workflow_data)
-        global_workflows[workflow.name]=workflow
+        global_workflows[uuid]=workflow
     
     global_instances.clear()
-    for instance_data in persistant_data["instances"]:
+    for uuid,instance_data in persistant_data["instances"].items():
         instance = Instance()
         instance.json_loadable(instance_data)
-        global_instances[instance.uuid]=instance
+        global_instances[uuid]=instance
     
     global_variables.clear()
-    for var_name in persistant_data["variables"]:
+    for var_name,var_data in persistant_data["variables"].items():
         var = WorkVariable()
-        var.json_loadable(persistant_data["variables"][var_name])
+        var.json_loadable(var_data)
         global_variables[var_name] = var
 
 def load_pipeline_global_state_from_file(filepath: str) -> None:

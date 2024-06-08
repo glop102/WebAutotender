@@ -1,7 +1,7 @@
 <script setup>
 import Variable from './Variable.vue'
 import {ref} from "vue"
-import { toggle_instance_pause,show_instance_edit } from '@/server_com';
+import { toggle_instance_pause,show_instance_edit,delete_instance } from '@/server_com';
 const props = defineProps({
     instance: Object
 })
@@ -24,32 +24,27 @@ const show_details = ref(false);
     overflow: scroll;
 }
 
-.instance_details_process_step,
-.instance_details_process_name,
 .instance_details_state {
     display: inline-block;
 }
 
-.instance_details_section_title {
-    margin-top: 0;
-    margin-bottom: 0;
-    display: inline;
-}
 </style>
 
 <template>
     <div class="instance_details">
-        <button type="button" class="instance_details_section_title" @click="show_details = !show_details">Instance:</button>
-        <button type="button" class="instance_details_state" @click="toggle_instance_pause(instance.uuid)">{{instance.state}}</button>
-        <button type="button" class="instance_details_state" @click="show_instance_edit(instance.uuid)" v-if="show_details">Edit</button>
+        <button type="button" @click="show_details = !show_details">Instance:</button>
+        <button type="button" @click="toggle_instance_pause(instance.uuid)">{{instance.state}}</button>
+        <div v-if="show_details">
+            <button type="button" @click="show_instance_edit(instance.uuid)">Edit</button>
+            <button type="button" @click="delete_instance(instance.uuid)">Delete</button>
+        </div>
         <div class="instance_details_next_processing_time">{{ instance.next_processing_time }}</div>
         <div>TODO: Status Variable</div>
         <div v-if="show_details">
-            <div class="instance_details_workflow_name">{{ instance.workflow_name }}</div>
-            <div class="instance_details_process_name">{{ instance.processing_step[0] }}</div>:
-            <div class="instance_details_process_step">{{ instance.processing_step[1] }}</div>
+            <div>{{ instance.workflow_uuid }}</div>
+            <div>{{ instance.processing_step[0] }} : {{ instance.processing_step[1] }}</div>
             <div class="instance_details_console_log_display">{{ instance.console_log }}</div>
-            <div class="instance_details_variables">
+            <div>
                 <Variable v-for="v in Object.keys(instance.variables)" :key="v" :name="v" :variable="instance.variables[v]" />
             </div>
         </div>

@@ -49,6 +49,10 @@ function dictionary_push(){
 .variable_edit_value {
     display: block;
 }
+.variable_edit_add_button{
+    /* display: block; */
+    clear: left;
+}
 </style>
 
 <template>
@@ -59,18 +63,20 @@ function dictionary_push(){
         </select>
         <button type="button" @click="emits('requested_deletion')">Delete</button>
         <input v-if="'Integer'==variable.typename || 'Float'==variable.typename" type="number" class="variable_edit_value" v-model="variable.value"/>
-        <div v-else-if="'StringList'==variable.typename || 'VariableNameList'==variable.typename">
+        <template v-else-if="'StringList'==variable.typename || 'VariableNameList'==variable.typename">
             <div v-for="idx in variable.value.length" :key="idx-1">
                 <button type="button" @click="variable.value.splice(idx-1,1)">X</button>
                 <input type="text" v-model="variable.value[idx-1]"/>
             </div>
             <button type="button" @click="stringlist_push">+</button>
-        </div>
-        <div v-else-if="'Dictionary'==variable.typename">
-            <VariableEdit v-for="vname in Object.keys(variable.value)" :key="vname" type="text" v-model="variable.value[vname]" @requested_deletion="delete variable.value[vname]">{{ vname }}</VariableEdit>
-            <button type="button" @click="dictionary_push">+</button>
+        </template>
+        <template v-else-if="'Dictionary'==variable.typename">
+            <div>
+                <VariableEdit v-for="vname in Object.keys(variable.value)" :key="vname" type="text" v-model="variable.value[vname]" @requested_deletion="delete variable.value[vname]">{{ vname }}</VariableEdit>
+            </div>
+            <button type="button" class="variable_edit_add_button" @click="dictionary_push">+</button>
             <input type="text" v-model="dictionary_field_new_name" placeholder="Entry Name"/>
-        </div>
+        </template>
         <input v-else type="text" class="variable_edit_value" v-model="variable.value"/> <!-- Default assume it is just a basic string -->
     </div>
 </template>
