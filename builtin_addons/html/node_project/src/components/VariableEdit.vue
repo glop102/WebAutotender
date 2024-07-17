@@ -42,10 +42,6 @@ function dictionary_push(){
     border-radius: 0.25em;
 }
 
-.variable_edit_name,
-.variable_edit_typename {
-    display: inline-block;
-}
 .variable_edit_value {
     display: block;
 }
@@ -56,10 +52,11 @@ function dictionary_push(){
 </style>
 
 <template>
+    <!-- TODO Add some extra types: WorkflowRef, InstanceRef, Color -->
     <div class="variable_edit">
-        <slot class="variable_edit_name"></slot>
+        <div><slot></slot></div>
         <select v-model="variable.typename">
-            <option v-for="typename in variable_types" :value="typename">{{ typename }}</option>
+            <option v-for="typename in variable_types" :value="typename" :key="typename">{{ typename }}</option>
         </select>
         <button type="button" @click="emits('requested_deletion')">Delete</button>
         <input v-if="'Integer'==variable.typename || 'Float'==variable.typename" type="number" class="variable_edit_value" v-model="variable.value"/>

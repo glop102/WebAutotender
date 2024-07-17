@@ -1,10 +1,11 @@
 <script setup>
 import VariableEdit from './VariableEdit.vue'
+import ProcedureEdit from './ProcedureEdit.vue';
 import {ref,computed} from "vue"
 import { close_workflow_edit,save_and_close_workflow_edit,workflow_edit_state } from '@/server_com';
 
 const workflow = ref(workflow_edit_state.value.tempspace);
-
+const current_procedure = ref("start");
 
 const new_consant_var_name = ref("");
 function add_new_constant_variable(){
@@ -49,6 +50,8 @@ function delete_setup_variable(var_name){
     }
     delete workflow.value.setup_variables[var_name];
 }
+
+const new_procedure_name = ref("");
 </script>
 
 <style>
@@ -71,6 +74,11 @@ function delete_setup_variable(var_name){
 label{
     display: block;
 }
+.workflow_edit_title{
+    display: block;
+    width: 20em;
+    font-size: 1.25em;
+}
 </style>
 
 <template>
@@ -79,24 +87,32 @@ label{
 
     <div class="workflow_edit" @click.self="close_workflow_edit">
         <section class="workflow_edit_content_section">
-            <h1>{{ workflow.name }}</h1>
             <button type="button" @click="close_workflow_edit">Cancel</button>
             <button type="button" @click="save_and_close_workflow_edit">Save</button>
-            <h2>Constants</h2>
+            <input type="text" v-model="workflow.name" class="workflow_edit_title"/>
+            <h3>Constants</h3>
             <div class="workflow_edit_variables">
                 <VariableEdit v-for="v in Object.keys(workflow.constants)" :key="v" v-model="workflow.constants[v]" @requested_deletion="delete_constant_variable(v)">{{ v }}</VariableEdit>
                 <label>Add Variable</label>
                 <input type="text" placeholder="Variable Name" v-model="new_consant_var_name"/>
                 <button type="button" @click="add_new_constant_variable">Add</button>
             </div>
-            <h2>Setup Variables</h2>
+            <h3>Setup Variables</h3>
             <div class="workflow_edit_variables">
-                <VariableEdit v-for="v in Object.keys(workflow.setup_variables)" :key="v" v-model="workflow.setup_variables[v]" @requested_deletion="delete_constant_variable(v)">{{ v }}</VariableEdit>
+                <VariableEdit v-for="v in Object.keys(workflow.setup_variables)" :key="v" v-model="workflow.setup_variables[v]" @requested_deletion="delete_setup_variable(v)">{{ v }}</VariableEdit>
             </div>
             <label>Add Variable</label>
-            <input type="text" placeholder="Variable Name" v-model="new_consant_var_name"/>
-            <button type="button" @click="add_new_constant_variable">Add</button>
-            <h2>Procedures</h2>
+            <input type="text" placeholder="Variable Name" v-model="new_setup_var_name"/>
+            <button type="button" @click="add_new_setup_variable">Add</button>
+            <h3>Procedures</h3>
+            <input type="text" placeholder="procedure name" v-model="new_procedure_name"/>
+            <button type="button">add</button>
+            <br>
+            <select v-model="current_procedure">
+                <option v-for="procname in Object.keys(workflow.procedures)" :value="procname">{{ procname }}</option>
+            </select>
+            <button v-if="current_procedure != 'start'" type="button">delete</button>
+            <ProcedureEdit v-model="workflow.procedures[current_procedure]" />
         </section>
     </div>
 </template>

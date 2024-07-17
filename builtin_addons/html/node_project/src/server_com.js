@@ -223,3 +223,16 @@ refresh_variable_types();
 //===================================================================
 // Commands
 //===================================================================
+export const available_commands = ref([])
+export const available_commands_names = computed(
+    () => Object.keys(available_commands.value)
+);
+export async function refresh_available_commands() {
+    const response = await fetch("/api/commands");
+    if (response.ok) {
+        available_commands.value = await response.json();
+    } else {
+        console.log("Unable to fetch the list of commands");
+    }
+}
+refresh_available_commands();
