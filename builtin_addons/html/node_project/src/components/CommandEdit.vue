@@ -1,5 +1,5 @@
 <script setup>
-import {ref,computed} from 'vue'
+import {computed} from 'vue'
 import VariableEdit from './VariableEdit.vue'
 import {available_commands,available_commands_names} from "@/server_com"
 

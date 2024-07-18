@@ -3,7 +3,7 @@ import Instance from "./Instance.vue"
 import Procedure from "./Procedure.vue"
 import Variable from "./Variable.vue";
 import {ref} from "vue"
-import { workflow_instances,toggle_workflow_pause,show_workflow_edit,delete_workflow } from "@/server_com";
+import { workflow_instances,toggle_workflow_pause,show_workflow_edit,delete_workflow,show_spawninstance_edit } from "@/server_com";
 
 const props = defineProps({
     workflow: Object
@@ -49,7 +49,7 @@ function toggle_details_visibility(){
         <button class="workflow_details_name" @click="toggle_details_visibility()">{{ workflow.name }}</button>
         <button type="button" class="workflow_details_state" @click="toggle_workflow_pause(workflow.uuid)">{{ workflow.state }}</button>
         -
-        <button type="button" class="workflow_details_spawn_instance">Spawn Instance</button>
+        <button type="button" class="workflow_details_spawn_instance" @click="show_spawninstance_edit(props.workflow.uuid)">Spawn Instance</button>
         <div v-if="show_details">
             <button type="button" @click="show_workflow_edit(workflow.uuid)">Edit</button>
             <button type="button" @click="delete_workflow(workflow.uuid)">Delete</button>

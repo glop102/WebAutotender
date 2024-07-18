@@ -1,5 +1,6 @@
 from fastapi import APIRouter, status, Response
 from fastapi.responses import HTMLResponse, JSONResponse
+from uuid import uuid4
 from .workflows import *
 from .instances import *
 from .variables import *
@@ -23,6 +24,12 @@ async def get_workflow(uuid: str):
     w = global_workflows[uuid]
     return w.json_savable()
 
+@workflow_router.delete("/workflows/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_workflow(uuid: str):
+    if not uuid in global_workflows:
+        return Response(status_code=status.HTTP_404_NOT_FOUND)
+    del global_workflows[uuid]
+
 @workflow_router.put("/workflows/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def edit_workflow(uuid: str, data: dict):
     """Will create a new workflow or edit a workflow that already exists."""
@@ -44,14 +51,16 @@ async def spawn_instance_of_workflow(uuid: str, setup_variables:dict):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     w = global_workflows[uuid]
     try:
+        setup_variables_cleaned = {}
         for arg_name,arg_data in setup_variables.items():
             v = WorkVariable()
             v.json_loadable(arg_data)
-            setup_variables[arg_name] = arg_data
+            setup_variables_cleaned[arg_name] = arg_data
     except:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
+    response_data = w.spawn_instance(setup_variables_cleaned).json_savable()
     PipelineManager.notify_of_something_happening()
-    return JSONResponse(w.spawn_instance(setup_variables).json_savable(), status_code=status.HTTP_201_CREATED)
+    return JSONResponse(response_data, status_code=status.HTTP_201_CREATED)
 
 @workflow_router.get("/workflows/{uuid}/instances")
 async def get_workflow_instances(uuid: str):
@@ -218,7 +227,17 @@ async def get_command_detail(command_name:str):
 async def get_all_variable_types():
     return [cls.__name__ for cls in WorkVariable.__subclasses__()]
 
+# ===================================================================
+# Random Utils
+utils_router = APIRouter(tags=["utils"])
+
+@utils_router.get("/gen_uuid")
+async def get_gen_uuid():
+    return str(uuid4())
+
+
 router.include_router(workflow_router)
 router.include_router(instance_router)
 router.include_router(variable_router)
 router.include_router(command_router)
+router.include_router(utils_router)

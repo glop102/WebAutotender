@@ -169,6 +169,43 @@ export function save_and_close_instance_edit(){
     close_instance_edit();
 }
 
+//===================================================================
+// Spawn Instance Editor
+//===================================================================
+export const spawninstance_edit_state = ref({ "show": false, "workflow_uuid": "" });
+export function show_spawninstance_edit(workflow_uuid) {
+    spawninstance_edit_state.value = {
+        "show": true,
+        "workflow_uuid": workflow_uuid,
+        "client_error_message": "",
+        "tempspace": {}
+    }
+}
+export function close_spawninstance_edit() {
+    spawninstance_edit_state.value = {
+        "show": false,
+        "workflow_uuid": ""
+    }
+}
+export async function save_and_close_spawninstance_edit() {
+    const response = await fetch("/api/workflows/" + spawninstance_edit_state.value.workflow_uuid + "/spawn_instance",
+        {
+            method: "POST",
+            cache: "no-cache",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(spawninstance_edit_state.value.tempspace)
+        }
+    );
+    if (response.ok) {
+        close_spawninstance_edit();
+    } else {
+        console.log("Unable to Spawn the new instance");
+        spawninstance_edit_state.value.client_error_message = "Unable to Spawn the new instance";
+    }
+}
+
 
 //===================================================================
 // Workflow Editor
@@ -181,16 +218,23 @@ export function show_workflow_edit(uuid) {
         "tempspace": JSON.parse(JSON.stringify(workflows.value[uuid])),
     }
 }
-export function add_new_workflow_edit() {
+export async function add_new_workflow_edit() {
+    const uuid = await retrieve_random_uuid();
+    if(!uuid) return;
     const default_workflow = {
         "name": "",
         "state": "Running",
-        "uuid": "",
+        "uuid": uuid,
         "user_notes": "",
         "constants": {},
         "setup_variables": {},
-        "procedures": {}
+        "procedures": {"start":[]}
     };
+    workflow_edit_state.value = {
+        "show": true,
+        "uuid": uuid,
+        "tempspace": default_workflow,
+    }
 }
 export function close_workflow_edit() {
     workflow_edit_state.value = {
@@ -200,6 +244,9 @@ export function close_workflow_edit() {
 }
 export function save_and_close_workflow_edit() {
     // TODO Make this not just blindly push, but have it wait before closing the edit dialog and on failure of pushing, leave the edit dialog open
+    if(workflow_edit_state.value.tempspace.name == ""){
+        workflow_edit_state.value.tempspace.name = workflow_edit_state.value.uuid;
+    }
     workflows.value[workflow_edit_state.value.uuid] = workflow_edit_state.value.tempspace;
     push_workflow_state(workflow_edit_state.value.uuid)
     close_workflow_edit();
@@ -236,3 +283,17 @@ export async function refresh_available_commands() {
     }
 }
 refresh_available_commands();
+
+
+//===================================================================
+// Utils
+//===================================================================
+export async function retrieve_random_uuid() {
+    const response = await fetch("/api/gen_uuid");
+    if (response.ok) {
+        return await response.json();
+    } else {
+        console.log("Unable to fetch a UUID");
+        return null
+    }
+}

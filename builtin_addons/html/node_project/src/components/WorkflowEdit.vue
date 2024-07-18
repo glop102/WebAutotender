@@ -1,7 +1,7 @@
 <script setup>
 import VariableEdit from './VariableEdit.vue'
 import ProcedureEdit from './ProcedureEdit.vue';
-import {ref,computed} from "vue"
+import {ref} from "vue"
 import { close_workflow_edit,save_and_close_workflow_edit,workflow_edit_state } from '@/server_com';
 
 const workflow = ref(workflow_edit_state.value.tempspace);
@@ -42,7 +42,7 @@ function add_new_setup_variable(){
         "value":"",
         "typename":"String"
     };
-    new_consant_var_name.value="";
+    new_setup_var_name.value="";
 }
 function delete_setup_variable(var_name){
     if(!Object.keys(workflow.value.setup_variables).includes(var_name)){
@@ -52,6 +52,23 @@ function delete_setup_variable(var_name){
 }
 
 const new_procedure_name = ref("");
+function add_new_procedure(){
+    if(new_procedure_name.value == "") return;
+    if(Object.keys(workflow.value.procedures).includes(new_procedure_name.value))
+        return;
+
+    workflow.value.procedures[new_procedure_name.value] = [];
+    current_procedure.value = new_procedure_name.value;
+    new_procedure_name.value = "";
+}
+function delete_current_procedure(){
+    if(current_procedure.value == "start"){
+        console.error("Somehow the delete button for the start procedure was called, please notify the developer.");
+        return;
+    }
+    delete workflow.value.procedures[current_procedure.value];
+    current_procedure.value = "start";
+}
 </script>
 
 <style>
@@ -106,12 +123,12 @@ label{
             <button type="button" @click="add_new_setup_variable">Add</button>
             <h3>Procedures</h3>
             <input type="text" placeholder="procedure name" v-model="new_procedure_name"/>
-            <button type="button">add</button>
+            <button type="button" @click="add_new_procedure">add</button>
             <br>
             <select v-model="current_procedure">
                 <option v-for="procname in Object.keys(workflow.procedures)" :value="procname">{{ procname }}</option>
             </select>
-            <button v-if="current_procedure != 'start'" type="button">delete</button>
+            <button v-if="current_procedure != 'start'" type="button" @click="delete_current_procedure">delete</button>
             <ProcedureEdit v-model="workflow.procedures[current_procedure]" />
         </section>
     </div>
