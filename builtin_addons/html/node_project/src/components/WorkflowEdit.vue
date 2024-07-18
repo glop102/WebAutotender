@@ -99,13 +99,13 @@ label{
 </style>
 
 <template>
-    <!-- TODO Have the workflow edit only close when it was successful in pushing state. Otherwise have it sit around disabled or something. -->
     <!-- TODO Have some warning headers in red at the top of the workflow to alert when the server has changed it. -->
 
     <div class="workflow_edit" @click.self="close_workflow_edit">
         <section class="workflow_edit_content_section">
             <button type="button" @click="close_workflow_edit">Cancel</button>
             <button type="button" @click="save_and_close_workflow_edit">Save</button>
+            <div v-if="workflow_edit_state.client_error_message.length > 0">{{ workflow_edit_state.client_error_message }}</div>
             <input type="text" v-model="workflow.name" class="workflow_edit_title"/>
             <h3>Constants</h3>
             <div class="workflow_edit_variables">

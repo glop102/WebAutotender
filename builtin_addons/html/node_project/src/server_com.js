@@ -55,8 +55,10 @@ export async function push_instance_state(uuid) {
         }
     );
     if (response.ok) {
+        return true;
     } else {
         console.log("Unable to push Instance state " + uuid);
+        return false;
     }
 }
 export async function delete_instance(uuid) {
@@ -153,6 +155,7 @@ export function show_instance_edit(uuid){
     instance_edit_state.value = {
         "show":true,
         "uuid":uuid,
+        "client_error_message": "",
         "tempspace": JSON.parse(JSON.stringify(instances.value[uuid])),
     }
 }
@@ -162,11 +165,13 @@ export function close_instance_edit() {
         "uuid": ""
     }
 }
-export function save_and_close_instance_edit(){
-    // TODO Make this not just blindly push, but have it wait before closing the edit dialog and on failure of pushing, leave the edit dialog open
+export async function save_and_close_instance_edit(){
     instances.value[instance_edit_state.value.uuid] = instance_edit_state.value.tempspace;
-    push_instance_state(instance_edit_state.value.uuid)
-    close_instance_edit();
+    if(await push_instance_state(instance_edit_state.value.uuid)){
+        close_instance_edit();
+    }else{
+        instance_edit_state.value.client_error_message = "Unable to push the instance state to the server";
+    }
 }
 
 //===================================================================
@@ -215,6 +220,7 @@ export function show_workflow_edit(uuid) {
     workflow_edit_state.value = {
         "show": true,
         "uuid": uuid,
+        "client_error_message": "",
         "tempspace": JSON.parse(JSON.stringify(workflows.value[uuid])),
     }
 }
@@ -233,6 +239,7 @@ export async function add_new_workflow_edit() {
     workflow_edit_state.value = {
         "show": true,
         "uuid": uuid,
+        "client_error_message": "",
         "tempspace": default_workflow,
     }
 }
@@ -242,14 +249,16 @@ export function close_workflow_edit() {
         "uuid": ""
     }
 }
-export function save_and_close_workflow_edit() {
-    // TODO Make this not just blindly push, but have it wait before closing the edit dialog and on failure of pushing, leave the edit dialog open
+export async function save_and_close_workflow_edit() {
     if(workflow_edit_state.value.tempspace.name == ""){
         workflow_edit_state.value.tempspace.name = workflow_edit_state.value.uuid;
     }
     workflows.value[workflow_edit_state.value.uuid] = workflow_edit_state.value.tempspace;
-    push_workflow_state(workflow_edit_state.value.uuid)
-    close_workflow_edit();
+    if(await push_workflow_state(workflow_edit_state.value.uuid)){
+        close_workflow_edit();
+    }else{
+        workflow_edit_state.value.client_error_message = "Unable to push the workflow state to the server";
+    }
 }
 
 
