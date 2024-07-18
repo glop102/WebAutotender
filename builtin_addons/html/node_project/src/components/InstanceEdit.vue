@@ -23,7 +23,7 @@ const available_procedure_steps = computed(
             .procedures[instance.value.processing_step[0]] ? // if a procedure with the current name exists
                 workflows.value[instance.value.workflow_uuid] // give an array of command names in that procedure
                 .procedures[instance.value.processing_step[0]]
-                .map((proc_step)=>proc_step.command_uuid)
+                .map((proc_step)=>proc_step.command_name)
             : []
         : []
 );

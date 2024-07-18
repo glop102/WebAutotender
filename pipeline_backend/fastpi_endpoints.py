@@ -55,7 +55,7 @@ async def spawn_instance_of_workflow(uuid: str, setup_variables:dict):
         for arg_name,arg_data in setup_variables.items():
             v = WorkVariable()
             v.json_loadable(arg_data)
-            setup_variables_cleaned[arg_name] = arg_data
+            setup_variables_cleaned[arg_name] = v
     except:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     response_data = w.spawn_instance(setup_variables_cleaned).json_savable()

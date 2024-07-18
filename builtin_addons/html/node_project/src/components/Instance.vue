@@ -37,11 +37,11 @@ const show_details = ref(false);
         <div v-if="show_details">
             <button type="button" @click="show_instance_edit(instance.uuid)">Edit</button>
             <button type="button" @click="delete_instance(instance.uuid)">Delete</button>
+            <div>UUID: {{ instance.workflow_uuid }}</div>
         </div>
         <div class="instance_details_next_processing_time">{{ instance.next_processing_time }}</div>
-        <div>TODO: Status Variable</div>
+        <div v-if="instance.variables['status']">{{ instance.variables['status'].value }}</div>
         <div v-if="show_details">
-            <div>{{ instance.workflow_uuid }}</div>
             <div>{{ instance.processing_step[0] }} : {{ instance.processing_step[1] }}</div>
             <div class="instance_details_console_log_display">{{ instance.console_log }}</div>
             <div>
