@@ -33,8 +33,8 @@ import { instance_edit_state,workflow_edit_state,spawninstance_edit_state,add_ne
         <section id="workflow_list">
             <Workflow v-for="w in workflows" :key="w.uuid" :workflow="w" />
         </section>
-        <h2>Orphan Instances</h2>
-        <section id="orphan_instance_list">
+        <h2 v-if="Object.keys(orphans).length>0">Orphan Instances</h2>
+        <section id="orphan_instance_list" v-if="Object.keys(orphans).length>0">
             <Instance v-for="inst in orphans" :key="inst.uuid" :instance="inst" />
         </section>
         <!-- The Edit components use a *copy* of what is being edited so that it can be mutated and then thrown away on a cancel. Check server_com for the copies -->

@@ -119,8 +119,10 @@ export async function push_workflow_state(uuid) {
         }
     );
     if (response.ok) {
+        return true;
     } else {
         console.log("Unable to push Workflow state " + uuid);
+        return false;
     }
 }
 export async function delete_workflow(workflow_uuid) {
