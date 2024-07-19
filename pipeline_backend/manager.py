@@ -1,4 +1,4 @@
-from threading import Thread, Event
+from asyncio import Handle, TimerHandle, get_running_loop
 from datetime import datetime,timedelta
 from time import sleep
 import importlib.util
@@ -9,12 +9,11 @@ from .persistence import *
 
 # TODO - Add in callbacks for certain events to enable things like websockets giving useful information
 
-class PipelineManager(Thread):
-    keep_running:bool
-    something_happened: Event = Event() # Shared event to simplify the notify scheme
+class PipelineManager:
+    delayedTask : Handle | TimerHandle | None
     def __init__(self) -> None:
         super().__init__()
-        self.keep_running = True
+        self.delayedTask = None
     def restore_state(self,filename:str="pipeline_state.json"):
         load_pipeline_global_state_from_file(filename)
     def save_state(self, filename: str = "pipeline_state.json"):
@@ -26,8 +25,6 @@ class PipelineManager(Thread):
         due_instances = [i for i in global_instances.values() 
                          if i.is_allowed_to_run() and i.past_time_to_run(current_time)]
         for instance in due_instances:
-            if not self.keep_running:
-                return
             runner = ProcedureRunner(instance)
             runner.run_instance_until_yield()
 
@@ -42,25 +39,25 @@ class PipelineManager(Thread):
             next_due_time = min(next_due_time,instance.next_processing_time)
         return max(next_due_time,minimum_next_due_time)
 
-    def run(self):
-        while self.keep_running:
-            self.something_happened.clear()
-            
-            self.run_due_instances()
-            if len(global_instances) == 0:
-                self.something_happened.wait()
-            else:
-                next_due_time = self.get_next_due_time()
-                self.something_happened.wait((next_due_time-datetime.now()).total_seconds())
-    @classmethod
-    def notify_of_something_happening(cls):
-        cls.something_happened.set()
-    def stop(self):
-        self.keep_running = False
-        self.notify_of_something_happening()
+    async def run(self):
+        self.run_due_instances()
+        if len(global_instances) > 0:
+            next_due_time = (self.get_next_due_time()-datetime.now()).total_seconds()
+            self.delayedTask = get_running_loop().call_later(
+                next_due_time,
+                lambda: get_running_loop().create_task(self.run())
+            )
+    async def notify_of_something_happening(self):
+        if self.delayedTask:
+            self.delayedTask.cancel()
+        self.delayedTask = get_running_loop().call_soon( lambda: get_running_loop().create_task(self.run()) )
+    async def start(self):
+        await self.notify_of_something_happening()
+    async def stop(self):
+        if self.delayedTask:
+            self.delayedTask.cancel()
 
-    @classmethod
-    def import_addons_from_folder(cls,foldername:str) -> list:
+    def import_addons_from_folder(self,foldername:str) -> list:
         """This will attempt to import all the folders in a folder in the assumption they are modules. This will let them run naturally and do things like register commands. It will return a list of these sucessfully imported modules."""
         modules_parent = pathlib.Path(foldername)
         if not modules_parent.exists():
@@ -78,3 +75,6 @@ class PipelineManager(Thread):
                 continue
             succesful_modules.append(module)
         return succesful_modules
+
+
+pipelineManager = PipelineManager()

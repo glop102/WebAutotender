@@ -5,7 +5,7 @@ from .workflows import *
 from .instances import *
 from .variables import *
 from .commands import *
-from .manager import PipelineManager
+from .manager import PipelineManager, pipelineManager
 
 router = APIRouter()
 
@@ -59,7 +59,7 @@ async def spawn_instance_of_workflow(uuid: str, setup_variables:dict):
     except:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     response_data = w.spawn_instance(setup_variables_cleaned).json_savable()
-    PipelineManager.notify_of_something_happening()
+    await pipelineManager.notify_of_something_happening()
     return JSONResponse(response_data, status_code=status.HTTP_201_CREATED)
 
 @workflow_router.get("/workflows/{uuid}/instances")
@@ -133,7 +133,7 @@ async def edit_instance(uuid:str,data:dict):
     if uuid != i_new.uuid:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     global_instances[uuid] = i_new
-    PipelineManager.notify_of_something_happening()
+    await pipelineManager.notify_of_something_happening()
 
 @instance_router.post("/instances/{uuid}/pause", status_code=status.HTTP_204_NO_CONTENT)
 async def pause_instance(uuid: str):
@@ -148,10 +148,10 @@ async def unpause_instance(uuid: str):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     i = global_instances[uuid]
     i.state = RunStates.Running
-    PipelineManager.notify_of_something_happening()
+    await pipelineManager.notify_of_something_happening()
 
 @instance_router.post("/instances/{uuid}/toggle_pause", status_code=status.HTTP_204_NO_CONTENT)
-async def pause_instance(uuid: str):
+async def toggle_pause_instance(uuid: str):
     if not uuid in global_instances:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     i = global_instances[uuid]
@@ -159,6 +159,7 @@ async def pause_instance(uuid: str):
         i.state = RunStates.Paused
     else:
         i.state = RunStates.Running
+    await pipelineManager.notify_of_something_happening()
 
 @instance_router.post("/instances/{uuid}/run_now", status_code=status.HTTP_204_NO_CONTENT)
 async def run_now_instance(uuid: str):
@@ -167,7 +168,7 @@ async def run_now_instance(uuid: str):
     i = global_instances[uuid]
     i.state = RunStates.Running
     i.next_processing_time = datetime.now()
-    PipelineManager.notify_of_something_happening()
+    await pipelineManager.notify_of_something_happening()
 
 
 # ===================================================================

@@ -12,30 +12,29 @@ from time import sleep
 #   - still need to figure out how the submission process works for htmx
 # - websocket with Manager callbacks to let the UI know when to refresh certain elements
 
+
 @asynccontextmanager
 async def lifespan(app:FastAPI):
     print("Starting Pipeline")
-    manager = PipelineManager()
-    manager.restore_state()
-    manager.start()
+    pipelineManager.restore_state()
+    await pipelineManager.start()
 
     app.include_router(
         pipeline_backend.fastpi_endpoints.router,
         prefix="/api"
         )
 
-    for module in manager.import_addons_from_folder("builtin_addons"):
+    for module in pipelineManager.import_addons_from_folder("builtin_addons"):
         if hasattr(module,"router"):
             app.include_router(module.router)
-    for module in manager.import_addons_from_folder("user_addons"):
+    for module in pipelineManager.import_addons_from_folder("user_addons"):
         if hasattr(module, "router"):
             app.include_router(module.router)
 
     yield
 
     print("Shutting down Pipeline")
-    manager.stop()
-    manager.join()
-    manager.save_state()
+    await pipelineManager.stop()
+    pipelineManager.save_state()
 
 app = FastAPI(lifespan=lifespan)
