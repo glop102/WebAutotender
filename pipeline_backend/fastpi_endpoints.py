@@ -228,15 +228,16 @@ variable_router = APIRouter(tags=["variables"])
 
 @variable_router.get("/global_variables")
 async def get_all_global_vars():
-    return global_variables
+    # {uuid: w.json_savable() for uuid, w in global_workflows.items()}
+    return {varname: gv.json_savable() for varname,gv in global_variables.items()}
 
-@variable_router.get("/global_vars/{var_name}")
+@variable_router.get("/global_variables/{var_name}")
 async def get_global_var(var_name:str):
     if var_name in global_variables:
         return global_variables[var_name].json_savable()
     return Response(status_code=status.HTTP_404_NOT_FOUND)
 
-@variable_router.delete("/global_vars/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
+@variable_router.delete("/global_variables/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_global_var(var_name:str):
     if not var_name in global_variables:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
@@ -246,7 +247,7 @@ async def delete_global_var(var_name:str):
         var_name
     )
 
-@variable_router.put("/global_vars/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
+@variable_router.put("/global_variables/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def create_global_var(var_name: str, data: dict):
     new_var = WorkVariable()
     try:
@@ -257,13 +258,15 @@ async def create_global_var(var_name: str, data: dict):
     if var_name in global_variables:
         global_variables[var_name] = new_var
         await eventsCallbackManager.signal_event(
-            EventCallbacksManager.Events.RefreshGlobals
+            EventCallbacksManager.Events.RefreshGlobal,
+            var_name
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     else:
         global_variables[var_name] = new_var
         await eventsCallbackManager.signal_event(
-            EventCallbacksManager.Events.RefreshGlobals
+            EventCallbacksManager.Events.RefreshGlobal,
+            var_name
         )
         return Response(status_code=status.HTTP_201_CREATED)
 

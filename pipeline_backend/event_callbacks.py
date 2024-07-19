@@ -11,6 +11,7 @@ class EventCallbacksManager:
         RefreshWorkflow = auto()
         RefreshInstance = auto()
         RefreshGlobals = auto()
+        RefreshGlobal = auto()
         DeleteInstance = auto()
         DeleteWorkflow = auto()
         DeleteGlobal = auto()

@@ -2,6 +2,7 @@ import {ref,computed, watchPostEffect} from "vue";
 
 export const workflows = ref({});
 export const instances = ref({});
+export const global_variables = ref({});
 
 
 //===================================================================
@@ -141,6 +142,71 @@ export async function delete_workflow(workflow_uuid) {
     } else {
         console.log("Unable to delete the workflow " + workflow_uuid);
     }
+}
+
+
+//===================================================================
+// Global Variabless
+//===================================================================
+export async function refresh_global_variables() {
+    const response = await fetch("/api/global_variables");
+    if (response.ok) {
+        global_variables.value = await response.json();
+        // console.log(workflows.value);
+    } else {
+        console.log("Unable to fetch the global variables list");
+    }
+}
+refresh_global_variables();
+
+export async function refresh_global_variable(varname) {
+    const response = await fetch("/api/global_variables/" + varname);
+    if (response.ok) {
+        const gvar = await response.json();
+        global_variables.value[varname] = gvar;
+    } else {
+        console.log("Unable to fetch the global variable " + varname);
+        if (response.status === 404) {
+            delete global_variables.value[varname];
+        }
+    }
+}
+export async function push_global_variable_state(varname) {
+    const response = await fetch("/api/global_variables/" + varname,
+        {
+            method: "PUT",
+            cache: "no-cache",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(global_variables.value[varname])
+        }
+    );
+    if (response.ok) {
+        return true;
+    } else {
+        console.log("Unable to push global variable state " + varname);
+        return false;
+    }
+}
+export async function delete_global_variable(varname) {
+    if (!confirm("Are you sure you want to delete the variable:\n" + varname)) {
+        return;
+    }
+    const request = await fetch("/api/global_variables/" + varname, { method: "DELETE", cache: "no-cache" });
+    if (request.ok) {
+        // delete global_variables.value[varname];
+    } else {
+        console.log("Unable to delete the global variable " + varname);
+    }
+}
+export async function create_placeholder_global_variable(varname){
+    if(varname == "") return;
+    global_variables.value[varname] = {
+        'value': "",
+        'typename': "String"
+    };
+    push_global_variable_state(varname);
 }
 
 //===================================================================
@@ -343,16 +409,24 @@ eventSource.addEventListener("RefreshWorkflows", (event) => {
     refresh_workflows();
 });
 eventSource.addEventListener("RefreshGlobals", (event) => {
-    console.log(event);
+    // console.log(event);
+    refresh_global_variables();
+});
+eventSource.addEventListener("RefreshGlobal", (event) => {
+    // console.log(event);
+    refresh_global_variable(event.data);
 });
 eventSource.addEventListener("DeleteInstance", (event) => {
-    console.log(event);
+    // console.log(event);
+    delete instances.value[event.data];
 });
 eventSource.addEventListener("DeleteWorkflow", (event) => {
-    console.log(event);
+    // console.log(event);
+    delete workflows.value[event.data];
 });
 eventSource.addEventListener("DeleteGlobal", (event) => {
-    console.log(event);
+    // console.log(event);
+    delete global_variables.value[event.data];
 });
 eventSource.addEventListener("ClosingDown", (event) => {
     console.log("Disconnecting due to server shutting down");
