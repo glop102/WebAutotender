@@ -66,6 +66,9 @@ export async function push_instance_state(uuid) {
     }
 }
 export async function delete_instance(uuid) {
+    if (!confirm("Are you sure you want to delete the instance:\n" + uuid)) {
+        return;
+    }
     const response = await fetch("/api/instances/" + uuid,
         {
             method: "DELETE",
@@ -133,7 +136,7 @@ export async function push_workflow_state(uuid) {
     }
 }
 export async function delete_workflow(workflow_uuid) {
-    if(!confirm("Are you sure you want to delete the workflow:\n"+workflow_uuid)){
+    if(!confirm("Are you sure you want to delete the workflow:\n"+workflow_uuid+"\n"+workflows.value[workflow_uuid].name)){
         return;
     }
     const request = await fetch("/api/workflows/" + workflow_uuid, { method: "DELETE", cache: "no-cache" });
