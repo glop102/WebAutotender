@@ -23,6 +23,10 @@ async def lifespan(app:FastAPI):
         pipeline_backend.fastpi_endpoints.router,
         prefix="/api"
         )
+    app.include_router(
+        pipeline_backend.event_callbacks.router,
+        prefix="/api"
+        )
 
     for module in pipelineManager.import_addons_from_folder("builtin_addons"):
         if hasattr(module,"router"):
@@ -35,6 +39,7 @@ async def lifespan(app:FastAPI):
 
     print("Shutting down Pipeline")
     await pipelineManager.stop()
+    await eventsCallbackManager.signal_event(EventCallbacksManager.Events.ClosingDown)
     pipelineManager.save_state()
 
 app = FastAPI(lifespan=lifespan)

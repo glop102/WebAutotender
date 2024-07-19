@@ -37,6 +37,9 @@ import { instance_edit_state,workflow_edit_state,spawninstance_edit_state,add_ne
         <section id="orphan_instance_list" v-if="Object.keys(orphans).length>0">
             <Instance v-for="inst in orphans" :key="inst.uuid" :instance="inst" />
         </section>
+        <h2>Globals</h2>
+        <section>
+        </section>
         <!-- The Edit components use a *copy* of what is being edited so that it can be mutated and then thrown away on a cancel. Check server_com for the copies -->
         <InstanceEdit v-if="instance_edit_state.show" />
         <WorkflowEdit v-if="workflow_edit_state.show" />

@@ -25,13 +25,16 @@ export async function refresh_instance(uuid) {
         instances.value[uuid] = inst;
     } else {
         console.log("Unable to fetch the instance " + uuid);
+        if(response.status === 404){
+            delete instances.value[uuid];
+        }
     }
 }
 export async function toggle_instance_pause(uuid) {
     const request = await fetch("/api/instances/" + uuid + "/toggle_pause", { method: "POST", cache: "no-cache" });
     if (request.ok) {
         await request.text();
-        refresh_instance(uuid);
+        // refresh_instance(uuid);
     } else {
         console.log("Unable to toggle the running state for instance " + uuid);
     }
@@ -96,13 +99,16 @@ export async function refresh_workflow(workflow_uuid) {
         workflows.value[workflow_uuid] = workflow;
     } else {
         console.log("Unable to fetch the workflow "+workflow_uuid);
+        if(response.status === 404){
+            delete workflows.value[workflow_uuid];
+        }
     }
 }
 export async function toggle_workflow_pause(workflow_uuid) {
     const request = await fetch("/api/workflows/" + workflow_uuid + "/toggle_pause", { method: "POST", cache: "no-cache" });
     if (request.ok) {
         await request.text();
-        refresh_workflow(workflow_uuid);
+        // refresh_workflow(workflow_uuid);
     } else {
         console.log("Unable to toggle the running state for workflow " + workflow_uuid);
     }
@@ -308,3 +314,49 @@ export async function retrieve_random_uuid() {
         return null
     }
 }
+
+
+//===================================================================
+// Server Events
+//===================================================================
+
+const serverEventConnection = ref(false);
+
+const eventSource = new EventSource("/api/events_stream");
+eventSource.onmessage = (event) => {
+    console.log(event);
+}
+eventSource.addEventListener("RefreshInstance", (event) => {
+    // console.log(event);
+    refresh_instance(event.data);
+});
+eventSource.addEventListener("RefreshWorkflow", (event) => {
+    // console.log(event);
+    refresh_workflow(event.data);
+});
+eventSource.addEventListener("RefreshInstances", (event) => {
+    // console.log(event);
+    refresh_instances();
+});
+eventSource.addEventListener("RefreshWorkflows", (event) => {
+    // console.log(event);
+    refresh_workflows();
+});
+eventSource.addEventListener("RefreshGlobals", (event) => {
+    console.log(event);
+});
+eventSource.addEventListener("DeleteInstance", (event) => {
+    console.log(event);
+});
+eventSource.addEventListener("DeleteWorkflow", (event) => {
+    console.log(event);
+});
+eventSource.addEventListener("DeleteGlobal", (event) => {
+    console.log(event);
+});
+eventSource.addEventListener("ClosingDown", (event) => {
+    console.log("Disconnecting due to server shutting down");
+    eventSource.close();
+});
+eventSource.onerror = (err) => { serverEventConnection.value = false; };
+eventSource.onopen = (thing) => { serverEventConnection.value = true; };

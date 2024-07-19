@@ -6,6 +6,7 @@ import pathlib
 from .instances import *
 from .procedure_runner import *
 from .persistence import *
+from .event_callbacks import *
 
 # TODO - Add in callbacks for certain events to enable things like websockets giving useful information
 
@@ -19,7 +20,7 @@ class PipelineManager:
     def save_state(self, filename: str = "pipeline_state.json"):
         save_pipeline_global_state_to_file(filename)
 
-    def run_due_instances(self)->None:
+    async def run_due_instances(self)->None:
         """Runs all the instances that are due to be run until they yield."""
         current_time = datetime.now()
         due_instances = [i for i in global_instances.values() 
@@ -27,22 +28,29 @@ class PipelineManager:
         for instance in due_instances:
             runner = ProcedureRunner(instance)
             runner.run_instance_until_yield()
+            await eventsCallbackManager.signal_event(
+                EventCallbacksManager.Events.RefreshInstance,
+                instance.uuid
+                )
 
-    def get_next_due_time(self)->datetime:
+    def get_next_due_time(self)->datetime|None:
         current_time = datetime.now()
         next_due_time = current_time
         minimum_next_due_time = current_time + timedelta(seconds=1)
 
-        due_instances = [i for i in global_instances.values()
+        possible_instances = [i for i in global_instances.values()
                          if i.is_allowed_to_run()]
-        for instance in due_instances:
+        if len(possible_instances) == 0:
+            return None
+        for instance in possible_instances:
             next_due_time = min(next_due_time,instance.next_processing_time)
         return max(next_due_time,minimum_next_due_time)
 
     async def run(self):
-        self.run_due_instances()
-        if len(global_instances) > 0:
-            next_due_time = (self.get_next_due_time()-datetime.now()).total_seconds()
+        await self.run_due_instances()
+        next_due_time = self.get_next_due_time()
+        if next_due_time:
+            next_due_time = (next_due_time-datetime.now()).total_seconds()
             self.delayedTask = get_running_loop().call_later(
                 next_due_time,
                 lambda: get_running_loop().create_task(self.run())
