@@ -10,16 +10,7 @@ import pipeline_backend
 
 """
 TODO
-- spawn instance
-  - popup window figured out
-  - loading only a single instance after it spawns
-  - consolidate the put/get info for the HTML <-> Object representations for easier API state syncing
 - summary status at the top of the page with some sort of info
-- instances have variable pinning to give some differentiating information that is useful
-- editing popups
-- buttons for pausing/running an instance
-  - and to force an instance to run right away
-- realtime updates from callbacks of the pipeline manager over a websocket for updating the page
 - when hovering over a processing step in an instance, highlight the process and step of the process in the workflow details
 """
 
@@ -34,14 +25,6 @@ def get_homepage_file():
         f = open(root_file_folder / "index.html")
     except FileNotFoundError:
         return HTMLResponse("Unable to find the UI File",status_code=status.HTTP_404_NOT_FOUND)
-    return f.read()
-
-@router.get("/index2.html", response_class=HTMLResponse)
-def get_homepage_file():
-    try:
-        f = open(root_file_folder / "index2.html")
-    except FileNotFoundError:
-        return HTMLResponse("Unable to find the UI File", status_code=status.HTTP_404_NOT_FOUND)
     return f.read()
 
 @router.get("/assets/{filename}")

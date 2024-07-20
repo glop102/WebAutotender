@@ -39,7 +39,6 @@ async def lifespan(app:FastAPI):
 
     print("Shutting down Pipeline")
     await pipelineManager.stop()
-    await eventsCallbackManager.signal_event(EventCallbacksManager.Events.ClosingDown)
     pipelineManager.save_state()
 
 app = FastAPI(lifespan=lifespan)
