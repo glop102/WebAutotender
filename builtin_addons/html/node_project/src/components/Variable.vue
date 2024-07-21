@@ -35,6 +35,9 @@ const props = defineProps({
         <div v-else-if="variable.typename=='Dictionary'">
             <Variable v-for="vname in Object.keys(variable.value)" :key="vname" :name="vname" :variable="variable.value[vname]"/>
         </div>
+        <div v-else-if="variable.typename=='VariableList'">
+            <Variable v-for="idx in variable.value.length" :key="idx-1" :variable="variable.value[idx-1]"/>
+        </div>
         <div v-else class="variable_details_value">{{ variable.value }}</div>
     </div>
 </template>

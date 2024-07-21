@@ -31,6 +31,12 @@ function dictionary_push(){
     variable.value.value[dictionary_field_new_name.value]={"value":"","typename":"String"};
     dictionary_field_new_name.value="";
 }
+function variablelist_push(){
+    if (variable.value.value.constructor !== Array){
+        variable.value.value = [];
+    }
+    variable.value.value.push({"value":"","typename":"String"});
+}
 </script>
 
 <style>
@@ -69,10 +75,16 @@ function dictionary_push(){
         </template>
         <template v-else-if="'Dictionary'==variable.typename">
             <div>
-                <VariableEdit v-for="vname in Object.keys(variable.value)" :key="vname" type="text" v-model="variable.value[vname]" @requested_deletion="delete variable.value[vname]">{{ vname }}</VariableEdit>
+                <VariableEdit v-for="vname in Object.keys(variable.value)" :key="vname" v-model="variable.value[vname]" @requested_deletion="delete variable.value[vname]">{{ vname }}</VariableEdit>
             </div>
             <button type="button" class="variable_edit_add_button" @click="dictionary_push">+</button>
             <input type="text" v-model="dictionary_field_new_name" placeholder="Entry Name"/>
+        </template>
+        <template v-else-if="'VariableList'==variable.typename">
+            <div>
+                <VariableEdit v-for="idx in variable.value.length" :key="idx-1" v-model="variable.value[idx-1]" @requested_deletion="delete variable.value[idx-1]">Index {{ idx-1 }}</VariableEdit>
+            </div>
+            <button type="button" class="variable_edit_add_button" @click="variablelist_push">+</button>
         </template>
         <input v-else type="text" class="variable_edit_value" v-model="variable.value"/> <!-- Default assume it is just a basic string -->
     </div>

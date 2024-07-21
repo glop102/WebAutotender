@@ -73,6 +73,13 @@ class Instance:
         if not var_name in self.variables:
             raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_uuid}/{self.uuid}")
         del self.variables[var_name]
+    
+    def __contains__(self,var_name:str|variables.VariableName) -> bool:
+        try:
+            self.__getitem__(var_name)
+            return True
+        except KeyError:
+            return False
 
     def past_time_to_run(self,current_time:datetime=None) -> bool:
         if not self.next_processing_time:

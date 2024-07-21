@@ -39,7 +39,7 @@ class WorkVariable:
         raise TypeError(f"Unable to find a WorkVariable type to cast into with the name {typename}")
 
     def __init__(self, value: Self | None = None):
-        # Copy constructor or encapsulation tpye promotion
+        # Copy constructor or encapsulation type promotion
         # the subclasses implement their own inits to add in type information for easier linting when using the variables
         if type(value) == self.__class__:
             self.value = deepcopy(value.value)
@@ -61,6 +61,7 @@ class WorkVariable:
     def json_loadable(self,data:dict)->None:
         self.value = data['value']
         self.typename = data['typename']
+        self.normalize()
 
     def coerce_into_type(self,new_type:type[Self])->Self|None:
         """Makes a copy of itself and attempt to coerce it into the new_type. Will return None if unsucsessful."""
@@ -77,6 +78,8 @@ class WorkVariable:
 class String(WorkVariable):
     value:str
     def __init__(self, value: str | Self | None = None):
+        if not value:
+            value = ""
         super().__init__(value)
     def is_valid(self) -> bool:
         return type(self.value) == str
@@ -90,6 +93,8 @@ class String(WorkVariable):
 class Integer(WorkVariable):
     value:int
     def __init__(self, value: int | Self | None = None):
+        if not value:
+            value = 0
         super().__init__(value)
     def is_valid(self) -> bool:
         return type(self.value) == int
@@ -102,6 +107,8 @@ class Integer(WorkVariable):
 class Float(WorkVariable):
     value:float
     def __init__(self, value: float | Self | None = None):
+        if not value:
+            value = 0.0
         super().__init__(value)
     def is_valid(self) -> bool:
         return type(self.value) == float
@@ -114,6 +121,8 @@ class Float(WorkVariable):
 class URL(WorkVariable):
     value:str
     def __init__(self, value: str | Self | None = None):
+        if not value:
+            value = ""
         super().__init__(value)
     def is_valid(self) -> bool:
         return type(self.value) == str and "://" in self.value
@@ -126,6 +135,8 @@ class URL(WorkVariable):
 class StringList(WorkVariable):
     value:list[str]
     def __init__(self, value: list[str] | Self | None = None):
+        if not value:
+            value = []
         super().__init__(value)
     def is_valid(self) -> bool:
         if type(self.value) != list: return False
@@ -140,11 +151,53 @@ class StringList(WorkVariable):
     def reset_to_default(self) -> None:
         self.value = []
 
+
+class VariableList(WorkVariable):
+    value: list[WorkVariable]
+
+    def __init__(self, value: list[WorkVariable] | Self | None = None):
+        if not value:
+            value = []
+        super().__init__(value)
+
+    def is_valid(self) -> bool:
+        if type(self.value) != list:
+            return False
+        for x in self.value:
+            if type(x) != WorkVariable:
+                return False
+        return True
+
+    def normalize(self) -> None:
+        if type(self.value) != list:
+            raise ValueError(
+                f"Needs to be a list to be a {self.__class__.__name__} value")
+        for idx, val in enumerate(self.value):
+            if not isinstance(val,WorkVariable):
+                if type(val) == dict:
+                    newval = WorkVariable()
+                    newval.json_loadable(val)
+                    newval.normalize()
+                    self.value[idx] = newval
+                else:
+                    raise TypeError("The items in the VariableList are not dict and so cannot be converted to a WorkVariable.")
+
+    def reset_to_default(self) -> None:
+        self.value = []
+
+    def json_savable(self) -> dict:
+        simplified_value = []
+        for value in self.value:
+            simplified_value.append(value.json_savable())
+        return {'value': simplified_value, 'typename': self.typename}
+
 # Specific type that is intended to say that it is refering to a different variable; either in an Instance or Workflow.
 # Used for procedures to differentiate between variables and constants
 class VariableName(WorkVariable):
     value:str
     def __init__(self, value: str | Self | None = None):
+        if not value:
+            value = ""
         super().__init__(value)
     def is_valid(self) -> bool:
         return type(self.value) == str
@@ -159,6 +212,8 @@ class VariableName(WorkVariable):
 class VariableNameList(WorkVariable):
     value:list[str]
     def __init__(self, value: list[str] | Self | None = None):
+        if not value:
+            value = []
         super().__init__(value)
     def is_valid(self) -> bool:
         if type(self.value) != list: return False
@@ -180,6 +235,8 @@ class VariableNameList(WorkVariable):
 class Dictionary(WorkVariable):
     value:dict[str,WorkVariable]
     def __init__(self, value: dict[str,WorkVariable] | Self | None = None):
+        if not value:
+            value = {}
         super().__init__(value)
     def is_valid(self) -> bool:
         if type(self.value) != dict: return False
@@ -192,11 +249,29 @@ class Dictionary(WorkVariable):
     def normalize(self) -> None:
         if type(self.value) != dict:
             self.value = dict(self.value)
+        # Make sure all keys are strings
         for key in self.value:
             if type(key) != str:
                 val = self.value[key]
                 self.value[str(key).strip()] = val
+                del self.value[key]
+        # Make sure all values are work variables
+        for key,val in self.value.items():
+            if not isinstance(val,WorkVariable):
+                if type(val) == dict:
+                    newval = WorkVariable()
+                    newval.json_loadable(val)
+                    newval.normalize()
+                    self.value[key] = newval
+                else:
+                    raise TypeError("Entries in the Dictionary are not dict and cannot be converted to a WorkVariable.")
+
     def reset_to_default(self) -> None:
         self.value = {}
+    def json_savable(self) -> dict:
+        simplified_value = {}
+        for key,value in self.value.items():
+            simplified_value[key] = value.json_savable()
+        return {'value': simplified_value, 'typename': self.typename}
 
 global_variables: dict[str,WorkVariable] = {}
