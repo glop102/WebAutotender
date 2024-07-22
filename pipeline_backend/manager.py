@@ -8,14 +8,15 @@ from .procedure_runner import *
 from .persistence import *
 from .event_callbacks import *
 
-# TODO - Add in callbacks for certain events to enable things like websockets giving useful information
-
 class PipelineManager:
     delayedTask : Handle | TimerHandle | None
+    __backing_store_filename | str # the filename used to restore the state of the pipeline to let us save back to
     def __init__(self) -> None:
         super().__init__()
         self.delayedTask = None
+        self.__backing_store_filename = ""
     def restore_state(self,filename:str="pipeline_state.json"):
+        self.__backing_store_filename = filename
         load_pipeline_global_state_from_file(filename)
     def save_state(self, filename: str = "pipeline_state.json"):
         save_pipeline_global_state_to_file(filename)
@@ -32,6 +33,8 @@ class PipelineManager:
                 EventCallbacksManager.Events.RefreshInstance,
                 instance.uuid
                 )
+        if len(due_instances) > 0:
+            self.save_state(self.__backing_store_filename)
 
     def get_next_due_time(self)->datetime|None:
         current_time = datetime.now()
