@@ -1,5 +1,6 @@
 import traceback
 from copy import deepcopy
+from inspect import iscoroutinefunction
 from .commands import *
 from .variables import *
 from .instances import *
@@ -27,7 +28,7 @@ class ProcedureRunner:
         except:
             self.workflow = None
     
-    def run_single_step(self) -> CommandReturnStatus:
+    async def run_single_step(self) -> CommandReturnStatus:
         """Runs a single step of the procedure of the instance. Does most sanity checking and setup for calling a command. Wrap this in a try:except block """
 
         if not self.workflow:
@@ -56,7 +57,10 @@ class ProcedureRunner:
 
         # run command
         try:
-            command_finish_state:CommandReturnStatus = command(*variables_for_command)
+            if iscoroutinefunction(command):
+                command_finish_state:CommandReturnStatus = await command(*variables_for_command)
+            else:
+                command_finish_state:CommandReturnStatus = command(*variables_for_command)
         except Exception as e:
             return self.__mark_error(f"{traceback.format_exc()}\nError: Exception thrown by the command {proc_step.command_name} in instance:")
 
@@ -74,8 +78,8 @@ class ProcedureRunner:
 
         return command_finish_state & CommandReturnStatus.Success
     
-    def run_instance_until_yield(self):
-        while self.run_single_step() == CommandReturnStatus.Success:
+    async def run_instance_until_yield(self):
+        while await self.run_single_step() == CommandReturnStatus.Success:
             pass
 
 

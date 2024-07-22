@@ -10,7 +10,7 @@ from .event_callbacks import *
 
 class PipelineManager:
     delayedTask : Handle | TimerHandle | None
-    __backing_store_filename | str # the filename used to restore the state of the pipeline to let us save back to
+    __backing_store_filename : str # the filename used to restore the state of the pipeline to let us save back to
     def __init__(self) -> None:
         super().__init__()
         self.delayedTask = None
@@ -28,7 +28,7 @@ class PipelineManager:
                          if i.is_allowed_to_run() and i.past_time_to_run(current_time)]
         for instance in due_instances:
             runner = ProcedureRunner(instance)
-            runner.run_instance_until_yield()
+            await runner.run_instance_until_yield()
             await eventsCallbackManager.signal_event(
                 EventCallbacksManager.Events.RefreshInstance,
                 instance.uuid
