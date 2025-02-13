@@ -108,7 +108,6 @@ async def sftp_download_file(instance: Instance, serverInfo: Dictionary, remotep
     await sftp.get(
         remotepath.value,
         localpath.value,
-        block_size=256*1024,
         recurse=False,
         progress_handler=partial(file_download_progress_callback,instance,print_thresholds),
     )
