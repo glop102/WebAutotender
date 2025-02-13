@@ -153,6 +153,7 @@ class StringList(WorkVariable):
 
 
 class VariableList(WorkVariable):
+    # A list of general other work variables. This lets you mix and match things if a programer so needs.
     value: list[WorkVariable]
 
     def __init__(self, value: list[WorkVariable] | Self | None = None):
@@ -231,7 +232,8 @@ class VariableNameList(WorkVariable):
 # I have tried to get around needing a complete mapping type like this, but in the end, I just need
 # to have a map of varname to WorkVariable for the spawning of an Instance.
 # If I don't have this Dictionary that has WorkVariables as values, then to spawn an instance, you
-# would need to save every value to a variable and then pass in VariableNameList
+# would need to save every value to a variable and then pass in VariableNameList which just so happens
+# to have the indices line up which is a very weak mapping
 class Dictionary(WorkVariable):
     value:dict[str,WorkVariable]
     def __init__(self, value: dict[str,WorkVariable] | Self | None = None):

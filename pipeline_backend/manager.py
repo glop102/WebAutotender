@@ -59,6 +59,7 @@ class PipelineManager:
                 lambda: get_running_loop().create_task(self.run())
             )
     async def notify_of_something_happening(self):
+        # Cancel the callback to run() and instead call run() asap
         if self.delayedTask:
             self.delayedTask.cancel()
         self.delayedTask = get_running_loop().call_soon( lambda: get_running_loop().create_task(self.run()) )
