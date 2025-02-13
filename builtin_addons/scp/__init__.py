@@ -3,6 +3,7 @@ from functools import partial
 from pipeline_backend import *
 from pipeline_backend.commands_builtin import *
 import asyncssh
+from datetime import datetime
 
 """
 We assume that the account information that we need is passed in as a Dictionary.
@@ -97,10 +98,13 @@ async def sftp_download_file(instance: Instance, serverInfo: Dictionary, remotep
     if not await sftp.exists(remotepath.value):
         instance.log_line(f"Unable to find remote file '{remotepath.value}'")
         return CommandReturnStatus.Error
-    instance.log_line(f"Downloading '{remotepath.value}'\nto '{localpath.value}'")
     filesize = await sftp.getsize(remotepath.value)
+    print_thresholds = [x*(filesize//10) for x in range(1,10)]
+
+    instance.log_line(f"Downloading '{remotepath.value}'\nto '{localpath.value}'")
     instance.log_line(f"    {human_readable_filesize(filesize)}")
-    print_thresholds = [x*(filesize//10) for x in range(10)]
+
+    starting_time = datetime.now()
     await sftp.get(
         remotepath.value,
         localpath.value,
@@ -108,5 +112,8 @@ async def sftp_download_file(instance: Instance, serverInfo: Dictionary, remotep
         recurse=False,
         progress_handler=partial(file_download_progress_callback,instance,print_thresholds),
     )
+    ending_time = datetime.now()
+    bytespersecond = filesize//(ending_time - starting_time).total_seconds()
+    instance.log_line(f"    {human_readable_filesize(bytespersecond)}/s")
 
     return CommandReturnStatus.Success
