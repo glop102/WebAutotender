@@ -1,6 +1,10 @@
 from pipeline_backend import *
 from pipeline_backend.commands_builtin import *
-import re
+try:
+    import regex as re
+except:
+    # Personally I really like having the \K flag available so lets just force it to be available
+    raise Exception("Unable to import regex module. This is an expanded regex support module for python. The package may be simply called python-regex in your package manager.")
 
 @Commands.register_command
 async def str_regex_firstMatch(instance: Instance, regexPatern:String, inputString:String, outputVarname: VariableName) -> CommandReturnStatus:
