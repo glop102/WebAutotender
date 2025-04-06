@@ -1,6 +1,6 @@
 from enum import Enum
 from collections.abc import Callable
-from typing import Self
+from typing import Any, Self
 from copy import deepcopy
 
 # =====================================================================================
@@ -25,7 +25,7 @@ from copy import deepcopy
 # And to round it off, you can *force* a class change with self.__class__ = OtherClass and if it is in the heritable tree, it will be cast!
 
 class WorkVariable:
-    value:None
+    value:Any|Self
     @property
     def typename(self)->str:
         return self.__class__.__name__
@@ -49,6 +49,9 @@ class WorkVariable:
     def is_valid(self)->bool:
         return False
     def normalize(self)->None:
+        """
+        Try to make the value of a variable fully sensible. eg convert a number to an int for Integer, or strip the whitespace off a string.
+        """
         pass
     def reset_to_default(self)->None:
         self.value = None
@@ -74,6 +77,16 @@ class WorkVariable:
         if converted_var.is_valid():
             return converted_var
         return None
+
+    def convert_to_python_type(self)->Any:
+        """
+        Converts recursivly the value of the WorkVaraible to be a base python type.
+        Some types are simple and jsut need to return their value, but others like lists need to do some extra work.
+        """
+        if issubclass(self.value.__class__,WorkVariable):
+            return self.value.convert_to_python_type()
+        else:
+            return deepcopy(self.value)
 
 class String(WorkVariable):
     value:str
@@ -192,6 +205,9 @@ class VariableList(WorkVariable):
             simplified_value.append(value.json_savable())
         return {'value': simplified_value, 'typename': self.typename}
 
+    def convert_to_python_type(self)->list[Any]:
+        return [var.convert_to_python_type() for var in self.value]
+
 # Specific type that is intended to say that it is refering to a different variable; either in an Instance or Workflow.
 # Used for procedures to differentiate between variables and constants
 class VariableName(WorkVariable):
@@ -275,5 +291,8 @@ class Dictionary(WorkVariable):
         for key,value in self.value.items():
             simplified_value[key] = value.json_savable()
         return {'value': simplified_value, 'typename': self.typename}
+
+    def convert_to_python_type(self)->dict[str,Any]:
+        return {name:var.convert_to_python_type() for name,var in self.value.items()}
 
 global_variables: dict[str,WorkVariable] = {}

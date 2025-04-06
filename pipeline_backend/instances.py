@@ -65,6 +65,8 @@ class Instance:
     def __setitem__(self, var_name: str|variables.VariableName, value: variables.WorkVariable) -> None:
         if type(var_name) == variables.VariableName:
             var_name = var_name.value
+        if not issubclass(type(value),variables.WorkVariable):
+            raise TypeError(f"Cannot save a variable of type {type(value)} to an instance. Please wrap it in a WorkVariable type. (value={value})")
         self.variables[var_name] = deepcopy(value)
     
     def __delitem__(self,var_name:str|variables.VariableName) -> None:
