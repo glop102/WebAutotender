@@ -1,14 +1,15 @@
 from pipeline_backend import *
 from pipeline_backend.commands_builtin import *
+from pipeline_backend.commands_builtin import yield_for_seconds
 
 import xmlrpc.client
 import urllib.request
 from time import sleep
 
 class Torrent:
-    server:xmlrpc.client
+    server:xmlrpc.client.Server
     infohash:str
-    def __init__(self,server:xmlrpc.client,infohash:str):
+    def __init__(self,server:xmlrpc.client.Server,infohash:str):
         self.server = server
         self.infohash = infohash
     def is_complete(self)->bool:
@@ -66,7 +67,7 @@ class Torrent:
         self.server.d.delete_tied(self.infohash)
         self.server.d.erase(self.infohash)
 
-def connect_to_server(url:str,username:str,password:str) -> xmlrpc.client:
+def connect_to_server_basic(url:str,username:str,password:str) -> xmlrpc.client.Server:
     # Unfortunantly, the username:pasword needs to be added to the URL to have xmlrpc auto-login
     # So lets parse out the protocol of the url and insert the credentials in
     proto_idx = url.index("://")+3
@@ -74,13 +75,35 @@ def connect_to_server(url:str,username:str,password:str) -> xmlrpc.client:
 
     return xmlrpc.client.Server(url_filled)
 
-def get_total_torrents_list(server:xmlrpc.client)->list[Torrent]:
+def connect_to_server(instance: Instance, serverInfo: Dictionary)->xmlrpc.client.Server:
+    valid = True
+    if "URL" not in serverInfo.value:
+        instance.log_line("There is no 'URL' in the serverInfo")
+        valid = False
+    else:
+        url = serverInfo.value['URL'].value
+    if "username" not in serverInfo.value:
+        instance.log_line("There is no 'username' in the serverInfo")
+        valid = False
+    else:
+        username = serverInfo.value['username'].value
+    if "password" not in serverInfo.value:
+        instance.log_line("There is no 'password' in the serverInfo")
+        valid = False
+    else:
+        password = serverInfo.value['password'].value
+    if not valid:
+        raise Exception("Insufficent information to log in to rtorrent")
+
+    return connect_to_server_basic(url,username,password)
+
+def get_total_torrents_list(server:xmlrpc.client.Server)->list[Torrent]:
     infohashes = server.download_list()
     return [Torrent(server,infohash) for infohash in infohashes]
 
-def add_url_to_rtorrent(server:xmlrpc.client,url:str)->Torrent:
+def add_url_to_rtorrent(server:xmlrpc.client.Server,url:str)->Torrent:
     """
-    Add a torrent file or magnet link to rtorrent,
+    Add a torrent file or magnet link to rtorrent
     """
     orig_hashes:list[str] = server.download_list()
     if(url.startswith("http")):
@@ -100,8 +123,22 @@ def add_url_to_rtorrent(server:xmlrpc.client,url:str)->Torrent:
         elif len(new_hashes) == 1:
             return Torrent(server,new_hashes[0])
 
+@Commands.register_command
+def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary,url:String,outputHashName:VariableName)->CommandReturnStatus:
+    server = connect_to_server(instance,serverInfo)
+    torrent = add_url_to_rtorrent(server,url)
+    instance[outputHashName] = String(torrent.infohash)
+    return CommandReturnStatus.Success
 
+@Commands.register_command
+def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,infohash:String)->CommandReturnStatus:
+    server = connect_to_server(instance,serverInfo)
+    torrent = Torrent(server,infohash.value)
+    if torrent.is_complete():
+        return CommandReturnStatus.Success
+    yield_for_seconds(instance,Integer(30))
+    return CommandReturnStatus.Yield|CommandReturnStatus.Keep_Position
 
 if __name__ == "__main__":
-    server = connect_to_server("https://rtorrent.merryfox.box.ca/xmlrpc","username","password")
+    server = connect_to_server_basic("https://rtorrent.merryfox.box.ca/xmlrpc","username","password")
     print(server.download_list())
