@@ -69,14 +69,14 @@ def human_readable_filesize(size:int)->str:
     
     return f"{size:.2f} {suffixes[divcount]}"
 
-def file_download_progress_callback(instance:Instance,print_thresholds:list[int],sourcepath:bytes,destpath:bytes,bytesdone:int,bytestotal:int):
+def file_download_progress_callback(instance:Instance,print_thresholds:dict[str,float],sourcepath:bytes,destpath:bytes,bytesdone:int,bytestotal:int):
     # print(f"\033[K\r{sourcepath.decode() } - {bytesdone}/{bytestotal}", end="\r", flush=True)
-    if len(print_thresholds) == 0:
-        return
-    smallest = print_thresholds[0]
-    if bytesdone > smallest:
+    if not destpath in print_thresholds:
+        print_thresholds[destpath] = 0.1
+    download_ratio = bytesdone/bytestotal
+    if download_ratio >= print_thresholds[destpath]:
         instance.log_line(f"    {(bytesdone/bytestotal)*100:3.1f}% : {human_readable_filesize(bytesdone)}")
-        print_thresholds[:] = print_thresholds[1:]
+        print_thresholds[destpath] = (int(download_ratio*10)+1)/10.0
 
 @Commands.register_command
 async def sftp_list_directory(instance: Instance, serverInfo: Dictionary, directory: String, outputVarname: VariableName) -> CommandReturnStatus:
@@ -99,7 +99,6 @@ async def sftp_download_file(instance: Instance, serverInfo: Dictionary, remotep
         instance.log_line(f"Unable to find remote file '{remotepath.value}'")
         return CommandReturnStatus.Error
     filesize = await sftp.getsize(remotepath.value)
-    print_thresholds = [x*(filesize//10) for x in range(1,10)]
 
     instance.log_line(f"Downloading '{remotepath.value}'\nto '{localpath.value}'")
     instance.log_line(f"    {human_readable_filesize(filesize)}")
@@ -109,10 +108,59 @@ async def sftp_download_file(instance: Instance, serverInfo: Dictionary, remotep
         remotepath.value,
         localpath.value,
         recurse=False,
-        progress_handler=partial(file_download_progress_callback,instance,print_thresholds),
+        progress_handler=partial(file_download_progress_callback,instance,dict()),
     )
     ending_time = datetime.now()
     bytespersecond = filesize//(ending_time - starting_time).total_seconds()
     instance.log_line(f"    {human_readable_filesize(bytespersecond)}/s")
 
     return CommandReturnStatus.Success
+
+@Commands.register_command
+async def scp_download_folder(instance: Instance, serverInfo: Dictionary, remotepath: String, localpath: String) -> CommandReturnStatus:
+    connection:asyncssh.SSHClientConnection = await open_ssh_pipe(instance,serverInfo)
+    if not connection:
+        return CommandReturnStatus.Error
+
+    scp = await asyncssh.scp(
+        (connection,remotepath.value),
+        localpath.value,
+        recurse=True,
+        progress_handler=partial(file_download_progress_callback,instance,dict()),
+    )
+
+    return CommandReturnStatus.Success
+
+@Commands.register_command
+async def scp_download_file(instance: Instance, serverInfo: Dictionary, remotepath: String, localpath: String) -> CommandReturnStatus:
+    connection:asyncssh.SSHClientConnection = await open_ssh_pipe(instance,serverInfo)
+    if not connection:
+        return CommandReturnStatus.Error
+
+    scp = await asyncssh.scp(
+        (connection,remotepath.value),
+        localpath.value,
+        recurse=False,
+        progress_handler=partial(file_download_progress_callback,instance,dict()),
+    )
+
+    return CommandReturnStatus.Success
+
+
+if __name__ == "__main__":
+    import asyncio
+    
+    serverInfo = Dictionary(
+        {
+            "URL": String("https://rtorrent.merryfox.box.ca/xmlrpc"),
+            "username": String(""),
+            "password": String(""),
+        }
+    )
+    class FakeInstance:
+        def log_line(s:str):
+            print(s)
+    i = FakeInstance()
+
+    coro = scp_download_location(i,serverInfo,"remote_path","/tmp")
+    asyncio.run(coro)
