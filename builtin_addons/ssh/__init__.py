@@ -162,5 +162,5 @@ if __name__ == "__main__":
             print(s)
     i = FakeInstance()
 
-    coro = scp_download_location(i,serverInfo,"remote_path","/tmp")
+    coro = scp_download_folder(i,serverInfo,"remote_path","/tmp")
     asyncio.run(coro)
