@@ -71,10 +71,17 @@ class Commands:
         return item
     
     @classmethod
-    def get_command_by_name(cls,command_name) -> Callable:
+    def get_command_by_name(cls,command_name:str) -> Callable:
         if not command_name in cls.commands:
             raise KeyError(f"Unable to find {command_name} in the list of available commands")
         return cls.commands[command_name]
+
+    @classmethod
+    def get_command_doc_string(cls,command_name:str) -> str|None:
+        if not command_name in cls.commands:
+            raise KeyError(f"Unable to find {command_name} in the list of available commands")
+        sig = signature(cls.commands[command_name])
+        return sig.__doc__
 
     @classmethod
     def json_savable_all_commands_with_args(cls) -> dict:
