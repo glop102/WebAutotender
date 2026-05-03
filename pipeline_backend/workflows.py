@@ -140,4 +140,4 @@ class Workflow:
 # have commands that create or delete instances, so we need to track what is available
 # internally to the module.
 
-global_workflows:list[Workflow] = {}
+global_workflows:dict[str,Workflow] = {}
