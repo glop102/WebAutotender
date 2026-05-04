@@ -29,14 +29,16 @@
   <div class="instance-body">
     <div class="var-row"><span class="var-name">uuid</span><span>{{ inst.uuid }}</span></div>
     {% if inst.variables %}
-    <div class="section-title" style="margin-top:8px">Variables</div>
-    {% for vname, var in inst.variables.items() %}
-    <div class="var-row">
-      <span class="var-name">{{ vname }}</span>
-      <span class="instance-meta">({{ var.typename }})</span>
-      <span>{{ var.value }}</span>
-    </div>
-    {% endfor %}
+    <details id="instance-vars-{{ inst.uuid }}" style="margin-top:8px">
+      <summary class="section-title" style="cursor:pointer">Variables ({{ inst.variables | length }})</summary>
+      {% for vname, var in inst.variables.items() %}
+      <div class="var-row">
+        <span class="var-name">{{ vname }}</span>
+        <span class="instance-meta">({{ var.typename }})</span>
+        <span>{{ var.value }}</span>
+      </div>
+      {% endfor %}
+    </details>
     {% endif %}
     <div class="section-title" style="margin-top:8px">Console Log</div>
     <pre class="console-log">{{ inst.console_log or '(empty)' }}</pre>
