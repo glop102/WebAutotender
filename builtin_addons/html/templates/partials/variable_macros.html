@@ -1,0 +1,179 @@
+{% macro var_row(var_name, var, path, readonly,
+                 value_endpoint, delete_endpoint, type_endpoint,
+                 entry_add_endpoint, entry_delete_endpoint,
+                 var_types, section="",
+                 structural_target="#tab-content", structural_swap="innerHTML") %}
+
+{# ── shared snippets ──────────────────────────────────────── #}
+{% set _sec    = ', "section": "' ~ section ~ '"' if section else '' %}
+{# base vals: always refers back to the top-level var_name + full path to THIS node #}
+{% set _bv     = '"var_name": "' ~ var_name ~ '", "path": ' ~ (path | tojson) ~ _sec %}
+{# parent path vals: used by entry-level delete buttons #}
+{% set _pv     = '"var_name": "' ~ var_name ~ '", "path": ' ~ (path[:-1] | tojson) ~ _sec %}
+
+{# ── label shown to the left of each row ─────────────────── #}
+{% if not path %}
+  {% set _label = var_name %}
+{% elif path[-1] is string %}
+  {% set _label = path[-1] %}         {# dict key #}
+{% else %}
+  {% set _label = "[" ~ path[-1] ~ "]" %}   {# list index #}
+{% endif %}
+
+<div class="var-row">
+  <span class="var-name">{{ _label }}</span>
+
+  {# type selector — fires structural mutation → re-renders whole section #}
+  {% if not readonly %}
+  <select class="var-type-select btn btn-sm"
+          hx-post="{{ type_endpoint }}"
+          hx-target="{{ structural_target }}"
+          hx-swap="{{ structural_swap }}"
+          hx-vals='{ {{ _bv }} }'
+          hx-trigger="change">
+    {% for t in var_types %}
+    <option value="{{ t }}" {% if t == var.typename %}selected{% endif %}>{{ t }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+
+  {# ── value widget, dispatched on type ────────────────────── #}
+
+  {% if var.typename in ('String', 'VariableName') %}
+    {% if readonly %}
+      <span class="var-input">{{ var.value }}</span>
+    {% else %}
+      <input class="var-input" type="text" name="value" value="{{ var.value }}"
+             hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+             hx-vals='{ {{ _bv }} }'>
+    {% endif %}
+
+  {% elif var.typename == 'URL' %}
+    {% if readonly %}
+      <span class="var-input">{{ var.value }}</span>
+    {% else %}
+      <input class="var-input" type="url" name="value" value="{{ var.value }}"
+             hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+             hx-vals='{ {{ _bv }} }'>
+    {% endif %}
+
+  {% elif var.typename == 'Integer' %}
+    {% if readonly %}
+      <span class="var-input">{{ var.value }}</span>
+    {% else %}
+      <input class="var-input" type="number" step="1" name="value" value="{{ var.value }}"
+             hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+             hx-vals='{ {{ _bv }} }'>
+    {% endif %}
+
+  {% elif var.typename == 'Float' %}
+    {% if readonly %}
+      <span class="var-input">{{ var.value }}</span>
+    {% else %}
+      <input class="var-input" type="number" name="value" value="{{ var.value }}"
+             hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+             hx-vals='{ {{ _bv }} }'>
+    {% endif %}
+
+  {% elif var.typename in ('StringList', 'VariableNameList') %}
+    {# Entries are plain strings, not WorkVariables — handled inline (no recursion needed) #}
+    <div class="var-container var-input">
+      {% for idx, item in var.value | enumerate %}
+      {% set _ev = '"var_name": "' ~ var_name ~ '", "path": ' ~ (path | tojson) ~ _sec ~ ', "idx": ' ~ idx %}
+      <div class="var-row">
+        {% if readonly %}
+          <span>{{ item }}</span>
+        {% else %}
+          <input type="text" name="value" value="{{ item }}"
+                 hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+                 hx-vals='{ "var_name": "{{ var_name }}", "path": {{ (path + [idx]) | tojson }}{{ _sec }} }'>
+          <button type="button" class="btn btn-sm btn-danger"
+                  hx-post="{{ entry_delete_endpoint }}"
+                  hx-target="{{ structural_target }}" hx-swap="{{ structural_swap }}"
+                  hx-vals='{ {{ _ev }} }'>×</button>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% if not readonly %}
+      <button type="button" class="btn btn-sm"
+              hx-post="{{ entry_add_endpoint }}"
+              hx-target="{{ structural_target }}" hx-swap="{{ structural_swap }}"
+              hx-vals='{ {{ _bv }} }'>+ Add</button>
+      {% endif %}
+    </div>
+
+  {% elif var.typename == 'VariableList' %}
+    {# Entries are WorkVariables — recurse #}
+    <div class="var-container var-input">
+      {% for idx, item in var.value | enumerate %}
+        {{ var_row(var_name, item, path + [idx], readonly,
+                   value_endpoint, delete_endpoint, type_endpoint,
+                   entry_add_endpoint, entry_delete_endpoint,
+                   var_types, section, structural_target, structural_swap) }}
+      {% endfor %}
+      {% if not readonly %}
+      <button type="button" class="btn btn-sm"
+              hx-post="{{ entry_add_endpoint }}"
+              hx-target="{{ structural_target }}" hx-swap="{{ structural_swap }}"
+              hx-vals='{ {{ _bv }} }'>+ Add Entry</button>
+      {% endif %}
+    </div>
+
+  {% elif var.typename == 'Dictionary' %}
+    {# Values are WorkVariables — recurse #}
+    <div class="var-container var-input">
+      {% for key, item in var.value.items() %}
+        {{ var_row(var_name, item, path + [key], readonly,
+                   value_endpoint, delete_endpoint, type_endpoint,
+                   entry_add_endpoint, entry_delete_endpoint,
+                   var_types, section, structural_target, structural_swap) }}
+      {% endfor %}
+      {% if not readonly %}
+      <div class="var-row">
+        <input type="text" placeholder="new key" id="new-dict-key-{{ var_name }}-{{ path | join('-') }}">
+        <button type="button" class="btn btn-sm"
+                onclick="(function(){
+                  var k=document.getElementById('new-dict-key-{{ var_name }}-{{ path | join('-') }}').value.trim();
+                  if(!k) return;
+                  htmx.ajax('POST','{{ entry_add_endpoint }}',{
+                    target:'{{ structural_target }}',
+                    swap:'{{ structural_swap }}',
+                    values:{var_name:'{{ var_name }}',path:'{{ path | tojson }}',key:k{{ (',section:\"' ~ section ~ '\"') if section else '' }}}
+                  });
+                })()">+ Add Key</button>
+      </div>
+      {% endif %}
+    </div>
+
+  {% else %}
+    <span class="var-input">[{{ var.typename }}: {{ var.value }}]</span>
+  {% endif %}
+
+  {# ── delete button ─────────────────────────────────────── #}
+  {% if not readonly %}
+    {% if path %}
+      {# entry-level delete: tells server which container + which key/idx #}
+      {% if path[-1] is string %}
+        {# dict entry #}
+        <button type="button" class="btn btn-sm btn-danger"
+                hx-post="{{ entry_delete_endpoint }}"
+                hx-target="{{ structural_target }}" hx-swap="{{ structural_swap }}"
+                hx-vals='{ {{ _pv }}, "key": "{{ path[-1] }}" }'>×</button>
+      {% else %}
+        {# list entry #}
+        <button type="button" class="btn btn-sm btn-danger"
+                hx-post="{{ entry_delete_endpoint }}"
+                hx-target="{{ structural_target }}" hx-swap="{{ structural_swap }}"
+                hx-vals='{ {{ _pv }}, "idx": {{ path[-1] }} }'>×</button>
+      {% endif %}
+    {% else %}
+      {# top-level delete #}
+      <button type="button" class="btn btn-sm btn-danger"
+              hx-post="{{ delete_endpoint }}"
+              hx-target="{{ structural_target }}" hx-swap="{{ structural_swap }}"
+              hx-vals='{ {{ _bv }} }'>Delete</button>
+    {% endif %}
+  {% endif %}
+
+</div>
+{% endmacro %}
