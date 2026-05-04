@@ -390,6 +390,131 @@ async def toggle_workflow_pause(uuid: str):
 
 
 # ---------------------------------------------------------------------------
+# Design variable: update value (auto-persist on change)
+# ---------------------------------------------------------------------------
+
+def _apply_value_to_node(node, last_key, raw_value: str) -> None:
+    """Write raw_value into node.value[last_key], handling both WorkVariable and plain str entries."""
+    existing = node.value[last_key]
+    if isinstance(existing, WorkVariable):
+        existing.value = raw_value
+        try:
+            existing.normalize()
+        except Exception:
+            pass
+    else:
+        # Plain string entry (StringList / VariableNameList)
+        node.value[last_key] = str(raw_value).strip()
+
+
+@router.post("/workflow/{uuid}/design/variable/value")
+async def design_var_value(uuid: str, request: Request):
+    form = await request.form()
+    section  = form.get("section", "")
+    var_name = form.get("var_name", "")
+    path     = json.loads(form.get("path", "[]"))
+    raw_val  = form.get("value", "")
+    draft = _get_or_create_workflow_draft(uuid)
+    if not draft:
+        return Response(status_code=404)
+    section_vars = _section_vars(draft, section)
+    if var_name not in section_vars:
+        return Response(status_code=204)
+    target = section_vars[var_name]
+    if not path:
+        target.value = raw_val
+        try:
+            target.normalize()
+        except Exception:
+            pass
+    else:
+        node = target
+        for k in path[:-1]:
+            node = node.value[int(k)] if isinstance(k, int) else node.value[k]
+        last_key = path[-1]
+        if isinstance(last_key, str) and last_key.lstrip("-").isdigit():
+            last_key = int(last_key)
+        _apply_value_to_node(node, last_key, raw_val)
+    return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
+# Globals variable: update value (auto-persist on change)
+# ---------------------------------------------------------------------------
+
+@router.post("/globals/variable/value")
+async def globals_var_value(request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path     = json.loads(form.get("path", "[]"))
+    raw_val  = form.get("value", "")
+    draft = _get_or_create_globals_draft()
+    if var_name not in draft:
+        return Response(status_code=204)
+    target = draft[var_name]
+    if not path:
+        target.value = raw_val
+        try:
+            target.normalize()
+        except Exception:
+            pass
+    else:
+        node = target
+        for k in path[:-1]:
+            node = node.value[int(k)] if isinstance(k, int) else node.value[k]
+        last_key = path[-1]
+        if isinstance(last_key, str) and last_key.lstrip("-").isdigit():
+            last_key = int(last_key)
+        _apply_value_to_node(node, last_key, raw_val)
+    return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
+# Procedure step arg: update value (auto-persist on change)
+# ---------------------------------------------------------------------------
+
+@router.post("/workflow/{uuid}/procedure/step/arg/value")
+async def step_arg_value(uuid: str, request: Request):
+    form = await request.form()
+    proc_name = form.get("proc_name", "")
+    idx       = int(form.get("idx", 0))
+    arg_name  = form.get("arg_name", "")
+    raw_val   = form.get("value", "")
+    argtype   = form.get("argtype", None)  # set for union-type args
+    draft = _get_or_create_workflow_draft(uuid)
+    if not draft or proc_name not in draft.procedures:
+        return Response(status_code=204)
+    steps = draft.procedures[proc_name]
+    if idx >= len(steps):
+        return Response(status_code=204)
+    step = steps[idx]
+    if argtype:
+        try:
+            cls = WorkVariable.class_from_name(argtype)
+        except TypeError:
+            cls = None
+    else:
+        # Infer from existing variable or command signature
+        existing = step.variables.get(arg_name)
+        cls = existing.__class__ if existing else None
+        if cls is None:
+            args = Commands.get_command_input_variables(step.command_name)
+            for a_name, a_types in args:
+                if a_name == arg_name:
+                    cls = a_types if not isinstance(a_types, tuple) else a_types[0]
+                    break
+    if cls:
+        var = cls()
+        var.value = raw_val
+        try:
+            var.normalize()
+        except Exception:
+            pass
+        step.variables[arg_name] = var
+    return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
 # Workflow save (design tab)
 # ---------------------------------------------------------------------------
 

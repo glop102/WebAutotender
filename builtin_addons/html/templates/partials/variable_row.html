@@ -1,174 +1,200 @@
 {#
   Renders one WorkVariable row.
-  Context vars:
-    var_name    : str  — the variable's key name
-    var         : WorkVariable
-    path        : list — JSON path to this var within its section (for nested containers)
-    section     : str  — "constants" | "setup_variables" (design tab) or omitted for globals
-    workflow_uuid : str | None
-    readonly    : bool — if true, render values as text only (instance view)
-    type_endpoint : str  — URL for type-change POSTs
-    entry_add_endpoint : str
+  Required context:
+    var_name              : str
+    var                   : WorkVariable
+    path                  : list  — JSON path to this var ([] for top-level)
+    readonly              : bool
+    value_endpoint        : str   — URL for value-change POSTs (auto-persist)
+    delete_endpoint       : str
+    type_endpoint         : str
+    entry_add_endpoint    : str
     entry_delete_endpoint : str
+  Optional:
+    section               : str   — "constants" | "setup_variables" (absent for globals)
 #}
-<div class="var-row" id="varrow-{{ path | join('-') }}-{{ var_name }}">
+
+{# Build a compact hx-vals JSON string for this row #}
+{% set _section_kv = ', "section": "' ~ section ~ '"' if section is defined else '' %}
+{% set _base_vals = '"var_name": "' ~ var_name ~ '", "path": ' ~ (path | tojson) ~ _section_kv %}
+
+<div class="var-row" id="varrow-{{ (path | join('-')) ~ '-' ~ var_name }}">
   <span class="var-name">{{ var_name }}</span>
 
   {% if not readonly %}
   <select class="var-type-select btn btn-sm"
           name="new_type"
           hx-post="{{ type_endpoint }}"
-          hx-target="#varrow-{{ path | join('-') }}-{{ var_name }}"
+          hx-target="#varrow-{{ (path | join('-')) ~ '-' ~ var_name }}"
           hx-swap="outerHTML"
-          hx-include="closest .var-section-form">
+          hx-vals='{ {{ _base_vals }} }'
+          hx-trigger="change">
     {% for t in var_types %}
     <option value="{{ t }}" {% if t == var.typename %}selected{% endif %}>{{ t }}</option>
     {% endfor %}
   </select>
-  <input type="hidden" name="var_name" value="{{ var_name }}">
-  <input type="hidden" name="path" value="{{ path | tojson }}">
-  {% if section is defined %}<input type="hidden" name="section" value="{{ section }}">{% endif %}
   {% endif %}
 
-  {# Value widget — dispatch on type #}
+  {# ── Value widget ─────────────────────────────────────────── #}
+
   {% if var.typename in ('String', 'VariableName') %}
     {% if readonly %}
       <span class="var-input">{{ var.value }}</span>
     {% else %}
-      <input class="var-input" type="text" name="value__{{ var_name }}" value="{{ var.value }}">
+      <input class="var-input" type="text" name="value" value="{{ var.value }}"
+             hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+             hx-vals='{ {{ _base_vals }} }'>
     {% endif %}
 
   {% elif var.typename == 'URL' %}
     {% if readonly %}
       <span class="var-input">{{ var.value }}</span>
     {% else %}
-      <input class="var-input" type="url" name="value__{{ var_name }}" value="{{ var.value }}">
+      <input class="var-input" type="url" name="value" value="{{ var.value }}"
+             hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+             hx-vals='{ {{ _base_vals }} }'>
     {% endif %}
 
   {% elif var.typename == 'Integer' %}
     {% if readonly %}
       <span class="var-input">{{ var.value }}</span>
     {% else %}
-      <input class="var-input" type="number" step="1" name="value__{{ var_name }}" value="{{ var.value }}">
+      <input class="var-input" type="number" step="1" name="value" value="{{ var.value }}"
+             hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+             hx-vals='{ {{ _base_vals }} }'>
     {% endif %}
 
   {% elif var.typename == 'Float' %}
     {% if readonly %}
       <span class="var-input">{{ var.value }}</span>
     {% else %}
-      <input class="var-input" type="number" name="value__{{ var_name }}" value="{{ var.value }}">
+      <input class="var-input" type="number" name="value" value="{{ var.value }}"
+             hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+             hx-vals='{ {{ _base_vals }} }'>
     {% endif %}
 
   {% elif var.typename in ('StringList', 'VariableNameList') %}
     <div class="var-container var-input">
       {% for idx, item in var.value | enumerate %}
+      {% set _entry_vals = '"var_name": "' ~ var_name ~ '", "path": ' ~ ([idx] | tojson) ~ _section_kv %}
       <div class="var-row">
         {% if readonly %}
           <span>{{ item }}</span>
         {% else %}
-          <input type="text" name="value__{{ var_name }}__{{ idx }}" value="{{ item }}">
-          {% if not readonly %}
+          <input type="text" name="value" value="{{ item }}"
+                 hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+                 hx-vals='{ {{ _entry_vals }} }'>
           <button type="button" class="btn btn-sm btn-danger"
                   hx-post="{{ entry_delete_endpoint }}"
-                  hx-target="#varrow-{{ path | join('-') }}-{{ var_name }}"
+                  hx-target="#varrow-{{ (path | join('-')) ~ '-' ~ var_name }}"
                   hx-swap="outerHTML"
-                  hx-vals='{"var_name": "{{ var_name }}", "path": {{ path | tojson }}, "idx": {{ idx }}{% if section is defined %}, "section": "{{ section }}"{% endif %}}'
-                  >×</button>
-          {% endif %}
+                  hx-vals='{ {{ _base_vals }}, "idx": {{ idx }} }'>×</button>
         {% endif %}
       </div>
       {% endfor %}
       {% if not readonly %}
       <button type="button" class="btn btn-sm"
               hx-post="{{ entry_add_endpoint }}"
-              hx-target="#varrow-{{ path | join('-') }}-{{ var_name }}"
+              hx-target="#varrow-{{ (path | join('-')) ~ '-' ~ var_name }}"
               hx-swap="outerHTML"
-              hx-vals='{"var_name": "{{ var_name }}", "path": {{ path | tojson }}{% if section is defined %}, "section": "{{ section }}"{% endif %}}'
-              >+ Add</button>
+              hx-vals='{ {{ _base_vals }} }'>+ Add</button>
       {% endif %}
     </div>
 
   {% elif var.typename == 'VariableList' %}
     <div class="var-container var-input">
       {% for idx, item in var.value | enumerate %}
+      {% set _entry_vals = '"var_name": "' ~ var_name ~ '", "path": ' ~ (path + [idx] | tojson) ~ _section_kv %}
       <div class="var-row">
         {% if not readonly %}
         <select class="var-type-select btn btn-sm"
-                name="new_type"
                 hx-post="{{ type_endpoint }}"
-                hx-target="#varrow-{{ path | join('-') }}-{{ var_name }}"
+                hx-target="#varrow-{{ (path | join('-')) ~ '-' ~ var_name }}"
                 hx-swap="outerHTML"
-                hx-vals='{"var_name": "{{ var_name }}", "path": {{ (path + [idx]) | tojson }}{% if section is defined %}, "section": "{{ section }}"{% endif %}}'
-                >
+                hx-vals='{ "var_name": "{{ var_name }}", "path": {{ (path + [idx]) | tojson }}{{ _section_kv }} }'
+                hx-trigger="change">
           {% for t in var_types %}
           <option value="{{ t }}" {% if t == item.typename %}selected{% endif %}>{{ t }}</option>
           {% endfor %}
         </select>
         {% endif %}
-        {% include "partials/variable_row.html" with context %}
+        {# Inline value for this list entry #}
+        {% if item.typename in ('String', 'VariableName', 'URL') %}
+          {% if readonly %}<span>{{ item.value }}</span>
+          {% else %}
+            <input type="text" name="value" value="{{ item.value }}"
+                   hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+                   hx-vals='{ {{ _entry_vals }} }'>
+          {% endif %}
+        {% elif item.typename in ('Integer', 'Float') %}
+          {% if readonly %}<span>{{ item.value }}</span>
+          {% else %}
+            <input type="number" name="value" value="{{ item.value }}"
+                   hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+                   hx-vals='{ {{ _entry_vals }} }'>
+          {% endif %}
+        {% else %}
+          <span class="var-input">[{{ item.typename }}]</span>
+        {% endif %}
         {% if not readonly %}
         <button type="button" class="btn btn-sm btn-danger"
                 hx-post="{{ entry_delete_endpoint }}"
-                hx-target="#varrow-{{ path | join('-') }}-{{ var_name }}"
+                hx-target="#varrow-{{ (path | join('-')) ~ '-' ~ var_name }}"
                 hx-swap="outerHTML"
-                hx-vals='{"var_name": "{{ var_name }}", "path": {{ path | tojson }}, "idx": {{ idx }}{% if section is defined %}, "section": "{{ section }}"{% endif %}}'
-                >×</button>
+                hx-vals='{ {{ _base_vals }}, "idx": {{ idx }} }'>×</button>
         {% endif %}
       </div>
       {% endfor %}
       {% if not readonly %}
       <button type="button" class="btn btn-sm"
               hx-post="{{ entry_add_endpoint }}"
-              hx-target="#varrow-{{ path | join('-') }}-{{ var_name }}"
+              hx-target="#varrow-{{ (path | join('-')) ~ '-' ~ var_name }}"
               hx-swap="outerHTML"
-              hx-vals='{"var_name": "{{ var_name }}", "path": {{ path | tojson }}{% if section is defined %}, "section": "{{ section }}"{% endif %}}'
-              >+ Add Entry</button>
+              hx-vals='{ {{ _base_vals }} }'>+ Add Entry</button>
       {% endif %}
     </div>
 
   {% elif var.typename == 'Dictionary' %}
     <div class="var-container var-input">
       {% for key, item in var.value.items() %}
+      {% set _entry_vals = '"var_name": "' ~ var_name ~ '", "path": ' ~ ([key] | tojson) ~ _section_kv %}
       <div class="var-row">
-        {% if readonly %}
-          <span class="arg-label">{{ key }}</span>
-        {% else %}
-          <span class="arg-label">{{ key }}</span>
-          <select class="var-type-select btn btn-sm"
-                  name="new_type"
-                  hx-post="{{ type_endpoint }}"
-                  hx-target="#varrow-{{ path | join('-') }}-{{ var_name }}"
-                  hx-swap="outerHTML"
-                  hx-vals='{"var_name": "{{ var_name }}", "path": {{ (path + [key]) | tojson }}{% if section is defined %}, "section": "{{ section }}"{% endif %}}'
-                  >
-            {% for t in var_types %}
-            <option value="{{ t }}" {% if t == item.typename %}selected{% endif %}>{{ t }}</option>
-            {% endfor %}
-          </select>
-          <button type="button" class="btn btn-sm btn-danger"
-                  hx-post="{{ entry_delete_endpoint }}"
-                  hx-target="#varrow-{{ path | join('-') }}-{{ var_name }}"
-                  hx-swap="outerHTML"
-                  hx-vals='{"var_name": "{{ var_name }}", "path": {{ path | tojson }}, "key": "{{ key }}"{% if section is defined %}, "section": "{{ section }}"{% endif %}}'
-                  >×</button>
+        <span class="arg-label">{{ key }}</span>
+        {% if not readonly %}
+        <select class="var-type-select btn btn-sm"
+                hx-post="{{ type_endpoint }}"
+                hx-target="#varrow-{{ (path | join('-')) ~ '-' ~ var_name }}"
+                hx-swap="outerHTML"
+                hx-vals='{ "var_name": "{{ var_name }}", "path": {{ (path + [key]) | tojson }}{{ _section_kv }} }'
+                hx-trigger="change">
+          {% for t in var_types %}
+          <option value="{{ t }}" {% if t == item.typename %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
         {% endif %}
-        {# Render the value inline (primitive types only at dict level for now) #}
-        {% set nested_var = item %}
-        {% set nested_name = key %}
-        {% if item.typename in ('String', 'VariableName') %}
+        {% if item.typename in ('String', 'VariableName', 'URL') %}
           {% if readonly %}<span>{{ item.value }}</span>
-          {% else %}<input type="text" name="value__{{ var_name }}__{{ key }}" value="{{ item.value }}">{% endif %}
-        {% elif item.typename == 'URL' %}
+          {% else %}
+            <input type="text" name="value" value="{{ item.value }}"
+                   hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+                   hx-vals='{ {{ _entry_vals }} }'>
+          {% endif %}
+        {% elif item.typename in ('Integer', 'Float') %}
           {% if readonly %}<span>{{ item.value }}</span>
-          {% else %}<input type="url" name="value__{{ var_name }}__{{ key }}" value="{{ item.value }}">{% endif %}
-        {% elif item.typename == 'Integer' %}
-          {% if readonly %}<span>{{ item.value }}</span>
-          {% else %}<input type="number" step="1" name="value__{{ var_name }}__{{ key }}" value="{{ item.value }}">{% endif %}
-        {% elif item.typename == 'Float' %}
-          {% if readonly %}<span>{{ item.value }}</span>
-          {% else %}<input type="number" name="value__{{ var_name }}__{{ key }}" value="{{ item.value }}">{% endif %}
+          {% else %}
+            <input type="number" name="value" value="{{ item.value }}"
+                   hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
+                   hx-vals='{ {{ _entry_vals }} }'>
+          {% endif %}
         {% else %}
           <span class="var-input">[{{ item.typename }}]</span>
+        {% endif %}
+        {% if not readonly %}
+        <button type="button" class="btn btn-sm btn-danger"
+                hx-post="{{ entry_delete_endpoint }}"
+                hx-target="#varrow-{{ (path | join('-')) ~ '-' ~ var_name }}"
+                hx-swap="outerHTML"
+                hx-vals='{ {{ _base_vals }}, "key": "{{ key }}" }'>×</button>
         {% endif %}
       </div>
       {% endfor %}
@@ -180,9 +206,9 @@
                   var k=document.getElementById('new-dict-key-{{ var_name }}').value.trim();
                   if(!k) return;
                   htmx.ajax('POST','{{ entry_add_endpoint }}',{
-                    target:'#varrow-{{ path | join('-') }}-{{ var_name }}',
+                    target:'#varrow-{{ (path | join('-')) ~ '-' ~ var_name }}',
                     swap:'outerHTML',
-                    values:{var_name:'{{ var_name }}',path:'{{ path | tojson }}',key:k{% if section is defined %},'section':'{{ section }}'{% endif %}}
+                    values:{var_name:'{{ var_name }}',path:'{{ path | tojson }}',key:k{{ (',section:\"' ~ section ~ '\"') if section is defined else '' }}}
                   });
                 })()">+ Add Key</button>
       </div>
@@ -196,9 +222,8 @@
   {% if not readonly %}
   <button type="button" class="btn btn-sm btn-danger"
           hx-post="{{ delete_endpoint }}"
-          hx-target="#varrow-{{ path | join('-') }}-{{ var_name }}"
+          hx-target="#varrow-{{ (path | join('-')) ~ '-' ~ var_name }}"
           hx-swap="outerHTML"
-          hx-vals='{"var_name": "{{ var_name }}"{% if section is defined %}, "section": "{{ section }}"{% endif %}}'
-          >Delete</button>
+          hx-vals='{ {{ _base_vals }} }'>Delete</button>
   {% endif %}
 </div>
