@@ -381,6 +381,8 @@ async def toggle_workflow_pause(uuid: str):
     wf.state = RunStates.Paused if wf.state == RunStates.Running else RunStates.Running
     await eventsCallbackManager.signal_event(EventCallbacksManager.Events.RefreshWorkflows)
     pipelineManager.save_state()
+    if wf.state == RunStates.Running:
+        await pipelineManager.notify_of_something_happening()
     sidebar = templates.get_template("sidebar.html").render(
         workflows=list(global_workflows.values()),
         selected_uuid=None,
@@ -633,6 +635,8 @@ async def toggle_instance_pause(uuid: str, iuuid: str):
     if inst:
         inst.state = RunStates.Paused if inst.state == RunStates.Running else RunStates.Running
         pipelineManager.save_state()
+        if inst.state == RunStates.Running:
+            await pipelineManager.notify_of_something_happening()
     wf = global_workflows.get(uuid)
     if not wf:
         return HTMLResponse("Not found", status_code=404)
