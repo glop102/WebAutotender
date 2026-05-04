@@ -34,6 +34,9 @@ async def delete_workflow(uuid: str):
         EventCallbacksManager.Events.DeleteWorkflow,
         uuid
     )
+    await eventsCallbackManager.signal_event(
+        EventCallbacksManager.Events.RefreshWorkflows
+    )
 
 @workflow_router.put("/workflows/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def edit_workflow(uuid: str, data: dict):
@@ -49,6 +52,9 @@ async def edit_workflow(uuid: str, data: dict):
     await eventsCallbackManager.signal_event(
         EventCallbacksManager.Events.RefreshWorkflow,
         uuid
+    )
+    await eventsCallbackManager.signal_event(
+        EventCallbacksManager.Events.RefreshWorkflows
     )
 
 @workflow_router.post("/workflows/{uuid}/spawn_instance")

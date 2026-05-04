@@ -27,7 +27,7 @@ class EventCallbacksManager:
         self.subscribers[event].append( callback )
     def unsubscribe_callback(self,callback:Callable):
         for e in self.Events:
-            if callable in self.subscribers[e]:
+            if e in self.subscribers and callback in self.subscribers[e]:
                 self.subscribers[e].remove(callback)
     async def signal_event(self,event:Events, uuid:str="", data:str=""):
         if not event in self.subscribers:

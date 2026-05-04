@@ -32,10 +32,13 @@ class WorkVariable:
 
     @typename.setter
     def typename(self,typename:str)->None:
+        self.__class__ = WorkVariable.class_from_name(typename)
+
+    @staticmethod
+    def class_from_name(typename: str) -> type:
         for cls in WorkVariable.__subclasses__():
             if cls.__name__ == typename:
-                self.__class__ = cls
-                return
+                return cls
         raise TypeError(f"Unable to find a WorkVariable type to cast into with the name {typename}")
 
     def __init__(self, value: Self | None = None):
@@ -178,7 +181,7 @@ class VariableList(WorkVariable):
         if type(self.value) != list:
             return False
         for x in self.value:
-            if type(x) != WorkVariable:
+            if not isinstance(x, WorkVariable) or not x.is_valid():
                 return False
         return True
 
@@ -261,7 +264,7 @@ class Dictionary(WorkVariable):
         for key in self.value.keys():
             if type(key) != str: return False
         for val in self.value.values():
-            if type(val) != WorkVariable and not WorkVariable.__subclasscheck__(type(val)):
+            if not isinstance(val, WorkVariable) or not val.is_valid():
                 return False
         return True
     def normalize(self) -> None:

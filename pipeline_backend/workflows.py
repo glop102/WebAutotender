@@ -64,7 +64,7 @@ class Workflow:
         self.uuid = ""
         self.constants = {}
         self.setup_variables = {}
-        self.procedures = {}
+        self.procedures = {"start": []}
         self.state = RunStates.Running
         self.user_notes = ""
 
