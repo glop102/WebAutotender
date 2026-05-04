@@ -1,0 +1,31 @@
+{#
+  Full right-pane shell for a workflow: tab bar + initial tab content.
+  Returned when clicking a workflow in the sidebar (hx-target="#right-pane").
+  Context:
+    workflow     : Workflow
+    instances    : list[Instance]
+    var_types    : list[str]
+    active_tab   : "instances" | "design"
+    dirty        : bool
+    command_names: list[str]
+    command_args : dict
+    workflow_uuid: str
+#}
+<div id="tab-bar">
+  <button class="tab-btn {% if active_tab == 'instances' %}active{% endif %}"
+          hx-get="/ui/workflow/{{ workflow.uuid }}/instances"
+          hx-target="#tab-content"
+          hx-swap="innerHTML">Instances</button>
+  <button class="tab-btn {% if active_tab == 'design' %}active{% endif %}"
+          hx-get="/ui/workflow/{{ workflow.uuid }}/design"
+          hx-target="#tab-content"
+          hx-swap="innerHTML">Design{% if dirty %} *{% endif %}</button>
+</div>
+
+<div id="tab-content">
+  {% if active_tab == 'instances' %}
+    {% include "workflow_instances.html" %}
+  {% else %}
+    {% include "workflow_design.html" %}
+  {% endif %}
+</div>

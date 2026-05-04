@@ -1,0 +1,40 @@
+{#
+  Global variables pane fragment.
+  Context:
+    global_vars  : dict[str, WorkVariable]  (the draft)
+    var_types    : list[str]
+    dirty        : bool
+#}
+<div id="globals-pane">
+  <h2 style="margin-bottom:12px">Global Variables{% if dirty %} *{% endif %}</h2>
+
+  <div class="section var-section-form">
+    {% for var_name, var in global_vars.items() %}
+      {% set path = [] %}
+      {% set readonly = false %}
+      {% set delete_endpoint = "/ui/globals/variable/delete" %}
+      {% set type_endpoint = "/ui/globals/variable/type" %}
+      {% set entry_add_endpoint = "/ui/globals/variable/entry/add" %}
+      {% set entry_delete_endpoint = "/ui/globals/variable/entry/delete" %}
+      {% include "partials/variable_row.html" %}
+    {% else %}
+      <p style="color:#555; font-size:12px">No global variables.</p>
+    {% endfor %}
+    <button type="button" class="btn btn-sm"
+            hx-post="/ui/globals/variable/add"
+            hx-target="#globals-pane"
+            hx-swap="outerHTML">+ Add Variable</button>
+  </div>
+
+  <div class="action-bar">
+    <button type="button" class="btn btn-primary"
+            hx-post="/ui/globals/save"
+            hx-target="#globals-pane"
+            hx-swap="outerHTML"
+            hx-include=".var-section-form">Save</button>
+    <button type="button" class="btn"
+            hx-post="/ui/globals/discard"
+            hx-target="#globals-pane"
+            hx-swap="outerHTML">Revert Changes</button>
+  </div>
+</div>

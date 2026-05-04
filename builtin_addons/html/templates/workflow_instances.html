@@ -1,0 +1,34 @@
+{#
+  Instances tab content fragment.
+  Context:
+    workflow     : Workflow
+    instances    : list[Instance]
+    var_types    : list[str]
+#}
+<div id="instances-{{ workflow.uuid }}"
+     hx-get="/ui/workflow/{{ workflow.uuid }}/instances"
+     hx-trigger="refresh"
+     hx-swap="outerHTML">
+
+  {% if workflow.user_notes %}
+  <details class="notes-details">
+    <summary>Notes</summary>
+    <pre>{{ workflow.user_notes }}</pre>
+  </details>
+  {% endif %}
+
+  <div style="margin-bottom: 10px;">
+    <button class="btn btn-primary"
+            hx-get="/ui/workflow/{{ workflow.uuid }}/instances/spawn_dialog"
+            hx-target="body"
+            hx-swap="beforeend">Spawn Instance</button>
+  </div>
+
+  {% if instances %}
+    {% for inst in instances %}
+      {% include "partials/instance_row.html" %}
+    {% endfor %}
+  {% else %}
+    <p style="color:#555">No instances yet.</p>
+  {% endif %}
+</div>

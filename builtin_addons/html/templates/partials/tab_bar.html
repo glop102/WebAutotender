@@ -1,0 +1,11 @@
+{# OOB tab bar update included in instances/design fragment responses #}
+<div id="tab-bar" hx-swap-oob="outerHTML:#tab-bar">
+  <button class="tab-btn {% if active_tab == 'instances' %}active{% endif %}"
+          hx-get="/ui/workflow/{{ workflow_uuid }}/instances"
+          hx-target="#tab-content"
+          hx-swap="innerHTML">Instances</button>
+  <button class="tab-btn {% if active_tab == 'design' %}active{% endif %}"
+          hx-get="/ui/workflow/{{ workflow_uuid }}/design"
+          hx-target="#tab-content"
+          hx-swap="innerHTML">Design{% if dirty %} *{% endif %}</button>
+</div>

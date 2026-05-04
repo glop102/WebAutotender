@@ -30,6 +30,8 @@ final: prev: {
       sse-starlette
       asyncssh
       jinja2
+      python-multipart
+      regex
     ];
 
     makeWrapperArgs = [ "--prefix PYTHONPATH : $out/lib/web-autotender" ];

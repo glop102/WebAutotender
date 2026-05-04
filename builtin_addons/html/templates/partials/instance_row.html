@@ -1,0 +1,44 @@
+{#
+  One instance row as a collapsible <details>.
+  Context:
+    inst         : Instance
+    workflow_uuid: str
+    var_types    : list[str]
+#}
+<details class="instance-details" id="instance-detail-{{ inst.uuid }}">
+  <summary>
+    <span class="state-{{ inst.state.name | lower }}">{{ inst.state.name }}</span>
+    <span class="instance-meta">{{ inst.processing_step[0] }}[{{ inst.processing_step[1] }}]</span>
+    <span class="instance-meta">next: {{ inst.next_processing_time.strftime('%H:%M:%S') }}</span>
+    <span style="flex:1"></span>
+    <button type="button" class="btn btn-sm"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/instances/{{ inst.uuid }}/toggle_pause"
+            hx-target="closest #instances-{{ workflow_uuid }}"
+            hx-swap="outerHTML"
+            onclick="event.preventDefault(); event.stopPropagation()"
+            title="{% if inst.state.name == 'Running' %}Pause{% else %}Resume{% endif %}">
+      {% if inst.state.name == 'Running' %}⏸{% else %}▶{% endif %}
+    </button>
+    <button type="button" class="btn btn-sm btn-danger"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/instances/{{ inst.uuid }}/delete"
+            hx-target="closest #instances-{{ workflow_uuid }}"
+            hx-swap="outerHTML"
+            hx-confirm="Delete this instance?"
+            onclick="event.preventDefault(); event.stopPropagation()">×</button>
+  </summary>
+  <div class="instance-body">
+    <div class="var-row"><span class="var-name">uuid</span><span>{{ inst.uuid }}</span></div>
+    {% if inst.variables %}
+    <div class="section-title" style="margin-top:8px">Variables</div>
+    {% for vname, var in inst.variables.items() %}
+    <div class="var-row">
+      <span class="var-name">{{ vname }}</span>
+      <span class="instance-meta">({{ var.typename }})</span>
+      <span>{{ var.value }}</span>
+    </div>
+    {% endfor %}
+    {% endif %}
+    <div class="section-title" style="margin-top:8px">Console Log</div>
+    <pre class="console-log">{{ inst.console_log or '(empty)' }}</pre>
+  </div>
+</details>

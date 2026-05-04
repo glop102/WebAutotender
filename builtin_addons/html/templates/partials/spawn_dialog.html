@@ -1,0 +1,44 @@
+{#
+  Spawn instance modal overlay.
+  Context:
+    workflow  : Workflow
+    var_types : list[str]
+#}
+<div id="spawn-modal">
+  <div class="modal-box">
+    <h3>Spawn Instance — {{ workflow.name or '(Untitled)' }}</h3>
+    <form id="spawn-form"
+          hx-post="/ui/workflow/{{ workflow.uuid }}/instances/spawn"
+          hx-target="#instances-{{ workflow.uuid }}"
+          hx-swap="outerHTML">
+
+      {% if workflow.setup_variables %}
+        {% for var_name, var in workflow.setup_variables.items() %}
+        <div class="var-row">
+          <span class="var-name">{{ var_name }}</span>
+          <span class="instance-meta">({{ var.typename }})</span>
+          {% if var.typename in ('String', 'VariableName') %}
+            <input type="text" name="arg__{{ var_name }}" value="{{ var.value }}">
+          {% elif var.typename == 'URL' %}
+            <input type="url" name="arg__{{ var_name }}" value="{{ var.value }}">
+          {% elif var.typename == 'Integer' %}
+            <input type="number" step="1" name="arg__{{ var_name }}" value="{{ var.value }}">
+          {% elif var.typename == 'Float' %}
+            <input type="number" name="arg__{{ var_name }}" value="{{ var.value }}">
+          {% else %}
+            <input type="text" name="arg__{{ var_name }}" value="{{ var.value }}" placeholder="{{ var.typename }}">
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <p style="color:#888">No setup variables — instance will use workflow defaults.</p>
+      {% endif %}
+
+      <div class="modal-actions">
+        <button type="button" class="btn"
+                onclick="document.getElementById('spawn-modal').remove()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Confirm Spawn</button>
+      </div>
+    </form>
+  </div>
+</div>

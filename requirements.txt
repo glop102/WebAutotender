@@ -4,4 +4,6 @@ feedparser
 sse-starlette
 asyncssh
 jinja2
+python-multipart
+regex
 
