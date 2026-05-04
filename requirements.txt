@@ -3,4 +3,5 @@ uvicorn
 feedparser
 sse-starlette
 asyncssh
+jinja2
 
