@@ -412,7 +412,7 @@ async def design_var_value(uuid: str, request: Request):
     form = await request.form()
     section  = form.get("section", "")
     var_name = form.get("var_name", "")
-    path     = json.loads(form.get("path", "[]"))
+    path     = json.loads(form.get("path") or "[]")
     raw_val  = form.get("value", "")
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
@@ -446,7 +446,7 @@ async def design_var_value(uuid: str, request: Request):
 async def globals_var_value(request: Request):
     form = await request.form()
     var_name = form.get("var_name", "")
-    path     = json.loads(form.get("path", "[]"))
+    path     = json.loads(form.get("path") or "[]")
     raw_val  = form.get("value", "")
     draft = _get_or_create_globals_draft()
     if var_name not in draft:
@@ -689,7 +689,7 @@ async def design_var_type(request: Request, uuid: str):
     form = await request.form()
     section = form.get("section", "")
     var_name = form.get("var_name", "")
-    path = json.loads(form.get("path", "[]"))
+    path = json.loads(form.get("path") or "[]")
     new_type_name = form.get("new_type", "")
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
@@ -735,7 +735,7 @@ async def design_var_entry_add(request: Request, uuid: str):
     form = await request.form()
     section = form.get("section", "")
     var_name = form.get("var_name", "")
-    path = json.loads(form.get("path", "[]"))
+    path = json.loads(form.get("path") or "[]")
     key = form.get("key", None)  # for Dictionary entries
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
@@ -775,7 +775,7 @@ async def design_var_entry_delete(request: Request, uuid: str):
     form = await request.form()
     section = form.get("section", "")
     var_name = form.get("var_name", "")
-    path = json.loads(form.get("path", "[]"))
+    path = json.loads(form.get("path") or "[]")
     idx_raw = form.get("idx", None)
     key = form.get("key", None)
     draft = _get_or_create_workflow_draft(uuid)
@@ -1051,7 +1051,7 @@ async def globals_var_delete(request: Request):
 async def globals_var_type(request: Request):
     form = await request.form()
     var_name = form.get("var_name", "")
-    path = json.loads(form.get("path", "[]"))
+    path = json.loads(form.get("path") or "[]")
     new_type_name = form.get("new_type", "")
     draft = _get_or_create_globals_draft()
     if var_name not in draft:
@@ -1091,7 +1091,7 @@ async def globals_var_type(request: Request):
 async def globals_entry_add(request: Request):
     form = await request.form()
     var_name = form.get("var_name", "")
-    path = json.loads(form.get("path", "[]"))
+    path = json.loads(form.get("path") or "[]")
     key = form.get("key", None)
     draft = _get_or_create_globals_draft()
     if var_name not in draft:
@@ -1128,7 +1128,7 @@ async def globals_entry_add(request: Request):
 async def globals_entry_delete(request: Request):
     form = await request.form()
     var_name = form.get("var_name", "")
-    path = json.loads(form.get("path", "[]"))
+    path = json.loads(form.get("path") or "[]")
     idx_raw = form.get("idx", None)
     key = form.get("key", None)
     draft = _get_or_create_globals_draft()

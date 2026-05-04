@@ -6,10 +6,13 @@
 
 {# ── shared snippets ──────────────────────────────────────── #}
 {% set _sec    = ', "section": "' ~ section ~ '"' if section else '' %}
-{# base vals: always refers back to the top-level var_name + full path to THIS node #}
-{% set _bv     = '"var_name": "' ~ var_name ~ '", "path": ' ~ (path | tojson) ~ _sec %}
-{# parent path vals: used by entry-level delete buttons #}
-{% set _pv     = '"var_name": "' ~ var_name ~ '", "path": ' ~ (path[:-1] | tojson) ~ _sec %}
+{# Paths are double-encoded: path array → JSON string → JSON string value in hx-vals.
+   This is required because HTMX serialises array hx-vals values via Array.toString()
+   (comma-joined, empty string for []), not JSON.stringify. Passing a pre-serialised
+   string means HTMX sends it correctly and the server can json.loads() it. #}
+{% set _bv     = '"var_name": "' ~ var_name ~ '", "path": ' ~ ((path | tojson) | tojson) ~ _sec %}
+{# parent path: path without the last element, for entry-level delete buttons #}
+{% set _pv     = '"var_name": "' ~ var_name ~ '", "path": ' ~ ((path[:-1] | tojson) | tojson) ~ _sec %}
 
 {# ── label shown to the left of each row ─────────────────── #}
 {% if not path %}
@@ -79,14 +82,14 @@
     {# Entries are plain strings, not WorkVariables — handled inline (no recursion needed) #}
     <div class="var-container var-input">
       {% for idx, item in var.value | enumerate %}
-      {% set _ev = '"var_name": "' ~ var_name ~ '", "path": ' ~ (path | tojson) ~ _sec ~ ', "idx": ' ~ idx %}
+      {% set _ev = '"var_name": "' ~ var_name ~ '", "path": ' ~ ((path | tojson) | tojson) ~ _sec ~ ', "idx": ' ~ idx %}
       <div class="var-row">
         {% if readonly %}
           <span>{{ item }}</span>
         {% else %}
           <input type="text" name="value" value="{{ item }}"
                  hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
-                 hx-vals='{ "var_name": "{{ var_name }}", "path": {{ (path + [idx]) | tojson }}{{ _sec }} }'>
+                 hx-vals='{ "var_name": "{{ var_name }}", "path": {{ ((path + [idx]) | tojson) | tojson }}{{ _sec }} }'>
           <button type="button" class="btn btn-sm btn-danger"
                   hx-post="{{ entry_delete_endpoint }}"
                   hx-target="{{ structural_target }}" hx-swap="{{ structural_swap }}"
