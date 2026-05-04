@@ -167,7 +167,13 @@ document.addEventListener('htmx:afterSwap', () => {
         if (el) el.open = true;
     }
     initSortable();
+    scrollConsoleLogs();
 });
+
+function scrollConsoleLogs() {
+    document.querySelectorAll('.console-log').forEach(el => { el.scrollTop = el.scrollHeight; });
+}
+scrollConsoleLogs();
 
 // Sortable.js for procedure step reordering
 function initSortable() {
