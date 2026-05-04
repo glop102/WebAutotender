@@ -478,8 +478,8 @@ async def spawn_instance(request: Request, uuid: str):
 
     ctx = _instances_context(wf)
     instances_html = templates.get_template("workflow_instances.html").render(**ctx)
-    # Close modal via OOB swap
-    modal_close = '<div id="spawn-modal" hx-swap-oob="outerHTML:#spawn-modal"></div>'
+    # Delete modal via OOB — empty replacement would still match the CSS rule and keep the backdrop
+    modal_close = '<div id="spawn-modal" hx-swap-oob="delete"></div>'
     return HTMLResponse(instances_html + modal_close)
 
 
