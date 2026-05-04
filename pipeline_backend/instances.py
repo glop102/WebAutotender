@@ -127,4 +127,4 @@ class Instance:
             self.variables[var_name] = var
 
 
-global_instances: list[Instance] = {}
+global_instances: dict[str, Instance] = {}
