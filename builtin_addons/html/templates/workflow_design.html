@@ -15,6 +15,7 @@
 {% set _val   = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/value" %}
 {% set _eadd  = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/entry/add" %}
 {% set _edel  = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/entry/delete" %}
+{% set _ren   = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/rename" %}
 
 <form id="design-form"
       hx-post="/ui/workflow/{{ workflow_uuid }}/save"
@@ -40,7 +41,8 @@
     {% for var_name, var in workflow.constants.items() %}
       {{ var_row(var_name, var, [], false,
                  _val, _del, _type, _eadd, _edel,
-                 var_types, "constants") }}
+                 var_types, "constants",
+                 "#tab-content", "innerHTML", _ren) }}
     {% else %}
       <p style="color:#555; font-size:12px">No constants.</p>
     {% endfor %}
@@ -56,7 +58,8 @@
     {% for var_name, var in workflow.setup_variables.items() %}
       {{ var_row(var_name, var, [], false,
                  _val, _del, _type, _eadd, _edel,
-                 var_types, "setup_variables") }}
+                 var_types, "setup_variables",
+                 "#tab-content", "innerHTML", _ren) }}
     {% else %}
       <p style="color:#555; font-size:12px">No setup variables.</p>
     {% endfor %}

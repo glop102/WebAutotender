@@ -65,6 +65,9 @@
     /* Variable rows */
     .var-row { display: flex; align-items: center; gap: 0.375rem; margin: 0.25rem 0; padding: 0.25rem 0; }
     .var-name { font-family: monospace; color: #9cdcfe; min-width: 7.5rem; }
+    .var-name-edit { font-family: monospace; color: #9cdcfe; width: 7rem; }
+    .vn-pencil { opacity: 0.35; padding: 0 0.2rem; }
+    .vn-pencil:hover { opacity: 1; }
     .var-type-select { min-width: 6.875rem; }
     .var-input { flex: 1; }
     .var-container { border-left: 2px solid #444; margin-left: 0.75rem; padding-left: 0.5rem; margin-top: 0.25rem; }
@@ -138,6 +141,43 @@
 </div>
 
 <script>
+// Variable rename helpers
+function startRename(btn) {
+    const row = btn.closest('.var-row');
+    row.querySelector('[data-varname]').style.display = 'none';
+    btn.style.display = 'none';
+    const group = row.querySelector('.vn-edit-group');
+    group.style.display = 'flex';
+    const input = group.querySelector('input');
+    input.focus();
+    input.select();
+}
+function cancelRename(el) {
+    const row = el.closest('.var-row');
+    row.querySelector('[data-varname]').style.display = '';
+    row.querySelector('.vn-pencil').style.display = '';
+    row.querySelector('.vn-edit-group').style.display = 'none';
+}
+function commitRename(el) {
+    const row = el.closest('.var-row');
+    const label = row.querySelector('[data-varname]');
+    const input = row.querySelector('.vn-edit-group input');
+    const oldName = label.dataset.varname;
+    const newName = input.value.trim();
+    if (!newName || newName === oldName) { cancelRename(el); return; }
+    const vals = { old_name: oldName, new_name: newName };
+    if (label.dataset.section) vals.section = label.dataset.section;
+    htmx.ajax('POST', label.dataset.renameEp, {
+        target: label.dataset.target,
+        swap: label.dataset.swap,
+        values: vals
+    });
+}
+function handleRenameKey(evt, input) {
+    if (evt.key === 'Enter')  { evt.preventDefault(); commitRename(input); }
+    if (evt.key === 'Escape') { cancelRename(input); }
+}
+
 // SSE
 const _sse = new EventSource('/ui/events');
 _sse.addEventListener('RefreshInstance', e => {

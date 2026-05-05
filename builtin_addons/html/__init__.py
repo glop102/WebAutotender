@@ -686,6 +686,28 @@ def design_var_add(request: Request, uuid: str, section: str = Form(...)):
 
 
 # ---------------------------------------------------------------------------
+# Design variable: rename top-level variable
+# ---------------------------------------------------------------------------
+
+@router.post("/workflow/{uuid}/design/variable/rename", response_class=HTMLResponse)
+async def design_var_rename(request: Request, uuid: str):
+    form = await request.form()
+    section = form.get("section", "")
+    old_name = form.get("old_name", "")
+    new_name = (form.get("new_name") or "").strip()
+    draft = _get_or_create_workflow_draft(uuid)
+    if not draft:
+        return HTMLResponse("Not found", status_code=404)
+    section_vars = _section_vars(draft, section)
+    if new_name and new_name != old_name and old_name in section_vars and new_name not in section_vars:
+        renamed = {(new_name if k == old_name else k): v for k, v in section_vars.items()}
+        section_vars.clear()
+        section_vars.update(renamed)
+    ctx = _design_context(uuid, draft)
+    return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
+
+
+# ---------------------------------------------------------------------------
 # Design variable: delete top-level variable
 # ---------------------------------------------------------------------------
 
@@ -1067,6 +1089,31 @@ async def globals_var_delete(request: Request):
 
 
 # ---------------------------------------------------------------------------
+# Globals variable: rename
+# ---------------------------------------------------------------------------
+
+@router.post("/globals/variable/rename", response_class=HTMLResponse)
+async def globals_var_rename(request: Request):
+    form = await request.form()
+    old_name = form.get("old_name", "")
+    new_name = (form.get("new_name") or "").strip()
+    draft = _get_or_create_globals_draft()
+    if new_name and new_name != old_name and old_name in draft and new_name not in draft:
+        renamed = {(new_name if k == old_name else k): v for k, v in draft.items()}
+        draft.clear()
+        draft.update(renamed)
+    return templates.TemplateResponse(
+        "globals.html",
+        {
+            "request": request,
+            "global_vars": draft,
+            "var_types": _var_type_names(),
+            "dirty": _is_globals_draft_dirty(),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Globals variable: change type
 # ---------------------------------------------------------------------------
 
@@ -1225,6 +1272,19 @@ def secrets_var_add(request: Request):
         name = f"{base}_{counter}"
         counter += 1
     draft[name] = String("")
+    return _secrets_response(request)
+
+
+@router.post("/secrets/variable/rename", response_class=HTMLResponse)
+async def secrets_var_rename(request: Request):
+    form = await request.form()
+    old_name = form.get("old_name", "")
+    new_name = (form.get("new_name") or "").strip()
+    draft = _get_or_create_secrets_draft()
+    if new_name and new_name != old_name and old_name in draft and new_name not in draft:
+        renamed = {(new_name if k == old_name else k): v for k, v in draft.items()}
+        draft.clear()
+        draft.update(renamed)
     return _secrets_response(request)
 
 

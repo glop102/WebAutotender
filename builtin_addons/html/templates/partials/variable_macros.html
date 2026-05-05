@@ -2,7 +2,8 @@
                  value_endpoint, delete_endpoint, type_endpoint,
                  entry_add_endpoint, entry_delete_endpoint,
                  var_types, section="",
-                 structural_target="#tab-content", structural_swap="innerHTML") %}
+                 structural_target="#tab-content", structural_swap="innerHTML",
+                 rename_endpoint="") %}
 
 {# ── shared snippets ──────────────────────────────────────── #}
 {% set _sec    = ', "section": "' ~ section ~ '"' if section else '' %}
@@ -24,7 +25,23 @@
 {% endif %}
 
 <div class="var-row">
-  <span class="var-name">{{ _label }}</span>
+  {% if not path and not readonly and rename_endpoint %}
+    <span class="var-name"
+          data-varname="{{ var_name }}"
+          data-rename-ep="{{ rename_endpoint }}"
+          data-target="{{ structural_target }}"
+          data-swap="{{ structural_swap }}"
+          data-section="{{ section }}">{{ _label }}</span>
+    <button type="button" class="btn btn-sm vn-pencil" onclick="startRename(this)" title="Rename">✏</button>
+    <span class="vn-edit-group" style="display:none; align-items:center; gap:2px">
+      <input type="text" class="var-name-edit" value="{{ var_name }}"
+             onkeydown="handleRenameKey(event, this)">
+      <button type="button" class="btn btn-sm" onclick="commitRename(this)" title="Confirm">✓</button>
+      <button type="button" class="btn btn-sm" onclick="cancelRename(this)" title="Cancel">✗</button>
+    </span>
+  {% else %}
+    <span class="var-name">{{ _label }}</span>
+  {% endif %}
 
   {# type selector — fires structural mutation → re-renders whole section #}
   {% if not readonly %}
