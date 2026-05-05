@@ -17,6 +17,7 @@ from time import sleep
 async def lifespan(app:FastAPI):
     print("Starting Pipeline")
     pipelineManager.restore_state()
+    pipelineManager.restore_secrets()
     await pipelineManager.start()
 
     app.include_router(

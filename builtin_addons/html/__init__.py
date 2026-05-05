@@ -18,7 +18,7 @@ from pipeline_backend.event_callbacks import (
 )
 from pipeline_backend.instances import Instance, global_instances
 from pipeline_backend.manager import pipelineManager
-from pipeline_backend.variables import WorkVariable, global_variables
+from pipeline_backend.variables import WorkVariable, global_variables, global_secrets
 from pipeline_backend.workflows import RunStates, Workflow, global_workflows, ProcessingStep
 
 # ---------------------------------------------------------------------------
@@ -45,6 +45,7 @@ templates.env.filters["tojson"] = json.dumps
 
 workflow_drafts: dict[str, Workflow] = {}
 globals_draft: dict[str, WorkVariable] | None = None
+secrets_draft: dict[str, WorkVariable] | None = None
 
 
 def _get_or_create_workflow_draft(uuid: str) -> Workflow | None:
@@ -75,6 +76,20 @@ def _is_globals_draft_dirty() -> bool:
         return False
     return {k: v.json_savable() for k, v in globals_draft.items()} != \
            {k: v.json_savable() for k, v in global_variables.items()}
+
+
+def _get_or_create_secrets_draft() -> dict[str, WorkVariable]:
+    global secrets_draft
+    if secrets_draft is None:
+        secrets_draft = deepcopy(global_secrets)
+    return secrets_draft
+
+
+def _is_secrets_draft_dirty() -> bool:
+    if secrets_draft is None:
+        return False
+    return {k: v.json_savable() for k, v in secrets_draft.items()} != \
+           {k: v.json_savable() for k, v in global_secrets.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +250,7 @@ def get_ui(request: Request):
             "workflows": workflows,
             "selected_uuid": None,
             "globals_dirty": _is_globals_draft_dirty(),
+            "secrets_dirty": _is_secrets_draft_dirty(),
         },
     )
 
@@ -252,6 +268,7 @@ def get_sidebar(request: Request, selected_uuid: str = ""):
             "workflows": list(global_workflows.values()),
             "selected_uuid": selected_uuid,
             "globals_dirty": _is_globals_draft_dirty(),
+            "secrets_dirty": _is_secrets_draft_dirty(),
         },
     )
 
@@ -361,6 +378,7 @@ async def delete_workflow(uuid: str):
         workflows=list(global_workflows.values()),
         selected_uuid=None,
         globals_dirty=_is_globals_draft_dirty(),
+        secrets_dirty=_is_secrets_draft_dirty(),
     )
     # Return sidebar OOB + empty right pane
     sidebar_oob = sidebar.replace(
@@ -387,6 +405,7 @@ async def toggle_workflow_pause(uuid: str):
         workflows=list(global_workflows.values()),
         selected_uuid=None,
         globals_dirty=_is_globals_draft_dirty(),
+        secrets_dirty=_is_secrets_draft_dirty(),
     )
     return HTMLResponse(sidebar)
 
@@ -1154,6 +1173,172 @@ async def globals_entry_delete(request: Request):
             "dirty": _is_globals_draft_dirty(),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Secrets pane
+# ---------------------------------------------------------------------------
+
+def _secrets_response(request: Request):
+    return templates.TemplateResponse(
+        "secrets.html",
+        {
+            "request": request,
+            "secrets": _get_or_create_secrets_draft(),
+            "var_types": _var_type_names(),
+            "dirty": _is_secrets_draft_dirty(),
+        },
+    )
+
+
+@router.get("/secrets", response_class=HTMLResponse)
+def get_secrets_pane(request: Request):
+    return _secrets_response(request)
+
+
+@router.post("/secrets/save", response_class=HTMLResponse)
+async def secrets_save(request: Request):
+    global secrets_draft
+    draft = _get_or_create_secrets_draft()
+    global_secrets.clear()
+    global_secrets.update(deepcopy(draft))
+    secrets_draft = deepcopy(global_secrets)
+    pipelineManager.save_secrets()
+    return _secrets_response(request)
+
+
+@router.post("/secrets/discard", response_class=HTMLResponse)
+def secrets_discard(request: Request):
+    global secrets_draft
+    secrets_draft = deepcopy(global_secrets)
+    return _secrets_response(request)
+
+
+@router.post("/secrets/variable/add", response_class=HTMLResponse)
+def secrets_var_add(request: Request):
+    from pipeline_backend.variables import String
+    draft = _get_or_create_secrets_draft()
+    base = "new_secret"
+    name = base
+    counter = 1
+    while name in draft:
+        name = f"{base}_{counter}"
+        counter += 1
+    draft[name] = String("")
+    return _secrets_response(request)
+
+
+@router.post("/secrets/variable/delete", response_class=HTMLResponse)
+async def secrets_var_delete(request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    draft = _get_or_create_secrets_draft()
+    draft.pop(var_name, None)
+    return _secrets_response(request)
+
+
+@router.post("/secrets/variable/value")
+async def secrets_var_value(request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path     = json.loads(form.get("path") or "[]")
+    raw_val  = form.get("value", "")
+    draft = _get_or_create_secrets_draft()
+    if var_name not in draft:
+        return Response(status_code=204)
+    target = draft[var_name]
+    if not path:
+        target.value = raw_val
+        try:
+            target.normalize()
+        except Exception:
+            pass
+    else:
+        node = target
+        for k in path[:-1]:
+            node = node.value[int(k)] if isinstance(k, int) else node.value[k]
+        last_key = path[-1]
+        if isinstance(last_key, str) and last_key.lstrip("-").isdigit():
+            last_key = int(last_key)
+        _apply_value_to_node(node, last_key, raw_val)
+    return Response(status_code=204)
+
+
+@router.post("/secrets/variable/type", response_class=HTMLResponse)
+async def secrets_var_type(request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    new_type_name = form.get("new_type", "")
+    draft = _get_or_create_secrets_draft()
+    if var_name not in draft:
+        return HTMLResponse("Not found", status_code=404)
+    try:
+        new_type = WorkVariable.class_from_name(new_type_name)
+    except TypeError:
+        pass
+    else:
+        if not path:
+            converted = draft[var_name].coerce_into_type(new_type)
+            draft[var_name] = converted if converted is not None else new_type()
+        else:
+            node = draft[var_name]
+            for k in path[:-1]:
+                node = node.value[k] if isinstance(k, int) else node.value[k]
+            last_key = path[-1]
+            existing = node.value[last_key]
+            converted = existing.coerce_into_type(new_type)
+            node.value[last_key] = converted if converted is not None else new_type()
+    return _secrets_response(request)
+
+
+@router.post("/secrets/variable/entry/add", response_class=HTMLResponse)
+async def secrets_entry_add(request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    key = form.get("key", None)
+    draft = _get_or_create_secrets_draft()
+    if var_name not in draft:
+        return HTMLResponse("Not found", status_code=404)
+    node = draft[var_name]
+    for k in path:
+        node = node.value[k] if isinstance(k, int) else node.value[k]
+    from pipeline_backend.variables import String
+    if node.typename == "Dictionary":
+        if not key:
+            key = "new_key"
+        base = key
+        counter = 1
+        while key in node.value:
+            key = f"{base}_{counter}"
+            counter += 1
+        node.value[key] = String("")
+    elif node.typename in ("StringList", "VariableNameList"):
+        node.value.append("")
+    else:
+        node.value.append(String(""))
+    return _secrets_response(request)
+
+
+@router.post("/secrets/variable/entry/delete", response_class=HTMLResponse)
+async def secrets_entry_delete(request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    idx_raw = form.get("idx", None)
+    key = form.get("key", None)
+    draft = _get_or_create_secrets_draft()
+    if var_name not in draft:
+        return HTMLResponse("Not found", status_code=404)
+    node = draft[var_name]
+    for k in path:
+        node = node.value[k] if isinstance(k, int) else node.value[k]
+    if key is not None:
+        node.value.pop(key, None)
+    elif idx_raw is not None:
+        del node.value[int(idx_raw)]
+    return _secrets_response(request)
 
 
 # ---------------------------------------------------------------------------
