@@ -78,7 +78,7 @@ def file_download_progress_callback(instance:Instance,print_thresholds:dict[str,
         instance.log_line(f"    {(bytesdone/bytestotal)*100:3.1f}% : {human_readable_filesize(bytesdone)}")
         print_thresholds[destpath] = (int(download_ratio*10)+1)/10.0
 
-@Commands.register_command
+@Commands.register_command(category="SSH/SFTP")
 async def sftp_list_directory(instance: Instance, serverInfo: Dictionary, directory: String, outputVarname: VariableName) -> CommandReturnStatus:
     connection:asyncssh.SSHClientConnection = await open_ssh_pipe(instance,serverInfo)
     if not connection:
@@ -89,7 +89,7 @@ async def sftp_list_directory(instance: Instance, serverInfo: Dictionary, direct
 
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="SSH/SFTP")
 async def sftp_download_file(instance: Instance, serverInfo: Dictionary, remotepath: String, localpath: String) -> CommandReturnStatus:
     connection:asyncssh.SSHClientConnection = await open_ssh_pipe(instance,serverInfo)
     if not connection:
@@ -116,7 +116,7 @@ async def sftp_download_file(instance: Instance, serverInfo: Dictionary, remotep
 
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="SSH/SFTP")
 async def scp_download_folder(instance: Instance, serverInfo: Dictionary, remotepath: String, localpath: String) -> CommandReturnStatus:
     connection:asyncssh.SSHClientConnection = await open_ssh_pipe(instance,serverInfo)
     if not connection:
@@ -131,7 +131,7 @@ async def scp_download_folder(instance: Instance, serverInfo: Dictionary, remote
 
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="SSH/SFTP")
 async def scp_download_file(instance: Instance, serverInfo: Dictionary, remotepath: String, localpath: String) -> CommandReturnStatus:
     connection:asyncssh.SSHClientConnection = await open_ssh_pipe(instance,serverInfo)
     if not connection:

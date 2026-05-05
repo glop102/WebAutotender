@@ -1,13 +1,12 @@
 {#
   One procedure step row.
   Context:
-    step         : ProcessingStep
-    step_idx     : int
-    workflow_uuid: str
-    proc_name    : str
-    command_names: list[str]
-    command_args : dict[str, list[(arg_name, arg_types_str)]]
-    is_start_proc: bool — to disable delete on first step of start? (no, delete is always allowed)
+    step          : ProcessingStep
+    step_idx      : int
+    workflow_uuid : str
+    proc_name     : str
+    command_groups: dict[str, list[str]]  — category → [command_names]
+    command_args  : dict[str, list[(arg_name, arg_types_str)]]
 #}
 <div class="step-row" data-step-idx="{{ step_idx }}">
   <div class="step-row-header">
@@ -18,8 +17,12 @@
             hx-target="closest .step-row"
             hx-swap="outerHTML"
             hx-include="closest .step-row">
-      {% for cmd in command_names %}
-      <option value="{{ cmd }}" {% if cmd == step.command_name %}selected{% endif %}>{{ cmd }}</option>
+      {% for category, cmds in command_groups.items() %}
+      <optgroup label="{{ category }}">
+        {% for cmd in cmds %}
+        <option value="{{ cmd }}" {% if cmd == step.command_name %}selected{% endif %}>{{ cmd }}</option>
+        {% endfor %}
+      </optgroup>
       {% endfor %}
     </select>
 

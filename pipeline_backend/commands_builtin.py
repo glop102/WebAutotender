@@ -15,22 +15,22 @@ import re
 # State control of instances
 # ====================================================================
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def yield_for_seconds(instance:Instance,num_seconds:Integer|Float)->CommandReturnStatus:
     instance.next_processing_time = datetime.now() + timedelta(seconds=num_seconds.value)
     return CommandReturnStatus.Yield
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def yield_for_minutes(instance:Instance,num_minutes:Integer|Float)->CommandReturnStatus:
     instance.next_processing_time = datetime.now() + timedelta(minutes=num_minutes.value)
     return CommandReturnStatus.Yield
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def yield_until(instance: Instance, iso_datetime:String) -> CommandReturnStatus:
     instance.next_processing_time = datetime.fromisoformat(iso_datetime.value)
     return CommandReturnStatus.Yield
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def delete_this_instance(instance: Instance) -> CommandReturnStatus:
     if not instance.uuid in global_instances:
         instance.log_line(f"Error: Unable to delete an instance that is not in the global_instances dictionary. The pipeline lib only supports a single global pipeline state for many operations.")
@@ -38,7 +38,7 @@ def delete_this_instance(instance: Instance) -> CommandReturnStatus:
     del global_instances[instance.uuid]
     return CommandReturnStatus.Yield
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dictionary) -> CommandReturnStatus:
     if not workflow_uuid.value in global_workflows:
         instance.log_line(f"Error: Unable to find a Workflow with the uuid {workflow_uuid.value} to spawn an instance of.")
@@ -49,7 +49,7 @@ def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dicti
     workflow.spawn_instance(setup_vars.value)
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def pause_this_instance(instance: Instance) -> CommandReturnStatus:
     instance.state = RunStates.Paused
     return CommandReturnStatus.Yield
@@ -58,12 +58,12 @@ def pause_this_instance(instance: Instance) -> CommandReturnStatus:
 # Logging and Messages
 # ====================================================================
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def log(instance: Instance, msg: String) -> CommandReturnStatus:
     instance.log_line(msg.value)
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def error(instance: Instance, msg: String) -> CommandReturnStatus:
     instance.log_line(msg.value)
     return CommandReturnStatus.Error
@@ -75,7 +75,7 @@ def error(instance: Instance, msg: String) -> CommandReturnStatus:
 # conditionals and branches
 # ====================================================================
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def jump_to_procedure(instance: Instance, procedure_name: String) -> CommandReturnStatus:
     workflow = instance.get_associated_workflow()
     if not procedure_name.value in workflow.procedures:
@@ -84,7 +84,7 @@ def jump_to_procedure(instance: Instance, procedure_name: String) -> CommandRetu
     instance.processing_step = (procedure_name.value,0)
     return CommandReturnStatus.Success | CommandReturnStatus.Keep_Position
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def goto_if_equal(instance: Instance, procedure_name: String, value1:WorkVariable, value2:WorkVariable) -> CommandReturnStatus:
     while type(value1) == VariableName:
         value1 = instance[value1.value]
@@ -100,7 +100,7 @@ def goto_if_equal(instance: Instance, procedure_name: String, value1:WorkVariabl
     return CommandReturnStatus.Success
 
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def goto_if_not_equal(instance: Instance, procedure_name: String, value1: WorkVariable, value2: WorkVariable) -> CommandReturnStatus:
     while type(value1) == VariableName:
         value1 = instance[value1.value]
@@ -114,7 +114,7 @@ def goto_if_not_equal(instance: Instance, procedure_name: String, value1: WorkVa
 
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def goto_if_first_larger(instance: Instance, procedure_name: String, value1: Integer|Float, value2: Integer|Float) -> CommandReturnStatus:
     if value1.value > value2.value:
         return jump_to_procedure(instance, procedure_name)
@@ -125,25 +125,25 @@ def goto_if_first_larger(instance: Instance, procedure_name: String, value1: Int
 # Basic Math
 # ====================================================================
 
-@Commands.register_command
+@Commands.register_command(category="Math")
 def math_add(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
     first.value += second.value
     instance[output_variable] = first
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Math")
 def math_subtract(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
     first.value -= second.value
     instance[output_variable] = first
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Math")
 def math_multiply(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
     first.value *= second.value
     instance[output_variable] = first
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Math")
 def math_divide(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
     first.value /= second.value
     instance[output_variable] = first
@@ -153,7 +153,7 @@ def math_divide(instance: Instance, first: Integer|Float, second: Integer|Float,
 # Utilities
 # ====================================================================
 
-@Commands.register_command
+@Commands.register_command(category="Strings")
 def regex_first_match(instance: Instance, format_string: String, input_string: String, output_variable:VariableName) -> CommandReturnStatus:
     matcher = re.compile(format_string.value)
     first_match = matcher.search(input_string.value)
@@ -164,7 +164,7 @@ def regex_first_match(instance: Instance, format_string: String, input_string: S
     instance[output_variable.value] = String(first_match.group())
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Strings")
 def regex_match_all(instance: Instance, format_string: String, input_string: String, output_variable: VariableName) -> CommandReturnStatus:
     matcher = re.compile(format_string.value)
     matches = matcher.findall(input_string.value)
@@ -177,12 +177,12 @@ def regex_match_all(instance: Instance, format_string: String, input_string: Str
     instance[output_variable.value] = StringList(matches)
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def set_variable_value(instance: Instance, variable_name: VariableName, value:WorkVariable) -> CommandReturnStatus:
     instance[variable_name.value] = value
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def set_variable_value_in_another_instance(instance: Instance, instance_uuid:String, variable_name: VariableName, value: WorkVariable) -> CommandReturnStatus:
     if not instance_uuid.value in global_instances:
         instance.log_line(f"Unable to find an instance with the UUID {instance_uuid.value} to set a variable in")
@@ -191,7 +191,7 @@ def set_variable_value_in_another_instance(instance: Instance, instance_uuid:Str
     other_instance[variable_name.value] = value
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Core")
 def save_uuid_to_variables(instance: Instance) -> CommandReturnStatus:
     instance["uuid"] = String(instance.uuid)
     return CommandReturnStatus.Success

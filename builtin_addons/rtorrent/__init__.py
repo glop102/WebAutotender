@@ -134,14 +134,14 @@ class Torrent:
         self.server.connection.d.delete_tied(self.infohash)
         self.server.connection.d.erase(self.infohash)
 
-@Commands.register_command
+@Commands.register_command(category="rTorrent")
 def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary,url:String,outputHashName:VariableName)->CommandReturnStatus:
     server = Server(instance,serverInfo)
     torrent = server.add_url_to_rtorrent(url)
     instance[outputHashName] = String(torrent.infohash)
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="rTorrent")
 def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,infohash:String)->CommandReturnStatus:
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
@@ -150,7 +150,7 @@ def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,infohas
     yield_for_seconds(instance,Integer(30))
     return CommandReturnStatus.Yield|CommandReturnStatus.Keep_Position
 
-@Commands.register_command
+@Commands.register_command(category="rTorrent")
 def rtorrent_wait_until_ratio(instance:Instance,serverInfo:Dictionary,infohash:String,ratio:Float)->CommandReturnStatus:
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
@@ -159,14 +159,14 @@ def rtorrent_wait_until_ratio(instance:Instance,serverInfo:Dictionary,infohash:S
     yield_for_seconds(instance,Integer(30))
     return CommandReturnStatus.Yield|CommandReturnStatus.Keep_Position
 
-@Commands.register_command
+@Commands.register_command(category="rTorrent")
 def rtorrent_set_torrent_label(instance:Instance,serverInfo:Dictionary,infohash:String,label:String)->CommandReturnStatus:
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
     torrent.set_label(label.value)
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="rTorrent")
 def rtorrent_get_torrent_name(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariableName)->CommandReturnStatus:
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
@@ -174,7 +174,7 @@ def rtorrent_get_torrent_name(instance:Instance,serverInfo:Dictionary,infohash:S
     instance[varnameOut] = String(name)
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="rTorrent")
 def rtorrent_get_torrents_path(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariableName)->CommandReturnStatus:
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
@@ -182,7 +182,7 @@ def rtorrent_get_torrents_path(instance:Instance,serverInfo:Dictionary,infohash:
     instance[varnameOut] = String(path)
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="rTorrent")
 def rtorrent_delete_torrent_but_not_files(instance:Instance,serverInfo:Dictionary,infohash:String)->CommandReturnStatus:
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)

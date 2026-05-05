@@ -4,7 +4,7 @@
     proc_name    : str
     steps        : list[ProcessingStep]
     workflow_uuid: str
-    command_names: list[str]
+    command_groups: dict[str, list[str]]
     command_args : dict
     is_start     : bool
 #}

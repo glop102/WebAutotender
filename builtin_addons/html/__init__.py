@@ -196,7 +196,7 @@ def _design_context(workflow_uuid: str, draft: Workflow) -> dict:
         "workflow": draft,
         "workflow_uuid": workflow_uuid,
         "var_types": _var_type_names(),
-        "command_names": list(Commands.commands.keys()),
+        "command_groups": Commands.get_commands_grouped(),
         "command_args": _command_args_for_template(),
         "dirty": _is_draft_dirty(workflow_uuid),
         "active_tab": "design",
@@ -459,7 +459,7 @@ def get_workflow_pane(request: Request, uuid: str):
         return HTMLResponse("Workflow not found", status_code=404)
     ctx = _instances_context(wf)
     ctx["dirty"] = _is_draft_dirty(uuid)
-    ctx["command_names"] = list(Commands.commands.keys())
+    ctx["command_groups"] = Commands.get_commands_grouped()
     ctx["command_args"] = _command_args_for_template()
     return templates.TemplateResponse("workflow_pane.html", {"request": request, **ctx})
 
@@ -1042,7 +1042,7 @@ async def step_command(request: Request, uuid: str):
         step_idx=idx,
         workflow_uuid=uuid,
         proc_name=proc_name,
-        command_names=ctx["command_names"],
+        command_groups=ctx["command_groups"],
         command_args=ctx["command_args"],
     )
     return HTMLResponse(step_html)
@@ -1204,7 +1204,7 @@ def _render_procedure_section(uuid: str, draft: Workflow, proc_name: str, ctx: d
         proc_name=proc_name,
         steps=steps,
         workflow_uuid=uuid,
-        command_names=ctx["command_names"],
+        command_groups=ctx["command_groups"],
         command_args=ctx["command_args"],
         is_start=(proc_name == "start"),
     )

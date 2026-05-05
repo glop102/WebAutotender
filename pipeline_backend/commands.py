@@ -20,6 +20,16 @@ class CommandReturnStatus(Flag):
 
 class Commands:
     commands:dict[str,Callable] = {}
+    categories:dict[str,str] = {}
+
+    @classmethod
+    def get_commands_grouped(cls) -> dict[str, list[str]]:
+        """Returns {category: [command_names]}."""
+        grouped: dict[str, list[str]] = {}
+        for name in cls.commands:
+            grouped.setdefault(cls.categories[name], []).append(name)
+        return grouped
+
     @classmethod
     def get_command_input_variables(cls, command_name: str) -> list[tuple[str, type[WorkVariable]|tuple[type[WorkVariable]]]]:
         """Returns a in-order list of argument name and their type."""
@@ -43,32 +53,36 @@ class Commands:
         return parms
 
     @classmethod
-    def register_command(cls,item:Callable) -> Callable:
-        sig = signature(item)
-        function_arguments = list(sig.parameters.keys())
-        if len(function_arguments) == 0:
-            raise TypeError("Commands for processing must at least take one variable of the Instance they are processing for")
-        if sig.parameters[function_arguments[0]].annotation != Instance:
-            raise TypeError("Commands for processing must have their first argument be the Instance they are processing for")
-        # Make sure they are only ever asking for types that are WorkVariable types
-        if len(function_arguments) > 1:
-            for arg_name in function_arguments[1:]:
-                match(sig.parameters[arg_name].annotation):
-                    case args_union if isinstance(args_union,UnionType):
-                        for arg in get_args(args_union):
-                            if not issubclass(arg,WorkVariable):
-                                raise TypeError(f"Commands for processing must only accept WorkVariable subclasses. Instead of {arg}")
-                    case x if issubclass(x,WorkVariable): pass
-                    case _:
-                        raise TypeError(f"Commands for processing must only accept WorkVariable classes. Instead of {sig.parameters[arg_name].annotation}")
-                
-        # Make sure that it returns a valid type for telling us if it succedded or failed or whatnot
-        if not sig.return_annotation == CommandReturnStatus:
-            raise TypeError("Commands for processing must return a CommandReturnStatus")
-        
-        cls.commands[item.__name__] = item
-        # Let that function keep existing wherever it is. We were only wanting to get a reference to it.
-        return item
+    def register_command(cls, *, category:str) -> Callable:
+        """Decorator factory to register a command. Usage: @Commands.register_command(category="Name")."""
+        def decorator(fn: Callable) -> Callable:
+            sig = signature(fn)
+            function_arguments = list(sig.parameters.keys())
+            if len(function_arguments) == 0:
+                raise TypeError("Commands for processing must at least take one variable of the Instance they are processing for")
+            if sig.parameters[function_arguments[0]].annotation != Instance:
+                raise TypeError("Commands for processing must have their first argument be the Instance they are processing for")
+            # Make sure they are only ever asking for types that are WorkVariable types
+            if len(function_arguments) > 1:
+                for arg_name in function_arguments[1:]:
+                    match(sig.parameters[arg_name].annotation):
+                        case args_union if isinstance(args_union,UnionType):
+                            for arg in get_args(args_union):
+                                if not issubclass(arg,WorkVariable):
+                                    raise TypeError(f"Commands for processing must only accept WorkVariable subclasses. Instead of {arg}")
+                        case x if issubclass(x,WorkVariable): pass
+                        case _:
+                            raise TypeError(f"Commands for processing must only accept WorkVariable classes. Instead of {sig.parameters[arg_name].annotation}")
+
+            # Make sure that it returns a valid type for telling us if it succedded or failed or whatnot
+            if not sig.return_annotation == CommandReturnStatus:
+                raise TypeError("Commands for processing must return a CommandReturnStatus")
+
+            cls.commands[fn.__name__] = fn
+            cls.categories[fn.__name__] = category
+            return fn
+
+        return decorator
     
     @classmethod
     def get_command_by_name(cls,command_name:str) -> Callable:
