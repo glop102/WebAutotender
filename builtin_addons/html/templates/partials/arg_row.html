@@ -11,49 +11,30 @@
 {% set _arg_url = "/ui/workflow/" ~ workflow_uuid ~ "/procedure/step/arg/value" %}
 {% set _arg_base = '"proc_name": "' ~ proc_name ~ '", "idx": ' ~ step_idx ~ ', "arg_name": "' ~ arg_name ~ '"' %}
 
+{# Normalise to a list; append VariableName if the command didn't already declare it #}
+{% if arg_types is string %}
+  {% set _types = [arg_types] %}
+{% else %}
+  {% set _types = arg_types %}
+{% endif %}
+{% if 'VariableName' not in _types %}
+  {% set _types = _types + ['VariableName'] %}
+{% endif %}
+
+{% set _cur_type = arg_var.typename if arg_var else _types[0] %}
+
 <div class="arg-row">
   <span class="arg-label">{{ arg_name }}:</span>
-
-  {% if arg_types is string %}
-    {# Single type #}
-    {% set typename = arg_types %}
-    {% if typename in ('String', 'VariableName') %}
-      <input type="text" name="value" value="{{ arg_var.value if arg_var else '' }}"
-             hx-post="{{ _arg_url }}" hx-trigger="change" hx-swap="none"
-             hx-vals='{ {{ _arg_base }} }'>
-    {% elif typename == 'URL' %}
-      <input type="url" name="value" value="{{ arg_var.value if arg_var else '' }}"
-             hx-post="{{ _arg_url }}" hx-trigger="change" hx-swap="none"
-             hx-vals='{ {{ _arg_base }} }'>
-    {% elif typename == 'Integer' %}
-      <input type="number" step="1" name="value" value="{{ arg_var.value if arg_var else 0 }}"
-             hx-post="{{ _arg_url }}" hx-trigger="change" hx-swap="none"
-             hx-vals='{ {{ _arg_base }} }'>
-    {% elif typename == 'Float' %}
-      <input type="number" name="value" value="{{ arg_var.value if arg_var else 0.0 }}"
-             hx-post="{{ _arg_url }}" hx-trigger="change" hx-swap="none"
-             hx-vals='{ {{ _arg_base }} }'>
-    {% else %}
-      <input type="text" name="value" value="{{ arg_var.value if arg_var else '' }}"
-             placeholder="{{ typename }}"
-             hx-post="{{ _arg_url }}" hx-trigger="change" hx-swap="none"
-             hx-vals='{ {{ _arg_base }} }'>
-    {% endif %}
-
-  {% else %}
-    {# Union type — type selector + value input #}
-    {% set _cur_type = arg_var.typename if arg_var else arg_types[0] %}
-    <select name="argtype"
-            hx-post="{{ _arg_url }}" hx-trigger="change" hx-swap="none"
-            hx-include="next input"
-            hx-vals='{ {{ _arg_base }} }'>
-      {% for t in arg_types %}
-      <option value="{{ t }}" {% if t == _cur_type %}selected{% endif %}>{{ t }}</option>
-      {% endfor %}
-    </select>
-    <input type="text" name="value" value="{{ arg_var.value if arg_var else '' }}"
-           hx-post="{{ _arg_url }}" hx-trigger="change" hx-swap="none"
-           hx-include="previous select"
-           hx-vals='{ {{ _arg_base }} }'>
-  {% endif %}
+  <select class="var-type-select btn btn-sm" name="argtype"
+          hx-post="{{ _arg_url }}" hx-trigger="change" hx-swap="none"
+          hx-include="next input"
+          hx-vals='{ {{ _arg_base }} }'>
+    {% for t in _types %}
+    <option value="{{ t }}" {% if t == _cur_type %}selected{% endif %}>{{ t }}</option>
+    {% endfor %}
+  </select>
+  <input class="var-input" type="text" name="value" value="{{ arg_var.value if arg_var else '' }}"
+         hx-post="{{ _arg_url }}" hx-trigger="change" hx-swap="none"
+         hx-include="previous select"
+         hx-vals='{ {{ _arg_base }} }'>
 </div>
