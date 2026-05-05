@@ -5,7 +5,11 @@
     workflow_uuid: str
     var_types    : list[str]
 #}
-<details class="instance-details" id="instance-detail-{{ inst.uuid }}">
+<details class="instance-details" id="instance-detail-{{ inst.uuid }}"
+         data-state="{{ inst.state.name }}"
+         hx-get="/ui/workflow/{{ workflow_uuid }}/instances/{{ inst.uuid }}"
+         hx-trigger="every 2s [open && this.dataset.state==='Running']"
+         hx-swap="outerHTML">
   <summary>
     <span class="state-{{ inst.state.name | lower }}">{{ inst.state.name }}</span>
     <span class="instance-meta">{{ inst.processing_step[0] }}[{{ inst.processing_step[1] }}]</span>

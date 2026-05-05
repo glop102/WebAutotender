@@ -595,6 +595,22 @@ def spawn_dialog(request: Request, uuid: str):
 
 
 # ---------------------------------------------------------------------------
+# Single instance row (polled by expanded running instances)
+# ---------------------------------------------------------------------------
+
+@router.get("/workflow/{uuid}/instances/{iuuid}", response_class=HTMLResponse)
+def get_instance_row(request: Request, uuid: str, iuuid: str):
+    inst = global_instances.get(iuuid)
+    if not inst:
+        return HTMLResponse("", status_code=204)
+    return HTMLResponse(templates.get_template("partials/instance_row.html").render(
+        inst=inst,
+        workflow_uuid=uuid,
+        var_types=_var_type_names(),
+    ))
+
+
+# ---------------------------------------------------------------------------
 # Instance spawn
 # ---------------------------------------------------------------------------
 
