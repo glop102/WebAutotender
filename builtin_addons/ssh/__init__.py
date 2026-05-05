@@ -79,16 +79,22 @@ def human_readable_filesize(size:int)->str:
     
     return f"{size:.2f} {suffixes[divcount]}"
 
-def file_download_progress_callback(instance:Instance,print_thresholds:dict[str,float],sourcepath:bytes,destpath:bytes,bytesdone:int,bytestotal:int):
+def file_download_progress_callback(instance:Instance,print_thresholds:dict,sourcepath:bytes,destpath:bytes,bytesdone:int,bytestotal:int):
     # print(f"\033[K\r{sourcepath.decode() } - {bytesdone}/{bytestotal}", end="\r", flush=True)
     if bytestotal == 0:
         return
-    if not destpath in print_thresholds:
-        print_thresholds[destpath] = 0.1
-    download_ratio = bytesdone/bytestotal
-    if download_ratio >= print_thresholds[destpath]:
-        instance.log_line(f"    {(bytesdone/bytestotal)*100:3.1f}% : {human_readable_filesize(bytesdone)}")
-        print_thresholds[destpath] = (int(download_ratio*10)+1)/10.0
+    if destpath not in print_thresholds:
+        print_thresholds[destpath] = {"next": 0.1, "last_time": datetime.now(), "last_bytes": 0}
+    entry = print_thresholds[destpath]
+    download_ratio = bytesdone / bytestotal
+    if download_ratio >= entry["next"]:
+        now = datetime.now()
+        elapsed = (now - entry["last_time"]).total_seconds()
+        bytespersecond = int((bytesdone - entry["last_bytes"]) / elapsed) if elapsed > 0 else 0
+        instance.log_line(f"    {download_ratio*100:3.1f}% : {human_readable_filesize(bytesdone)} @ {human_readable_filesize(bytespersecond)}/s")
+        entry["next"] = (int(download_ratio*10)+1)/10.0
+        entry["last_time"] = now
+        entry["last_bytes"] = bytesdone
 
 @Commands.register_command(category="SSH/SFTP")
 async def sftp_list_directory(instance: Instance, serverInfo: Dictionary, directory: String, outputVarname: VariableName) -> CommandReturnStatus:
