@@ -40,12 +40,10 @@ templates.env.filters["enumerate"] = _enumerate_filter
 templates.env.filters["tojson"] = json.dumps
 
 # ---------------------------------------------------------------------------
-# Draft state
+# Draft state — workflow
 # ---------------------------------------------------------------------------
 
 workflow_drafts: dict[str, Workflow] = {}
-globals_draft: dict[str, WorkVariable] | None = None
-secrets_draft: dict[str, WorkVariable] | None = None
 
 
 def _get_or_create_workflow_draft(uuid: str) -> Workflow | None:
@@ -56,41 +54,111 @@ def _get_or_create_workflow_draft(uuid: str) -> Workflow | None:
     return workflow_drafts[uuid]
 
 
-def _get_or_create_globals_draft() -> dict[str, WorkVariable]:
-    global globals_draft
-    if globals_draft is None:
-        globals_draft = deepcopy(global_variables)
-    return globals_draft
-
-
 def _is_draft_dirty(uuid: str) -> bool:
     if uuid not in workflow_drafts or uuid not in global_workflows:
         return False
-    saved = global_workflows[uuid]
-    draft = workflow_drafts[uuid]
-    return saved.json_savable() != draft.json_savable()
+    return global_workflows[uuid].json_savable() != workflow_drafts[uuid].json_savable()
 
 
-def _is_globals_draft_dirty() -> bool:
-    if globals_draft is None:
-        return False
-    return {k: v.json_savable() for k, v in globals_draft.items()} != \
-           {k: v.json_savable() for k, v in global_variables.items()}
+# ---------------------------------------------------------------------------
+# Variable store (unified draft/dirty/persist for globals, secrets, …)
+# ---------------------------------------------------------------------------
+
+class VariableStore:
+    def __init__(
+        self,
+        live: dict,
+        prefix: str,
+        pane_id: str,
+        dirty_label_id: str,
+        title: str,
+        default_new_name: str,
+        add_btn_label: str,
+        empty_msg: str,
+        persist_fn,
+        description: str = "",
+    ):
+        self.live = live
+        self.prefix = prefix
+        self.pane_id = pane_id
+        self.dirty_label_id = dirty_label_id
+        self.title = title
+        self.default_new_name = default_new_name
+        self.add_btn_label = add_btn_label
+        self.empty_msg = empty_msg
+        self.persist_fn = persist_fn
+        self.description = description
+        self._draft: dict | None = None
+
+    @property
+    def draft(self) -> dict:
+        if self._draft is None:
+            self._draft = deepcopy(self.live)
+        return self._draft
+
+    def is_dirty(self) -> bool:
+        if self._draft is None:
+            return False
+        return (
+            {k: v.json_savable() for k, v in self._draft.items()}
+            != {k: v.json_savable() for k, v in self.live.items()}
+        )
+
+    def save(self) -> None:
+        self.live.clear()
+        self.live.update(deepcopy(self._draft))
+        self._draft = deepcopy(self.live)
+        self.persist_fn()
+
+    def discard(self) -> None:
+        self._draft = deepcopy(self.live)
+
+    def render(self, request: Request):
+        return templates.TemplateResponse(
+            "variable_store_pane.html",
+            {
+                "request": request,
+                "vars": self.draft,
+                "var_types": _var_type_names(),
+                "dirty": self.is_dirty(),
+                "prefix": self.prefix,
+                "pane_id": self.pane_id,
+                "dirty_label_id": self.dirty_label_id,
+                "title": self.title,
+                "add_btn_label": self.add_btn_label,
+                "empty_msg": self.empty_msg,
+                "description": self.description,
+            },
+        )
 
 
-def _get_or_create_secrets_draft() -> dict[str, WorkVariable]:
-    global secrets_draft
-    if secrets_draft is None:
-        secrets_draft = deepcopy(global_secrets)
-    return secrets_draft
+globals_store = VariableStore(
+    live=global_variables,
+    prefix="/ui/globals",
+    pane_id="globals-pane",
+    dirty_label_id="globals-dirty-label",
+    title="Global Variables",
+    default_new_name="new_var",
+    add_btn_label="+ Add Variable",
+    empty_msg="No global variables.",
+    persist_fn=pipelineManager.save_state,
+)
 
-
-def _is_secrets_draft_dirty() -> bool:
-    if secrets_draft is None:
-        return False
-    return {k: v.json_savable() for k, v in secrets_draft.items()} != \
-           {k: v.json_savable() for k, v in global_secrets.items()}
-
+secrets_store = VariableStore(
+    live=global_secrets,
+    prefix="/ui/secrets",
+    pane_id="secrets-pane",
+    dirty_label_id="secrets-dirty-label",
+    title="Secrets",
+    default_new_name="new_secret",
+    add_btn_label="+ Add Secret",
+    empty_msg="No secrets defined.",
+    persist_fn=pipelineManager.save_secrets,
+    description=(
+        "Secrets are stored in a separate file and are never included in the main "
+        "pipeline state export. Reference them by name from workflows just like global variables."
+    ),
+)
 
 # ---------------------------------------------------------------------------
 # Helper: list of all WorkVariable type names
@@ -147,28 +215,6 @@ def _instances_context(workflow: Workflow) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Helper: resolve a JSON path into (parent_container, key) within a variable
-# path is a list of str/int keys navigating into VariableList or Dictionary
-# ---------------------------------------------------------------------------
-
-def _resolve_var_path(var: WorkVariable, path: list):
-    """Walk path into a nested WorkVariable container.
-    Returns (container_workvar, final_key) where container_workvar.value[final_key] is the target.
-    If path is empty, returns (None, None) meaning the var itself is the target.
-    """
-    node = var
-    for key in path[:-1]:
-        if isinstance(key, int):
-            node = node.value[key]
-        else:
-            node = node.value[key]
-    if not path:
-        return None, None
-    last = path[-1]
-    return node, last
-
-
-# ---------------------------------------------------------------------------
 # Helper: navigate draft variables by section
 # ---------------------------------------------------------------------------
 
@@ -190,6 +236,135 @@ def _toast_oob(message: str) -> str:
         f'{message} <button onclick="this.closest(\'#toast\').remove()">×</button>'
         f'</div>'
     )
+
+
+# ---------------------------------------------------------------------------
+# Shared variable mutation helpers (operate on a raw dict[str, WorkVariable])
+# ---------------------------------------------------------------------------
+
+def _vars_add(vars_dict: dict, default_name: str) -> None:
+    from pipeline_backend.variables import String
+    base = default_name
+    name = base
+    counter = 1
+    while name in vars_dict:
+        name = f"{base}_{counter}"
+        counter += 1
+    vars_dict[name] = String("")
+
+
+def _vars_delete(vars_dict: dict, var_name: str) -> None:
+    vars_dict.pop(var_name, None)
+
+
+def _vars_rename(vars_dict: dict, old_name: str, new_name: str) -> None:
+    if new_name and new_name != old_name and old_name in vars_dict and new_name not in vars_dict:
+        renamed = {(new_name if k == old_name else k): v for k, v in vars_dict.items()}
+        vars_dict.clear()
+        vars_dict.update(renamed)
+
+
+def _apply_value_to_node(node, last_key, raw_value: str) -> None:
+    """Write raw_value into node.value[last_key], handling both WorkVariable and plain str entries."""
+    existing = node.value[last_key]
+    if isinstance(existing, WorkVariable):
+        existing.value = raw_value
+        try:
+            existing.normalize()
+        except Exception:
+            pass
+    else:
+        # Plain string entry (StringList / VariableNameList)
+        node.value[last_key] = str(raw_value).strip()
+
+
+def _vars_value(vars_dict: dict, var_name: str, path: list, raw_val: str) -> None:
+    if var_name not in vars_dict:
+        return
+    target = vars_dict[var_name]
+    if not path:
+        target.value = raw_val
+        try:
+            target.normalize()
+        except Exception:
+            pass
+    else:
+        node = target
+        for k in path[:-1]:
+            node = node.value[int(k)] if isinstance(k, int) else node.value[k]
+        last_key = path[-1]
+        if isinstance(last_key, str) and last_key.lstrip("-").isdigit():
+            last_key = int(last_key)
+        _apply_value_to_node(node, last_key, raw_val)
+
+
+def _vars_type(vars_dict: dict, var_name: str, path: list, new_type_name: str) -> bool:
+    """Apply a type change. Returns False if new_type_name is invalid."""
+    if var_name not in vars_dict:
+        return True
+    try:
+        new_type = WorkVariable.class_from_name(new_type_name)
+    except TypeError:
+        return False
+    if not path:
+        converted = vars_dict[var_name].coerce_into_type(new_type)
+        vars_dict[var_name] = converted if converted is not None else new_type()
+    else:
+        node = vars_dict[var_name]
+        for k in path[:-1]:
+            node = node.value[k] if isinstance(k, int) else node.value[k]
+        last_key = path[-1]
+        existing = node.value[last_key]
+        converted = existing.coerce_into_type(new_type)
+        node.value[last_key] = converted if converted is not None else new_type()
+    return True
+
+
+def _vars_entry_add(vars_dict: dict, var_name: str, path: list, key) -> None:
+    if var_name not in vars_dict:
+        return
+    from pipeline_backend.variables import String
+    node = vars_dict[var_name]
+    for k in path:
+        node = node.value[k] if isinstance(k, int) else node.value[k]
+    if node.typename == "Dictionary":
+        if not key:
+            key = "new_key"
+        base = key
+        counter = 1
+        while key in node.value:
+            key = f"{base}_{counter}"
+            counter += 1
+        node.value[key] = String("")
+    elif node.typename in ("StringList", "VariableNameList"):
+        node.value.append("")
+    else:
+        node.value.append(String(""))
+
+
+def _vars_entry_delete(vars_dict: dict, var_name: str, path: list, idx_raw, key) -> None:
+    if var_name not in vars_dict:
+        return
+    node = vars_dict[var_name]
+    for k in path:
+        node = node.value[k] if isinstance(k, int) else node.value[k]
+    if key is not None:
+        node.value.pop(key, None)
+    elif idx_raw is not None:
+        del node.value[int(idx_raw)]
+
+
+def _vars_entry_reorder(vars_dict: dict, var_name: str, path: list, order: list) -> None:
+    if var_name not in vars_dict:
+        return
+    node = vars_dict[var_name]
+    for k in path:
+        node = node.value[k] if isinstance(k, int) else node.value[k]
+    try:
+        new_order = [int(i) for i in order]
+        node.value = [node.value[i] for i in new_order if 0 <= i < len(node.value)]
+    except (ValueError, IndexError):
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -249,8 +424,8 @@ def get_ui(request: Request):
             "request": request,
             "workflows": workflows,
             "selected_uuid": None,
-            "globals_dirty": _is_globals_draft_dirty(),
-            "secrets_dirty": _is_secrets_draft_dirty(),
+            "globals_dirty": globals_store.is_dirty(),
+            "secrets_dirty": secrets_store.is_dirty(),
         },
     )
 
@@ -267,8 +442,8 @@ def get_sidebar(request: Request, selected_uuid: str = ""):
             "request": request,
             "workflows": list(global_workflows.values()),
             "selected_uuid": selected_uuid,
-            "globals_dirty": _is_globals_draft_dirty(),
-            "secrets_dirty": _is_secrets_draft_dirty(),
+            "globals_dirty": globals_store.is_dirty(),
+            "secrets_dirty": secrets_store.is_dirty(),
         },
     )
 
@@ -331,16 +506,16 @@ def get_design_tab(request: Request, uuid: str):
 
 @router.get("/globals", response_class=HTMLResponse)
 def get_globals_pane(request: Request):
-    draft = _get_or_create_globals_draft()
-    return templates.TemplateResponse(
-        "globals.html",
-        {
-            "request": request,
-            "global_vars": draft,
-            "var_types": _var_type_names(),
-            "dirty": _is_globals_draft_dirty(),
-        },
-    )
+    return globals_store.render(request)
+
+
+# ---------------------------------------------------------------------------
+# Secrets pane
+# ---------------------------------------------------------------------------
+
+@router.get("/secrets", response_class=HTMLResponse)
+def get_secrets_pane(request: Request):
+    return secrets_store.render(request)
 
 
 # ---------------------------------------------------------------------------
@@ -377,8 +552,8 @@ async def delete_workflow(uuid: str):
     sidebar = templates.get_template("sidebar.html").render(
         workflows=list(global_workflows.values()),
         selected_uuid=None,
-        globals_dirty=_is_globals_draft_dirty(),
-        secrets_dirty=_is_secrets_draft_dirty(),
+        globals_dirty=globals_store.is_dirty(),
+        secrets_dirty=secrets_store.is_dirty(),
     )
     # Return sidebar OOB + empty right pane
     sidebar_oob = sidebar.replace(
@@ -404,8 +579,8 @@ async def toggle_workflow_pause(uuid: str):
     sidebar = templates.get_template("sidebar.html").render(
         workflows=list(global_workflows.values()),
         selected_uuid=None,
-        globals_dirty=_is_globals_draft_dirty(),
-        secrets_dirty=_is_secrets_draft_dirty(),
+        globals_dirty=globals_store.is_dirty(),
+        secrets_dirty=secrets_store.is_dirty(),
     )
     return HTMLResponse(sidebar)
 
@@ -414,79 +589,36 @@ async def toggle_workflow_pause(uuid: str):
 # Design variable: update value (auto-persist on change)
 # ---------------------------------------------------------------------------
 
-def _apply_value_to_node(node, last_key, raw_value: str) -> None:
-    """Write raw_value into node.value[last_key], handling both WorkVariable and plain str entries."""
-    existing = node.value[last_key]
-    if isinstance(existing, WorkVariable):
-        existing.value = raw_value
-        try:
-            existing.normalize()
-        except Exception:
-            pass
-    else:
-        # Plain string entry (StringList / VariableNameList)
-        node.value[last_key] = str(raw_value).strip()
-
-
 @router.post("/workflow/{uuid}/design/variable/value")
 async def design_var_value(uuid: str, request: Request):
     form = await request.form()
-    section  = form.get("section", "")
-    var_name = form.get("var_name", "")
-    path     = json.loads(form.get("path") or "[]")
-    raw_val  = form.get("value", "")
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
         return Response(status_code=404)
-    section_vars = _section_vars(draft, section)
-    if var_name not in section_vars:
-        return Response(status_code=204)
-    target = section_vars[var_name]
-    if not path:
-        target.value = raw_val
-        try:
-            target.normalize()
-        except Exception:
-            pass
-    else:
-        node = target
-        for k in path[:-1]:
-            node = node.value[int(k)] if isinstance(k, int) else node.value[k]
-        last_key = path[-1]
-        if isinstance(last_key, str) and last_key.lstrip("-").isdigit():
-            last_key = int(last_key)
-        _apply_value_to_node(node, last_key, raw_val)
+    _vars_value(
+        _section_vars(draft, form.get("section", "")),
+        form.get("var_name", ""),
+        json.loads(form.get("path") or "[]"),
+        form.get("value", ""),
+    )
     return Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------
-# Globals variable: update value (auto-persist on change)
+# Globals/Secrets variable: update value (auto-persist on change)
 # ---------------------------------------------------------------------------
 
 @router.post("/globals/variable/value")
 async def globals_var_value(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    path     = json.loads(form.get("path") or "[]")
-    raw_val  = form.get("value", "")
-    draft = _get_or_create_globals_draft()
-    if var_name not in draft:
-        return Response(status_code=204)
-    target = draft[var_name]
-    if not path:
-        target.value = raw_val
-        try:
-            target.normalize()
-        except Exception:
-            pass
-    else:
-        node = target
-        for k in path[:-1]:
-            node = node.value[int(k)] if isinstance(k, int) else node.value[k]
-        last_key = path[-1]
-        if isinstance(last_key, str) and last_key.lstrip("-").isdigit():
-            last_key = int(last_key)
-        _apply_value_to_node(node, last_key, raw_val)
+    _vars_value(globals_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("value", ""))
+    return Response(status_code=204)
+
+
+@router.post("/secrets/variable/value")
+async def secrets_var_value(request: Request):
+    form = await request.form()
+    _vars_value(secrets_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("value", ""))
     return Response(status_code=204)
 
 
@@ -680,7 +812,7 @@ async def toggle_instance_pause(uuid: str, iuuid: str):
 
 
 # ---------------------------------------------------------------------------
-# Design variable: add top-level variable
+# Design variable: add / rename / delete / type / entry operations
 # ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/design/variable/add", response_class=HTMLResponse)
@@ -688,202 +820,107 @@ def design_var_add(request: Request, uuid: str, section: str = Form(...)):
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
         return HTMLResponse("Not found", status_code=404)
-    section_vars = _section_vars(draft, section)
-    base = "new_var"
-    name = base
-    counter = 1
-    while name in section_vars:
-        name = f"{base}_{counter}"
-        counter += 1
-    from pipeline_backend.variables import String
-    section_vars[name] = String("")
+    _vars_add(_section_vars(draft, section), "new_var")
     ctx = _design_context(uuid, draft)
     return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
-
-# ---------------------------------------------------------------------------
-# Design variable: rename top-level variable
-# ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/design/variable/rename", response_class=HTMLResponse)
 async def design_var_rename(request: Request, uuid: str):
     form = await request.form()
-    section = form.get("section", "")
-    old_name = form.get("old_name", "")
-    new_name = (form.get("new_name") or "").strip()
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
         return HTMLResponse("Not found", status_code=404)
-    section_vars = _section_vars(draft, section)
-    if new_name and new_name != old_name and old_name in section_vars and new_name not in section_vars:
-        renamed = {(new_name if k == old_name else k): v for k, v in section_vars.items()}
-        section_vars.clear()
-        section_vars.update(renamed)
+    _vars_rename(
+        _section_vars(draft, form.get("section", "")),
+        form.get("old_name", ""),
+        (form.get("new_name") or "").strip(),
+    )
     ctx = _design_context(uuid, draft)
     return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
-
-# ---------------------------------------------------------------------------
-# Design variable: delete top-level variable
-# ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/design/variable/delete", response_class=HTMLResponse)
 async def design_var_delete(request: Request, uuid: str):
     form = await request.form()
-    section = form.get("section", "")
-    var_name = form.get("var_name", "")
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
         return HTMLResponse("Not found", status_code=404)
-    section_vars = _section_vars(draft, section)
-    section_vars.pop(var_name, None)
+    _vars_delete(_section_vars(draft, form.get("section", "")), form.get("var_name", ""))
     ctx = _design_context(uuid, draft)
     return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
-
-# ---------------------------------------------------------------------------
-# Design variable: change type
-# ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/design/variable/type", response_class=HTMLResponse)
 async def design_var_type(request: Request, uuid: str):
     form = await request.form()
-    section = form.get("section", "")
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    new_type_name = form.get("new_type", "")
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
         return HTMLResponse("Not found", status_code=404)
-    section_vars = _section_vars(draft, section)
-    if var_name not in section_vars:
-        return HTMLResponse("Variable not found", status_code=404)
-
-    try:
-        new_type = WorkVariable.class_from_name(new_type_name)
-    except TypeError as e:
-        ctx = _design_context(uuid, draft)
-        return templates.TemplateResponse(
-            "workflow_design.html",
-            {"request": request, **ctx},
-            headers={"HX-Trigger": "toast"},
-        )
-
-    if not path:
-        converted = section_vars[var_name].coerce_into_type(new_type)
-        section_vars[var_name] = converted if converted is not None else new_type()
-    else:
-        # Navigate to parent container and change the nested entry's type
-        target_var = section_vars[var_name]
-        node = target_var
-        for key in path[:-1]:
-            node = node.value[key] if isinstance(key, int) else node.value[key]
-        last_key = path[-1]
-        existing = node.value[last_key]
-        converted = existing.coerce_into_type(new_type)
-        node.value[last_key] = converted if converted is not None else new_type()
-
+    ok = _vars_type(
+        _section_vars(draft, form.get("section", "")),
+        form.get("var_name", ""),
+        json.loads(form.get("path") or "[]"),
+        form.get("new_type", ""),
+    )
     ctx = _design_context(uuid, draft)
-    return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
+    response = templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
+    if not ok:
+        response.headers["HX-Trigger"] = "toast"
+    return response
 
-
-# ---------------------------------------------------------------------------
-# Design variable: add entry to container
-# ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/design/variable/entry/add", response_class=HTMLResponse)
 async def design_var_entry_add(request: Request, uuid: str):
     form = await request.form()
-    section = form.get("section", "")
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    key = form.get("key", None)  # for Dictionary entries
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
         return HTMLResponse("Not found", status_code=404)
-    section_vars = _section_vars(draft, section)
-    target = section_vars[var_name]
-    # Navigate to the container at path
-    node = target
-    for k in path:
-        node = node.value[k] if isinstance(k, int) else node.value[k]
-    from pipeline_backend.variables import String
-    if node.typename == "Dictionary":
-        if not key:
-            key = "new_key"
-        base = key
-        counter = 1
-        while key in node.value:
-            key = f"{base}_{counter}"
-            counter += 1
-        node.value[key] = String("")
-    else:
-        # VariableList or StringList / VariableNameList
-        if node.typename in ("StringList", "VariableNameList"):
-            node.value.append("")
-        else:
-            node.value.append(String(""))
+    _vars_entry_add(
+        _section_vars(draft, form.get("section", "")),
+        form.get("var_name", ""),
+        json.loads(form.get("path") or "[]"),
+        form.get("key", None),
+    )
     ctx = _design_context(uuid, draft)
     return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
-
-# ---------------------------------------------------------------------------
-# Design variable: delete entry from container
-# ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/design/variable/entry/delete", response_class=HTMLResponse)
 async def design_var_entry_delete(request: Request, uuid: str):
     form = await request.form()
-    section = form.get("section", "")
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    idx_raw = form.get("idx", None)
-    key = form.get("key", None)
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
         return HTMLResponse("Not found", status_code=404)
-    section_vars = _section_vars(draft, section)
-    target = section_vars[var_name]
-    node = target
-    for k in path:
-        node = node.value[k] if isinstance(k, int) else node.value[k]
-    if key is not None:
-        node.value.pop(key, None)
-    elif idx_raw is not None:
-        del node.value[int(idx_raw)]
+    _vars_entry_delete(
+        _section_vars(draft, form.get("section", "")),
+        form.get("var_name", ""),
+        json.loads(form.get("path") or "[]"),
+        form.get("idx", None),
+        form.get("key", None),
+    )
     ctx = _design_context(uuid, draft)
     return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
-
-# ---------------------------------------------------------------------------
-# Design variable: reorder entries in a list container
-# ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/design/variable/entry/reorder", response_class=HTMLResponse)
 async def design_var_entry_reorder(request: Request, uuid: str):
     form = await request.form()
-    section = form.get("section", "")
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    order = json.loads(form.get("order", "[]"))
     draft = _get_or_create_workflow_draft(uuid)
     if not draft:
         return HTMLResponse("Not found", status_code=404)
-    section_vars = _section_vars(draft, section)
-    node = section_vars[var_name]
-    for k in path:
-        node = node.value[k] if isinstance(k, int) else node.value[k]
-    try:
-        new_order = [int(i) for i in order]
-        node.value = [node.value[i] for i in new_order if 0 <= i < len(node.value)]
-    except (ValueError, IndexError):
-        pass
+    _vars_entry_reorder(
+        _section_vars(draft, form.get("section", "")),
+        form.get("var_name", ""),
+        json.loads(form.get("path") or "[]"),
+        json.loads(form.get("order", "[]")),
+    )
     ctx = _design_context(uuid, draft)
     return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
 
 # ---------------------------------------------------------------------------
-# Procedure: add
+# Procedure: add / delete / rename
 # ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/procedure/add", response_class=HTMLResponse)
@@ -903,10 +940,6 @@ def procedure_add(request: Request, uuid: str):
     return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
 
-# ---------------------------------------------------------------------------
-# Procedure: delete
-# ---------------------------------------------------------------------------
-
 @router.post("/workflow/{uuid}/procedure/delete", response_class=HTMLResponse)
 async def procedure_delete(request: Request, uuid: str):
     form = await request.form()
@@ -919,10 +952,6 @@ async def procedure_delete(request: Request, uuid: str):
     ctx = _design_context(uuid, draft)
     return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
-
-# ---------------------------------------------------------------------------
-# Procedure: rename
-# ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/procedure/rename", response_class=HTMLResponse)
 async def procedure_rename(request: Request, uuid: str):
@@ -953,7 +982,7 @@ async def procedure_rename(request: Request, uuid: str):
 
 
 # ---------------------------------------------------------------------------
-# Procedure step: add
+# Procedure step: add / delete / command / reorder
 # ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/procedure/step/add", response_class=HTMLResponse)
@@ -971,10 +1000,6 @@ async def step_add(request: Request, uuid: str):
     return HTMLResponse(proc_html)
 
 
-# ---------------------------------------------------------------------------
-# Procedure step: delete
-# ---------------------------------------------------------------------------
-
 @router.post("/workflow/{uuid}/procedure/step/delete", response_class=HTMLResponse)
 async def step_delete(request: Request, uuid: str):
     form = await request.form()
@@ -989,10 +1014,6 @@ async def step_delete(request: Request, uuid: str):
     ctx = _design_context(uuid, draft)
     return HTMLResponse(_render_procedure_section(uuid, draft, proc_name, ctx))
 
-
-# ---------------------------------------------------------------------------
-# Procedure step: change command
-# ---------------------------------------------------------------------------
 
 @router.post("/workflow/{uuid}/procedure/step/command", response_class=HTMLResponse)
 async def step_command(request: Request, uuid: str):
@@ -1020,10 +1041,6 @@ async def step_command(request: Request, uuid: str):
     return HTMLResponse(step_html)
 
 
-# ---------------------------------------------------------------------------
-# Procedure steps: reorder
-# ---------------------------------------------------------------------------
-
 @router.post("/workflow/{uuid}/procedure/steps/reorder", response_class=HTMLResponse)
 async def steps_reorder(request: Request, uuid: str):
     form = await request.form()
@@ -1043,461 +1060,131 @@ async def steps_reorder(request: Request, uuid: str):
 
 
 # ---------------------------------------------------------------------------
-# Globals: save
+# Globals: save / discard / variable CRUD
 # ---------------------------------------------------------------------------
 
 @router.post("/globals/save", response_class=HTMLResponse)
 async def globals_save(request: Request):
-    global globals_draft
-    draft = _get_or_create_globals_draft()
-    global_variables.clear()
-    global_variables.update(deepcopy(draft))
-    globals_draft = deepcopy(global_variables)
-    pipelineManager.save_state()
-    return templates.TemplateResponse(
-        "globals.html",
-        {
-            "request": request,
-            "global_vars": globals_draft,
-            "var_types": _var_type_names(),
-            "dirty": False,
-        },
-    )
+    globals_store.save()
+    return globals_store.render(request)
 
-
-# ---------------------------------------------------------------------------
-# Globals: discard
-# ---------------------------------------------------------------------------
 
 @router.post("/globals/discard", response_class=HTMLResponse)
 def globals_discard(request: Request):
-    global globals_draft
-    globals_draft = deepcopy(global_variables)
-    return templates.TemplateResponse(
-        "globals.html",
-        {
-            "request": request,
-            "global_vars": globals_draft,
-            "var_types": _var_type_names(),
-            "dirty": False,
-        },
-    )
+    globals_store.discard()
+    return globals_store.render(request)
 
-
-# ---------------------------------------------------------------------------
-# Globals variable: add
-# ---------------------------------------------------------------------------
 
 @router.post("/globals/variable/add", response_class=HTMLResponse)
 def globals_var_add(request: Request):
-    from pipeline_backend.variables import String
-    draft = _get_or_create_globals_draft()
-    base = "new_var"
-    name = base
-    counter = 1
-    while name in draft:
-        name = f"{base}_{counter}"
-        counter += 1
-    draft[name] = String("")
-    return templates.TemplateResponse(
-        "globals.html",
-        {
-            "request": request,
-            "global_vars": draft,
-            "var_types": _var_type_names(),
-            "dirty": _is_globals_draft_dirty(),
-        },
-    )
+    _vars_add(globals_store.draft, globals_store.default_new_name)
+    return globals_store.render(request)
 
-
-# ---------------------------------------------------------------------------
-# Globals variable: delete
-# ---------------------------------------------------------------------------
 
 @router.post("/globals/variable/delete", response_class=HTMLResponse)
 async def globals_var_delete(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    draft = _get_or_create_globals_draft()
-    draft.pop(var_name, None)
-    return templates.TemplateResponse(
-        "globals.html",
-        {
-            "request": request,
-            "global_vars": draft,
-            "var_types": _var_type_names(),
-            "dirty": _is_globals_draft_dirty(),
-        },
-    )
+    _vars_delete(globals_store.draft, form.get("var_name", ""))
+    return globals_store.render(request)
 
-
-# ---------------------------------------------------------------------------
-# Globals variable: rename
-# ---------------------------------------------------------------------------
 
 @router.post("/globals/variable/rename", response_class=HTMLResponse)
 async def globals_var_rename(request: Request):
     form = await request.form()
-    old_name = form.get("old_name", "")
-    new_name = (form.get("new_name") or "").strip()
-    draft = _get_or_create_globals_draft()
-    if new_name and new_name != old_name and old_name in draft and new_name not in draft:
-        renamed = {(new_name if k == old_name else k): v for k, v in draft.items()}
-        draft.clear()
-        draft.update(renamed)
-    return templates.TemplateResponse(
-        "globals.html",
-        {
-            "request": request,
-            "global_vars": draft,
-            "var_types": _var_type_names(),
-            "dirty": _is_globals_draft_dirty(),
-        },
-    )
+    _vars_rename(globals_store.draft, form.get("old_name", ""), (form.get("new_name") or "").strip())
+    return globals_store.render(request)
 
-
-# ---------------------------------------------------------------------------
-# Globals variable: change type
-# ---------------------------------------------------------------------------
 
 @router.post("/globals/variable/type", response_class=HTMLResponse)
 async def globals_var_type(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    new_type_name = form.get("new_type", "")
-    draft = _get_or_create_globals_draft()
-    if var_name not in draft:
-        return HTMLResponse("Not found", status_code=404)
-    try:
-        new_type = WorkVariable.class_from_name(new_type_name)
-    except TypeError:
-        pass
-    else:
-        if not path:
-            converted = draft[var_name].coerce_into_type(new_type)
-            draft[var_name] = converted if converted is not None else new_type()
-        else:
-            node = draft[var_name]
-            for k in path[:-1]:
-                node = node.value[k] if isinstance(k, int) else node.value[k]
-            last_key = path[-1]
-            existing = node.value[last_key]
-            converted = existing.coerce_into_type(new_type)
-            node.value[last_key] = converted if converted is not None else new_type()
-    return templates.TemplateResponse(
-        "globals.html",
-        {
-            "request": request,
-            "global_vars": draft,
-            "var_types": _var_type_names(),
-            "dirty": _is_globals_draft_dirty(),
-        },
-    )
+    _vars_type(globals_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("new_type", ""))
+    return globals_store.render(request)
 
-
-# ---------------------------------------------------------------------------
-# Globals variable: add/delete entries (containers)
-# ---------------------------------------------------------------------------
 
 @router.post("/globals/variable/entry/add", response_class=HTMLResponse)
 async def globals_entry_add(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    key = form.get("key", None)
-    draft = _get_or_create_globals_draft()
-    if var_name not in draft:
-        return HTMLResponse("Not found", status_code=404)
-    node = draft[var_name]
-    for k in path:
-        node = node.value[k] if isinstance(k, int) else node.value[k]
-    from pipeline_backend.variables import String
-    if node.typename == "Dictionary":
-        if not key:
-            key = "new_key"
-        base = key
-        counter = 1
-        while key in node.value:
-            key = f"{base}_{counter}"
-            counter += 1
-        node.value[key] = String("")
-    elif node.typename in ("StringList", "VariableNameList"):
-        node.value.append("")
-    else:
-        node.value.append(String(""))
-    return templates.TemplateResponse(
-        "globals.html",
-        {
-            "request": request,
-            "global_vars": draft,
-            "var_types": _var_type_names(),
-            "dirty": _is_globals_draft_dirty(),
-        },
-    )
+    _vars_entry_add(globals_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("key", None))
+    return globals_store.render(request)
 
 
 @router.post("/globals/variable/entry/delete", response_class=HTMLResponse)
 async def globals_entry_delete(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    idx_raw = form.get("idx", None)
-    key = form.get("key", None)
-    draft = _get_or_create_globals_draft()
-    if var_name not in draft:
-        return HTMLResponse("Not found", status_code=404)
-    node = draft[var_name]
-    for k in path:
-        node = node.value[k] if isinstance(k, int) else node.value[k]
-    if key is not None:
-        node.value.pop(key, None)
-    elif idx_raw is not None:
-        del node.value[int(idx_raw)]
-    return templates.TemplateResponse(
-        "globals.html",
-        {
-            "request": request,
-            "global_vars": draft,
-            "var_types": _var_type_names(),
-            "dirty": _is_globals_draft_dirty(),
-        },
-    )
+    _vars_entry_delete(globals_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("idx", None), form.get("key", None))
+    return globals_store.render(request)
 
-
-# ---------------------------------------------------------------------------
-# Globals variable: reorder entries in a list container
-# ---------------------------------------------------------------------------
 
 @router.post("/globals/variable/entry/reorder", response_class=HTMLResponse)
 async def globals_entry_reorder(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    order = json.loads(form.get("order", "[]"))
-    draft = _get_or_create_globals_draft()
-    if var_name not in draft:
-        return HTMLResponse("Not found", status_code=404)
-    node = draft[var_name]
-    for k in path:
-        node = node.value[k] if isinstance(k, int) else node.value[k]
-    try:
-        new_order = [int(i) for i in order]
-        node.value = [node.value[i] for i in new_order if 0 <= i < len(node.value)]
-    except (ValueError, IndexError):
-        pass
-    return templates.TemplateResponse(
-        "globals.html",
-        {
-            "request": request,
-            "global_vars": draft,
-            "var_types": _var_type_names(),
-            "dirty": _is_globals_draft_dirty(),
-        },
-    )
+    _vars_entry_reorder(globals_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), json.loads(form.get("order", "[]")))
+    return globals_store.render(request)
 
 
 # ---------------------------------------------------------------------------
-# Secrets pane
+# Secrets: save / discard / variable CRUD
 # ---------------------------------------------------------------------------
-
-def _secrets_response(request: Request):
-    return templates.TemplateResponse(
-        "secrets.html",
-        {
-            "request": request,
-            "secrets": _get_or_create_secrets_draft(),
-            "var_types": _var_type_names(),
-            "dirty": _is_secrets_draft_dirty(),
-        },
-    )
-
-
-@router.get("/secrets", response_class=HTMLResponse)
-def get_secrets_pane(request: Request):
-    return _secrets_response(request)
-
 
 @router.post("/secrets/save", response_class=HTMLResponse)
 async def secrets_save(request: Request):
-    global secrets_draft
-    draft = _get_or_create_secrets_draft()
-    global_secrets.clear()
-    global_secrets.update(deepcopy(draft))
-    secrets_draft = deepcopy(global_secrets)
-    pipelineManager.save_secrets()
-    return _secrets_response(request)
+    secrets_store.save()
+    return secrets_store.render(request)
 
 
 @router.post("/secrets/discard", response_class=HTMLResponse)
 def secrets_discard(request: Request):
-    global secrets_draft
-    secrets_draft = deepcopy(global_secrets)
-    return _secrets_response(request)
+    secrets_store.discard()
+    return secrets_store.render(request)
 
 
 @router.post("/secrets/variable/add", response_class=HTMLResponse)
 def secrets_var_add(request: Request):
-    from pipeline_backend.variables import String
-    draft = _get_or_create_secrets_draft()
-    base = "new_secret"
-    name = base
-    counter = 1
-    while name in draft:
-        name = f"{base}_{counter}"
-        counter += 1
-    draft[name] = String("")
-    return _secrets_response(request)
-
-
-@router.post("/secrets/variable/rename", response_class=HTMLResponse)
-async def secrets_var_rename(request: Request):
-    form = await request.form()
-    old_name = form.get("old_name", "")
-    new_name = (form.get("new_name") or "").strip()
-    draft = _get_or_create_secrets_draft()
-    if new_name and new_name != old_name and old_name in draft and new_name not in draft:
-        renamed = {(new_name if k == old_name else k): v for k, v in draft.items()}
-        draft.clear()
-        draft.update(renamed)
-    return _secrets_response(request)
+    _vars_add(secrets_store.draft, secrets_store.default_new_name)
+    return secrets_store.render(request)
 
 
 @router.post("/secrets/variable/delete", response_class=HTMLResponse)
 async def secrets_var_delete(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    draft = _get_or_create_secrets_draft()
-    draft.pop(var_name, None)
-    return _secrets_response(request)
+    _vars_delete(secrets_store.draft, form.get("var_name", ""))
+    return secrets_store.render(request)
 
 
-@router.post("/secrets/variable/value")
-async def secrets_var_value(request: Request):
+@router.post("/secrets/variable/rename", response_class=HTMLResponse)
+async def secrets_var_rename(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    path     = json.loads(form.get("path") or "[]")
-    raw_val  = form.get("value", "")
-    draft = _get_or_create_secrets_draft()
-    if var_name not in draft:
-        return Response(status_code=204)
-    target = draft[var_name]
-    if not path:
-        target.value = raw_val
-        try:
-            target.normalize()
-        except Exception:
-            pass
-    else:
-        node = target
-        for k in path[:-1]:
-            node = node.value[int(k)] if isinstance(k, int) else node.value[k]
-        last_key = path[-1]
-        if isinstance(last_key, str) and last_key.lstrip("-").isdigit():
-            last_key = int(last_key)
-        _apply_value_to_node(node, last_key, raw_val)
-    return Response(status_code=204)
+    _vars_rename(secrets_store.draft, form.get("old_name", ""), (form.get("new_name") or "").strip())
+    return secrets_store.render(request)
 
 
 @router.post("/secrets/variable/type", response_class=HTMLResponse)
 async def secrets_var_type(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    new_type_name = form.get("new_type", "")
-    draft = _get_or_create_secrets_draft()
-    if var_name not in draft:
-        return HTMLResponse("Not found", status_code=404)
-    try:
-        new_type = WorkVariable.class_from_name(new_type_name)
-    except TypeError:
-        pass
-    else:
-        if not path:
-            converted = draft[var_name].coerce_into_type(new_type)
-            draft[var_name] = converted if converted is not None else new_type()
-        else:
-            node = draft[var_name]
-            for k in path[:-1]:
-                node = node.value[k] if isinstance(k, int) else node.value[k]
-            last_key = path[-1]
-            existing = node.value[last_key]
-            converted = existing.coerce_into_type(new_type)
-            node.value[last_key] = converted if converted is not None else new_type()
-    return _secrets_response(request)
+    _vars_type(secrets_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("new_type", ""))
+    return secrets_store.render(request)
 
 
 @router.post("/secrets/variable/entry/add", response_class=HTMLResponse)
 async def secrets_entry_add(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    key = form.get("key", None)
-    draft = _get_or_create_secrets_draft()
-    if var_name not in draft:
-        return HTMLResponse("Not found", status_code=404)
-    node = draft[var_name]
-    for k in path:
-        node = node.value[k] if isinstance(k, int) else node.value[k]
-    from pipeline_backend.variables import String
-    if node.typename == "Dictionary":
-        if not key:
-            key = "new_key"
-        base = key
-        counter = 1
-        while key in node.value:
-            key = f"{base}_{counter}"
-            counter += 1
-        node.value[key] = String("")
-    elif node.typename in ("StringList", "VariableNameList"):
-        node.value.append("")
-    else:
-        node.value.append(String(""))
-    return _secrets_response(request)
+    _vars_entry_add(secrets_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("key", None))
+    return secrets_store.render(request)
 
 
 @router.post("/secrets/variable/entry/delete", response_class=HTMLResponse)
 async def secrets_entry_delete(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    idx_raw = form.get("idx", None)
-    key = form.get("key", None)
-    draft = _get_or_create_secrets_draft()
-    if var_name not in draft:
-        return HTMLResponse("Not found", status_code=404)
-    node = draft[var_name]
-    for k in path:
-        node = node.value[k] if isinstance(k, int) else node.value[k]
-    if key is not None:
-        node.value.pop(key, None)
-    elif idx_raw is not None:
-        del node.value[int(idx_raw)]
-    return _secrets_response(request)
+    _vars_entry_delete(secrets_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("idx", None), form.get("key", None))
+    return secrets_store.render(request)
 
-
-# ---------------------------------------------------------------------------
-# Secrets variable: reorder entries in a list container
-# ---------------------------------------------------------------------------
 
 @router.post("/secrets/variable/entry/reorder", response_class=HTMLResponse)
 async def secrets_entry_reorder(request: Request):
     form = await request.form()
-    var_name = form.get("var_name", "")
-    path = json.loads(form.get("path") or "[]")
-    order = json.loads(form.get("order", "[]"))
-    draft = _get_or_create_secrets_draft()
-    if var_name not in draft:
-        return HTMLResponse("Not found", status_code=404)
-    node = draft[var_name]
-    for k in path:
-        node = node.value[k] if isinstance(k, int) else node.value[k]
-    try:
-        new_order = [int(i) for i in order]
-        node.value = [node.value[i] for i in new_order if 0 <= i < len(node.value)]
-    except (ValueError, IndexError):
-        pass
-    return _secrets_response(request)
+    _vars_entry_reorder(secrets_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), json.loads(form.get("order", "[]")))
+    return secrets_store.render(request)
 
 
 # ---------------------------------------------------------------------------
