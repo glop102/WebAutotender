@@ -93,6 +93,7 @@
     .step-row { display: flex; flex-direction: column; gap: 0.25rem; border: 1px solid #3a3a3a; border-radius: 0.1875rem; padding: 0.375rem; margin: 0.25rem 0; background: #2a2a2a; }
     .step-row-header { display: flex; align-items: center; gap: 0.375rem; }
     .step-drag-handle { cursor: grab; color: #555; font-size: 1rem; user-select: none; }
+    .var-drag-handle  { cursor: grab; color: #555; font-size: 1rem; user-select: none; }
     .step-args { margin-left: 1.5rem; }
     .arg-row { display: flex; align-items: center; gap: 0.375rem; margin: 0.1875rem 0; }
     .arg-label { min-width: 6.25rem; font-family: monospace; font-size: 0.75rem; color: #9cdcfe; }
@@ -257,6 +258,30 @@ function initSortable() {
                     target: evt.from.closest('.procedure-section'),
                     swap: 'outerHTML',
                     values: { proc_name: evt.from.dataset.procName, order: JSON.stringify(order) }
+                });
+            }
+        });
+    });
+
+    document.querySelectorAll('.var-list-sortable').forEach(el => {
+        if (el._sortable) el._sortable.destroy();
+        el._sortable = Sortable.create(el, {
+            handle: '.var-drag-handle',
+            animation: 150,
+            onEnd(evt) {
+                const order = [...evt.from.querySelectorAll(':scope > [data-idx]')]
+                    .map(row => row.dataset.idx);
+                const url = evt.from.dataset.reorderUrl;
+                if (!url) return;
+                htmx.ajax('POST', url, {
+                    target: evt.from.dataset.target,
+                    swap: evt.from.dataset.swap,
+                    values: {
+                        var_name: evt.from.dataset.varName,
+                        path: evt.from.dataset.path,
+                        order: JSON.stringify(order),
+                        section: evt.from.dataset.section || ''
+                    }
                 });
             }
         });

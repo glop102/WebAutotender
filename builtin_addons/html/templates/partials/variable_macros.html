@@ -3,7 +3,7 @@
                  entry_add_endpoint, entry_delete_endpoint,
                  var_types, section="",
                  structural_target="#tab-content", structural_swap="innerHTML",
-                 rename_endpoint="") %}
+                 rename_endpoint="", entry_reorder_endpoint="") %}
 
 {# ── shared snippets ──────────────────────────────────────── #}
 {% set _sec    = ', "section": "' ~ section ~ '"' if section else '' %}
@@ -24,7 +24,10 @@
   {% set _label = "[" ~ path[-1] ~ "]" %}   {# list index #}
 {% endif %}
 
-<div class="var-row">
+<div class="var-row"{% if path and path[-1] is number %} data-idx="{{ path[-1] }}"{% endif %}>
+  {% if not readonly and entry_reorder_endpoint and path and path[-1] is number %}
+    <span class="var-drag-handle" title="Drag to reorder">⠿</span>
+  {% endif %}
   {% if not path and not readonly and rename_endpoint %}
     <span class="var-name"
           data-varname="{{ var_name }}"
@@ -97,13 +100,24 @@
 
   {% elif var.typename in ('StringList', 'VariableNameList') %}
     {# Entries are plain strings, not WorkVariables — handled inline (no recursion needed) #}
-    <div class="var-container var-input">
+    <div class="var-container var-input{% if not readonly and entry_reorder_endpoint %} var-list-sortable{% endif %}"
+         {% if not readonly and entry_reorder_endpoint %}
+         data-reorder-url="{{ entry_reorder_endpoint }}"
+         data-var-name="{{ var_name }}"
+         data-path="{{ path | tojson }}"
+         data-target="{{ structural_target }}"
+         data-swap="{{ structural_swap }}"
+         data-section="{{ section }}"
+         {% endif %}>
       {% for idx, item in var.value | enumerate %}
       {% set _ev = '"var_name": "' ~ var_name ~ '", "path": ' ~ ((path | tojson) | tojson) ~ _sec ~ ', "idx": ' ~ idx %}
-      <div class="var-row">
+      <div class="var-row" data-idx="{{ idx }}">
         {% if readonly %}
           <span>{{ item }}</span>
         {% else %}
+          {% if entry_reorder_endpoint %}
+            <span class="var-drag-handle" title="Drag to reorder">⠿</span>
+          {% endif %}
           <input type="text" name="value" value="{{ item }}"
                  hx-post="{{ value_endpoint }}" hx-trigger="change" hx-swap="none"
                  hx-vals='{ "var_name": "{{ var_name }}", "path": {{ ((path + [idx]) | tojson) | tojson }}{{ _sec }} }'>
@@ -124,12 +138,21 @@
 
   {% elif var.typename == 'VariableList' %}
     {# Entries are WorkVariables — recurse #}
-    <div class="var-container var-input">
+    <div class="var-container var-input{% if not readonly and entry_reorder_endpoint %} var-list-sortable{% endif %}"
+         {% if not readonly and entry_reorder_endpoint %}
+         data-reorder-url="{{ entry_reorder_endpoint }}"
+         data-var-name="{{ var_name }}"
+         data-path="{{ path | tojson }}"
+         data-target="{{ structural_target }}"
+         data-swap="{{ structural_swap }}"
+         data-section="{{ section }}"
+         {% endif %}>
       {% for idx, item in var.value | enumerate %}
         {{ var_row(var_name, item, path + [idx], readonly,
                    value_endpoint, delete_endpoint, type_endpoint,
                    entry_add_endpoint, entry_delete_endpoint,
-                   var_types, section, structural_target, structural_swap) }}
+                   var_types, section, structural_target, structural_swap,
+                   entry_reorder_endpoint=entry_reorder_endpoint) }}
       {% endfor %}
       {% if not readonly %}
       <button type="button" class="btn btn-sm"
@@ -146,7 +169,8 @@
         {{ var_row(var_name, item, path + [key], readonly,
                    value_endpoint, delete_endpoint, type_endpoint,
                    entry_add_endpoint, entry_delete_endpoint,
-                   var_types, section, structural_target, structural_swap) }}
+                   var_types, section, structural_target, structural_swap,
+                   entry_reorder_endpoint=entry_reorder_endpoint) }}
       {% endfor %}
       {% if not readonly %}
       <div class="var-row">

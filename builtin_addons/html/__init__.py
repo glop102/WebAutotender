@@ -856,6 +856,33 @@ async def design_var_entry_delete(request: Request, uuid: str):
 
 
 # ---------------------------------------------------------------------------
+# Design variable: reorder entries in a list container
+# ---------------------------------------------------------------------------
+
+@router.post("/workflow/{uuid}/design/variable/entry/reorder", response_class=HTMLResponse)
+async def design_var_entry_reorder(request: Request, uuid: str):
+    form = await request.form()
+    section = form.get("section", "")
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    order = json.loads(form.get("order", "[]"))
+    draft = _get_or_create_workflow_draft(uuid)
+    if not draft:
+        return HTMLResponse("Not found", status_code=404)
+    section_vars = _section_vars(draft, section)
+    node = section_vars[var_name]
+    for k in path:
+        node = node.value[k] if isinstance(k, int) else node.value[k]
+    try:
+        new_order = [int(i) for i in order]
+        node.value = [node.value[i] for i in new_order if 0 <= i < len(node.value)]
+    except (ValueError, IndexError):
+        pass
+    ctx = _design_context(uuid, draft)
+    return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
+
+
+# ---------------------------------------------------------------------------
 # Procedure: add
 # ---------------------------------------------------------------------------
 
@@ -1239,6 +1266,38 @@ async def globals_entry_delete(request: Request):
 
 
 # ---------------------------------------------------------------------------
+# Globals variable: reorder entries in a list container
+# ---------------------------------------------------------------------------
+
+@router.post("/globals/variable/entry/reorder", response_class=HTMLResponse)
+async def globals_entry_reorder(request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    order = json.loads(form.get("order", "[]"))
+    draft = _get_or_create_globals_draft()
+    if var_name not in draft:
+        return HTMLResponse("Not found", status_code=404)
+    node = draft[var_name]
+    for k in path:
+        node = node.value[k] if isinstance(k, int) else node.value[k]
+    try:
+        new_order = [int(i) for i in order]
+        node.value = [node.value[i] for i in new_order if 0 <= i < len(node.value)]
+    except (ValueError, IndexError):
+        pass
+    return templates.TemplateResponse(
+        "globals.html",
+        {
+            "request": request,
+            "global_vars": draft,
+            "var_types": _var_type_names(),
+            "dirty": _is_globals_draft_dirty(),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Secrets pane
 # ---------------------------------------------------------------------------
 
@@ -1414,6 +1473,30 @@ async def secrets_entry_delete(request: Request):
         node.value.pop(key, None)
     elif idx_raw is not None:
         del node.value[int(idx_raw)]
+    return _secrets_response(request)
+
+
+# ---------------------------------------------------------------------------
+# Secrets variable: reorder entries in a list container
+# ---------------------------------------------------------------------------
+
+@router.post("/secrets/variable/entry/reorder", response_class=HTMLResponse)
+async def secrets_entry_reorder(request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    order = json.loads(form.get("order", "[]"))
+    draft = _get_or_create_secrets_draft()
+    if var_name not in draft:
+        return HTMLResponse("Not found", status_code=404)
+    node = draft[var_name]
+    for k in path:
+        node = node.value[k] if isinstance(k, int) else node.value[k]
+    try:
+        new_order = [int(i) for i in order]
+        node.value = [node.value[i] for i in new_order if 0 <= i < len(node.value)]
+    except (ValueError, IndexError):
+        pass
     return _secrets_response(request)
 
 
