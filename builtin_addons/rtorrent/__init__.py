@@ -51,7 +51,11 @@ class Server:
     
     def add_url_to_rtorrent(self,url:str|String)->"Torrent":
         """
-        Add a torrent file or magnet link to rtorrent
+        Add a torrent file or magnet link to rtorrent.
+        This method is intentionally synchronous and blocking. The sleep below must NOT be
+        replaced with asyncio.sleep: we need the event loop blocked for the entire
+        submit -> detect-new-hash sequence so that no other coroutine can add a torrent
+        concurrently and cause us to detect the wrong infohash as our result.
         """
         if isinstance(url,WorkVariable):
             url = url.value
