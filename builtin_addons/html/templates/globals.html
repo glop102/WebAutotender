@@ -7,7 +7,7 @@
     dirty        : bool
 #}
 <div id="globals-pane">
-  <h2 style="margin-bottom:12px">Global Variables{% if dirty %} *{% endif %}</h2>
+  <h2 class="pane-title">Global Variables{% if dirty %} *{% endif %}</h2>
 
   <div class="section">
     {% for var_name, var in global_vars.items() %}
@@ -21,7 +21,7 @@
                  "#globals-pane", "outerHTML",
                  "/ui/globals/variable/rename") }}
     {% else %}
-      <p style="color:#555; font-size:12px">No global variables.</p>
+      <p class="empty-state">No global variables.</p>
     {% endfor %}
     <button type="button" class="btn btn-sm"
             hx-post="/ui/globals/variable/add"

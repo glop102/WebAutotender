@@ -17,7 +17,7 @@
   </details>
   {% endif %}
 
-  <div style="margin-bottom: 10px;">
+  <div class="spawn-bar">
     <button class="btn btn-primary"
             hx-get="/ui/workflow/{{ workflow.uuid }}/instances/spawn_dialog"
             hx-target="body"
@@ -29,6 +29,6 @@
       {% include "partials/instance_row.html" %}
     {% endfor %}
   {% else %}
-    <p style="color:#555">No instances yet.</p>
+    <p class="empty-state">No instances yet.</p>
   {% endif %}
 </div>

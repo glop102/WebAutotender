@@ -103,10 +103,37 @@
     .notes-details pre { padding: 0.5rem 0.625rem; white-space: pre-wrap; font-size: 0.75rem; color: #aaa; border-top: 1px solid #333; }
 
     /* Console log */
-    .console-log { background: #111; border: 1px solid #333; border-radius: 0.1875rem; padding: 0.5rem; font-family: monospace; font-size: 0.75rem; line-height: 1.4; white-space: pre-wrap; height: calc(20 * 1.4em); overflow: auto; color: #aaa; }
+    .console-log { background: #111; border: 1px solid #333; border-radius: 0.1875rem; padding: 0.5rem; font-family: monospace; font-size: 0.75rem; line-height: 1.4; white-space: pre-wrap; height: calc(20 * 1.4em); overflow: auto; resize: vertical; color: #aaa; }
 
     /* Bottom action bar */
     .action-bar { display: flex; gap: 0.5rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #333; }
+
+    /* Pane title / description text */
+    .pane-title { margin-bottom: 0.75rem; }
+    .pane-description { color: #888; font-size: 0.6875rem; margin-bottom: 0.75rem; }
+
+    /* Empty / placeholder list messages */
+    .empty-state { color: #888; font-size: 0.75rem; }
+
+    /* Flex helpers */
+    .flex-spacer { flex: 1; }
+    .var-row-top { align-items: flex-start; }
+
+    /* Variable rename edit group — hidden until rename mode */
+    .vn-edit-group { display: none; align-items: center; gap: 0.125rem; }
+
+    /* Instance body sub-section spacing */
+    .instance-body .section-title { margin-top: 0.5rem; }
+    .instance-vars { margin-top: 0.5rem; }
+
+    /* Spawn button bar */
+    .spawn-bar { margin-bottom: 0.625rem; }
+
+    /* Procedure step footer (add-step button area) */
+    .step-footer { padding: 0.25rem 0.375rem; }
+
+    /* Pointer cursor on all collapsible summaries */
+    summary { cursor: pointer; }
 
     /* Toast */
     #toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #5a1a1a; border: 1px solid #f44747; color: #f44747; padding: 0.625rem 1rem; border-radius: 0.25rem; z-index: 9998; display: flex; align-items: center; gap: 0.625rem; }

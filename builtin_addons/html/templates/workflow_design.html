@@ -27,11 +27,11 @@
     <div class="section-title">Meta</div>
     <div class="var-row">
       <label>Name</label>
-      <input type="text" name="name" value="{{ workflow.name }}" style="flex:1">
+      <input type="text" name="name" value="{{ workflow.name }}" class="var-input">
     </div>
-    <div class="var-row" style="align-items:flex-start">
+    <div class="var-row var-row-top">
       <label>Notes</label>
-      <textarea name="user_notes" rows="3" style="flex:1">{{ workflow.user_notes }}</textarea>
+      <textarea name="user_notes" rows="3" class="var-input">{{ workflow.user_notes }}</textarea>
     </div>
   </div>
 
@@ -44,7 +44,7 @@
                  var_types, "constants",
                  "#tab-content", "innerHTML", _ren) }}
     {% else %}
-      <p style="color:#555; font-size:12px">No constants.</p>
+      <p class="empty-state">No constants.</p>
     {% endfor %}
     <button type="button" class="btn btn-sm"
             hx-post="/ui/workflow/{{ workflow_uuid }}/design/variable/add"
@@ -61,7 +61,7 @@
                  var_types, "setup_variables",
                  "#tab-content", "innerHTML", _ren) }}
     {% else %}
-      <p style="color:#555; font-size:12px">No setup variables.</p>
+      <p class="empty-state">No setup variables.</p>
     {% endfor %}
     <button type="button" class="btn btn-sm"
             hx-post="/ui/workflow/{{ workflow_uuid }}/design/variable/add"

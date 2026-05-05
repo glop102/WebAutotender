@@ -33,7 +33,7 @@
           data-swap="{{ structural_swap }}"
           data-section="{{ section }}">{{ _label }}</span>
     <button type="button" class="btn btn-sm vn-pencil" onclick="startRename(this)" title="Rename">✏</button>
-    <span class="vn-edit-group" style="display:none; align-items:center; gap:2px">
+    <span class="vn-edit-group">
       <input type="text" class="var-name-edit" value="{{ var_name }}"
              onkeydown="handleRenameKey(event, this)">
       <button type="button" class="btn btn-sm" onclick="commitRename(this)" title="Confirm">✓</button>
