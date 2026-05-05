@@ -33,13 +33,13 @@
        hx-get="/ui/globals"
        hx-target="#right-pane"
        hx-swap="innerHTML">
-    Global Variables{% if globals_dirty %} *{% endif %}
+    <span id="globals-dirty-label">Global Variables{% if globals_dirty %} *{% endif %}</span>
   </div>
 
   <div class="sidebar-globals {% if selected_uuid == '__secrets__' %}active{% endif %}"
        hx-get="/ui/secrets"
        hx-target="#right-pane"
        hx-swap="innerHTML">
-    Secrets{% if secrets_dirty %} *{% endif %}
+    <span id="secrets-dirty-label">Secrets{% if secrets_dirty %} *{% endif %}</span>
   </div>
 </div>
