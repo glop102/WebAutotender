@@ -758,13 +758,20 @@ async def spawn_instance(request: Request, uuid: str):
         if key.startswith("arg__"):
             var_name = key[5:]
             if var_name in wf.setup_variables:
-                template_var = deepcopy(wf.setup_variables[var_name])
+                argtype = form.get(f"argtype__{var_name}")
                 try:
-                    template_var.value = raw_val
-                    template_var.normalize()
+                    cls = WorkVariable.class_from_name(argtype) if argtype else None
+                except TypeError:
+                    cls = None
+                if cls is None:
+                    cls = wf.setup_variables[var_name].__class__
+                var = cls()
+                var.value = raw_val
+                try:
+                    var.normalize()
                 except Exception:
                     pass
-                overrides[var_name] = template_var
+                overrides[var_name] = var
 
     inst = wf.spawn_instance(overrides)
     await pipelineManager.notify_of_something_happening()
