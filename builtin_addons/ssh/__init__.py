@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from functools import partial
 
 from pipeline_backend import *
@@ -14,7 +15,8 @@ This should have the following variables inside of it:
     - password is a raw password, ssh key is the contents of a private key file (PEM format), and the filepath is a tring filepath to look read the key from
 """
 
-async def open_ssh_pipe(instance: Instance, serverInfo: Dictionary)->None|asyncssh.SSHClientConnection:
+@asynccontextmanager
+async def open_ssh_pipe(instance: Instance, serverInfo: Dictionary):
     valid = True
     if "URL" not in serverInfo.value:
         instance.log_line("There is no 'URL' in the serverInfo")
@@ -25,28 +27,34 @@ async def open_ssh_pipe(instance: Instance, serverInfo: Dictionary)->None|asyncs
     if "password" not in serverInfo.value and "ssh key" not in serverInfo.value and "ssh key filepath" not in serverInfo.value:
         instance.log_line("There is no 'password' or 'ssh key' or 'ssh key filepath' in the serverInfo")
         valid = False
-    if not valid: return None
+    if not valid:
+        yield None
+        return
 
     # prioritize using an ssh key if both that and a password has been specified
     if "ssh key filepath" in serverInfo.value:
-        return await asyncssh.connect(
+        connection = await asyncssh.connect(
             serverInfo.value["URL"].value,
             username=serverInfo.value["username"].value,
             client_keys=[serverInfo.value["ssh key filepath"].value]
         )
     elif "ssh key" in serverInfo.value:
         keyfile = parse_ssh_private_key(serverInfo.value["ssh key"].value)
-        return await asyncssh.connect(
+        connection = await asyncssh.connect(
             serverInfo.value["URL"].value,
             username=serverInfo.value["username"].value,
             client_keys=[keyfile]
         )
     else:
-        return await asyncssh.connect(
+        connection = await asyncssh.connect(
             serverInfo.value["URL"].value,
             username=serverInfo.value["username"].value,
             password=serverInfo.value["password"].value,
         )
+    try:
+        yield connection
+    finally:
+        connection.close()
 
 def parse_ssh_private_key(key:str)->asyncssh.SSHKey:
     # Due to the nature of the web interface input, it strips all the newlines.
@@ -80,70 +88,64 @@ def file_download_progress_callback(instance:Instance,print_thresholds:dict[str,
 
 @Commands.register_command(category="SSH/SFTP")
 async def sftp_list_directory(instance: Instance, serverInfo: Dictionary, directory: String, outputVarname: VariableName) -> CommandReturnStatus:
-    connection:asyncssh.SSHClientConnection = await open_ssh_pipe(instance,serverInfo)
-    if not connection:
-        return CommandReturnStatus.Error
-    sftp:asyncssh.SFTPClient = await connection.start_sftp_client()
-    entries = await sftp.listdir(directory.value)
-    instance[outputVarname] = StringList(entries)
-
+    async with open_ssh_pipe(instance, serverInfo) as connection:
+        if not connection:
+            return CommandReturnStatus.Error
+        sftp:asyncssh.SFTPClient = await connection.start_sftp_client()
+        entries = await sftp.listdir(directory.value)
+        instance[outputVarname] = StringList(entries)
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="SSH/SFTP")
 async def sftp_download_file(instance: Instance, serverInfo: Dictionary, remotepath: String, localpath: String) -> CommandReturnStatus:
-    connection:asyncssh.SSHClientConnection = await open_ssh_pipe(instance,serverInfo)
-    if not connection:
-        return CommandReturnStatus.Error
-    sftp:asyncssh.SFTPClient = await connection.start_sftp_client()
-    if not await sftp.exists(remotepath.value):
-        instance.log_line(f"Unable to find remote file '{remotepath.value}'")
-        return CommandReturnStatus.Error
-    filesize = await sftp.getsize(remotepath.value)
+    async with open_ssh_pipe(instance, serverInfo) as connection:
+        if not connection:
+            return CommandReturnStatus.Error
+        sftp:asyncssh.SFTPClient = await connection.start_sftp_client()
+        if not await sftp.exists(remotepath.value):
+            instance.log_line(f"Unable to find remote file '{remotepath.value}'")
+            return CommandReturnStatus.Error
+        filesize = await sftp.getsize(remotepath.value)
 
-    instance.log_line(f"Downloading '{remotepath.value}'\nto '{localpath.value}'")
-    instance.log_line(f"    {human_readable_filesize(filesize)}")
+        instance.log_line(f"Downloading '{remotepath.value}'\nto '{localpath.value}'")
+        instance.log_line(f"    {human_readable_filesize(filesize)}")
 
-    starting_time = datetime.now()
-    await sftp.get(
-        remotepath.value,
-        localpath.value,
-        recurse=False,
-        progress_handler=partial(file_download_progress_callback,instance,dict()),
-    )
-    ending_time = datetime.now()
-    bytespersecond = filesize//(ending_time - starting_time).total_seconds()
-    instance.log_line(f"    {human_readable_filesize(bytespersecond)}/s")
-
+        starting_time = datetime.now()
+        await sftp.get(
+            remotepath.value,
+            localpath.value,
+            recurse=False,
+            progress_handler=partial(file_download_progress_callback,instance,dict()),
+        )
+        ending_time = datetime.now()
+        bytespersecond = filesize//(ending_time - starting_time).total_seconds()
+        instance.log_line(f"    {human_readable_filesize(bytespersecond)}/s")
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="SSH/SFTP")
 async def scp_download_folder(instance: Instance, serverInfo: Dictionary, remotepath: String, localpath: String) -> CommandReturnStatus:
-    connection:asyncssh.SSHClientConnection = await open_ssh_pipe(instance,serverInfo)
-    if not connection:
-        return CommandReturnStatus.Error
-
-    scp = await asyncssh.scp(
-        (connection,remotepath.value),
-        localpath.value,
-        recurse=True,
-        progress_handler=partial(file_download_progress_callback,instance,dict()),
-    )
-
+    async with open_ssh_pipe(instance, serverInfo) as connection:
+        if not connection:
+            return CommandReturnStatus.Error
+        await asyncssh.scp(
+            (connection,remotepath.value),
+            localpath.value,
+            recurse=True,
+            progress_handler=partial(file_download_progress_callback,instance,dict()),
+        )
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="SSH/SFTP")
 async def scp_download_file(instance: Instance, serverInfo: Dictionary, remotepath: String, localpath: String) -> CommandReturnStatus:
-    connection:asyncssh.SSHClientConnection = await open_ssh_pipe(instance,serverInfo)
-    if not connection:
-        return CommandReturnStatus.Error
-
-    scp = await asyncssh.scp(
-        (connection,remotepath.value),
-        localpath.value,
-        recurse=False,
-        progress_handler=partial(file_download_progress_callback,instance,dict()),
-    )
-
+    async with open_ssh_pipe(instance, serverInfo) as connection:
+        if not connection:
+            return CommandReturnStatus.Error
+        await asyncssh.scp(
+            (connection,remotepath.value),
+            localpath.value,
+            recurse=False,
+            progress_handler=partial(file_download_progress_callback,instance,dict()),
+        )
     return CommandReturnStatus.Success
 
 
