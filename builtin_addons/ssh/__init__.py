@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from functools import partial
+import shlex
 
 from pipeline_backend import *
 from pipeline_backend.commands_builtin import *
@@ -79,6 +80,8 @@ def human_readable_filesize(size:int)->str:
 
 def file_download_progress_callback(instance:Instance,print_thresholds:dict[str,float],sourcepath:bytes,destpath:bytes,bytesdone:int,bytestotal:int):
     # print(f"\033[K\r{sourcepath.decode() } - {bytesdone}/{bytestotal}", end="\r", flush=True)
+    if bytestotal == 0:
+        return
     if not destpath in print_thresholds:
         print_thresholds[destpath] = 0.1
     download_ratio = bytesdone/bytestotal
@@ -128,7 +131,7 @@ async def scp_download_folder(instance: Instance, serverInfo: Dictionary, remote
         if not connection:
             return CommandReturnStatus.Error
         await asyncssh.scp(
-            (connection,remotepath.value),
+            (connection, shlex.quote(remotepath.value)),
             localpath.value,
             recurse=True,
             progress_handler=partial(file_download_progress_callback,instance,dict()),
@@ -141,7 +144,7 @@ async def scp_download_file(instance: Instance, serverInfo: Dictionary, remotepa
         if not connection:
             return CommandReturnStatus.Error
         await asyncssh.scp(
-            (connection,remotepath.value),
+            (connection, shlex.quote(remotepath.value)),
             localpath.value,
             recurse=False,
             progress_handler=partial(file_download_progress_callback,instance,dict()),
