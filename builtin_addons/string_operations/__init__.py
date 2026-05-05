@@ -9,8 +9,8 @@ except:
 @Commands.register_command
 async def str_regex_firstMatch(instance: Instance, regexPatern:String, inputString:String, outputVarname: VariableName) -> CommandReturnStatus:
     match:re.Match|None = re.search(regexPatern.value,inputString.value)
-    instance.log_line(f"Unable to find any match of {regexPatern.value} in the string {inputString.value}")
     if match is None:
+        instance.log_line(f"Unable to find any match of {regexPatern.value} in the string {inputString.value}")
         return CommandReturnStatus.Error
     instance[outputVarname] = String(match.group(0))
     return CommandReturnStatus.Success

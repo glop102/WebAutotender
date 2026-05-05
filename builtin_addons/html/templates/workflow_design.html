@@ -18,10 +18,7 @@
 {% set _eren  = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/entry/reorder" %}
 {% set _ren   = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/rename" %}
 
-<form id="design-form"
-      hx-post="/ui/workflow/{{ workflow_uuid }}/save"
-      hx-target="#tab-content"
-      hx-swap="innerHTML">
+<div id="design-form">
 
   {# Section 0: Meta #}
   <div class="section">
@@ -85,7 +82,11 @@
   </div>
 
   <div class="action-bar">
-    <button type="submit" class="btn btn-primary">Save{% if dirty %} *{% endif %}</button>
+    <button type="button" class="btn btn-primary"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/save"
+            hx-target="#tab-content"
+            hx-swap="innerHTML"
+            hx-include="#design-form">Save{% if dirty %} *{% endif %}</button>
     <button type="button" class="btn"
             hx-post="/ui/workflow/{{ workflow_uuid }}/design/discard"
             hx-target="#tab-content" hx-swap="innerHTML">Revert Changes</button>
@@ -95,4 +96,4 @@
             hx-target="#right-pane" hx-swap="innerHTML">Delete Workflow</button>
   </div>
 
-</form>
+</div>
