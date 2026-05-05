@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from functools import partial
+import os
 import shlex
 
 from pipeline_backend import *
@@ -143,12 +144,18 @@ async def scp_download_file(instance: Instance, serverInfo: Dictionary, remotepa
     async with open_ssh_pipe(instance, serverInfo) as connection:
         if not connection:
             return CommandReturnStatus.Error
+        instance.log_line(f"Downloading '{remotepath.value}'\nto '{localpath.value}'")
+        starting_time = datetime.now()
         await asyncssh.scp(
             (connection, shlex.quote(remotepath.value)),
             localpath.value,
             recurse=False,
             progress_handler=partial(file_download_progress_callback,instance,dict()),
         )
+        ending_time = datetime.now()
+        filesize = os.path.getsize(localpath.value)
+        bytespersecond = filesize // (ending_time - starting_time).total_seconds()
+        instance.log_line(f"    {human_readable_filesize(bytespersecond)}/s")
     return CommandReturnStatus.Success
 
 
