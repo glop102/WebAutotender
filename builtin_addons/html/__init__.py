@@ -528,15 +528,9 @@ async def add_workflow(request: Request):
     wf.uuid = str(uuid4())
     wf.name = "Untitled"
     global_workflows[wf.uuid] = wf
-    workflow_drafts[wf.uuid] = deepcopy(wf)
     await eventsCallbackManager.signal_event(EventCallbacksManager.Events.RefreshWorkflows)
     pipelineManager.save_state()
-    ctx = _design_context(wf.uuid, workflow_drafts[wf.uuid])
-    content = templates.get_template("workflow_design.html").render(**ctx)
-    tab_bar = templates.get_template("partials/tab_bar.html").render(
-        workflow_uuid=wf.uuid, active_tab="design", dirty=False
-    )
-    return HTMLResponse(tab_bar + content)
+    return HTMLResponse("")
 
 
 # ---------------------------------------------------------------------------
@@ -665,6 +659,116 @@ async def step_arg_value(uuid: str, request: Request):
             pass
         step.variables[arg_name] = var
     return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
+# Procedure step arg: structured CRUD  (proc_name + step_idx in URL)
+# ---------------------------------------------------------------------------
+
+def _get_step_from_draft(draft, proc_name: str, step_idx: int):
+    if not draft or proc_name not in draft.procedures:
+        return None
+    steps = draft.procedures[proc_name]
+    return steps[step_idx] if step_idx < len(steps) else None
+
+
+def _ensure_step_var(step, var_name: str) -> None:
+    """If var_name is not yet in step.variables, initialise it from the command signature."""
+    if var_name in step.variables:
+        return
+    for a_name, a_types in Commands.get_command_input_variables(step.command_name):
+        if a_name == var_name:
+            cls = a_types if not isinstance(a_types, tuple) else a_types[0]
+            if isinstance(cls, str):
+                try:
+                    cls = WorkVariable.class_from_name(cls)
+                except TypeError:
+                    return
+            step.variables[var_name] = cls()
+            return
+
+
+@router.post("/workflow/{uuid}/procedure/{proc_name}/{step_idx}/arg/value")
+async def step_arg_value_structured(uuid: str, proc_name: str, step_idx: int, request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    raw_val = form.get("value", "")
+    draft = _get_or_create_workflow_draft(uuid)
+    step = _get_step_from_draft(draft, proc_name, step_idx)
+    if not step:
+        return Response(status_code=204)
+    _ensure_step_var(step, var_name)
+    _vars_value(step.variables, var_name, path, raw_val)
+    return Response(status_code=204)
+
+
+@router.post("/workflow/{uuid}/procedure/{proc_name}/{step_idx}/arg/type", response_class=HTMLResponse)
+async def step_arg_type(uuid: str, proc_name: str, step_idx: int, request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    new_type_name = form.get("new_type", "")
+    draft = _get_or_create_workflow_draft(uuid)
+    step = _get_step_from_draft(draft, proc_name, step_idx)
+    if not step:
+        return Response(status_code=204)
+    if var_name not in step.variables:
+        try:
+            step.variables[var_name] = WorkVariable.class_from_name(new_type_name)()
+        except TypeError:
+            pass
+    else:
+        _vars_type(step.variables, var_name, path, new_type_name)
+    ctx = _design_context(uuid, draft)
+    return HTMLResponse(_render_step_row(uuid, draft, proc_name, step_idx, ctx))
+
+
+@router.post("/workflow/{uuid}/procedure/{proc_name}/{step_idx}/arg/entry/add", response_class=HTMLResponse)
+async def step_arg_entry_add(uuid: str, proc_name: str, step_idx: int, request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    key = form.get("key", None)
+    draft = _get_or_create_workflow_draft(uuid)
+    step = _get_step_from_draft(draft, proc_name, step_idx)
+    if not step:
+        return Response(status_code=204)
+    _ensure_step_var(step, var_name)
+    _vars_entry_add(step.variables, var_name, path, key)
+    ctx = _design_context(uuid, draft)
+    return HTMLResponse(_render_step_row(uuid, draft, proc_name, step_idx, ctx))
+
+
+@router.post("/workflow/{uuid}/procedure/{proc_name}/{step_idx}/arg/entry/delete", response_class=HTMLResponse)
+async def step_arg_entry_delete(uuid: str, proc_name: str, step_idx: int, request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    key = form.get("key", None)
+    idx_raw = form.get("idx", None)
+    draft = _get_or_create_workflow_draft(uuid)
+    step = _get_step_from_draft(draft, proc_name, step_idx)
+    if not step:
+        return Response(status_code=204)
+    _vars_entry_delete(step.variables, var_name, path, idx_raw, key)
+    ctx = _design_context(uuid, draft)
+    return HTMLResponse(_render_step_row(uuid, draft, proc_name, step_idx, ctx))
+
+
+@router.post("/workflow/{uuid}/procedure/{proc_name}/{step_idx}/arg/entry/reorder", response_class=HTMLResponse)
+async def step_arg_entry_reorder(uuid: str, proc_name: str, step_idx: int, request: Request):
+    form = await request.form()
+    var_name = form.get("var_name", "")
+    path = json.loads(form.get("path") or "[]")
+    order = json.loads(form.get("order", "[]"))
+    draft = _get_or_create_workflow_draft(uuid)
+    step = _get_step_from_draft(draft, proc_name, step_idx)
+    if not step:
+        return Response(status_code=204)
+    _vars_entry_reorder(step.variables, var_name, path, order)
+    ctx = _design_context(uuid, draft)
+    return HTMLResponse(_render_step_row(uuid, draft, proc_name, step_idx, ctx))
 
 
 # ---------------------------------------------------------------------------
@@ -1035,17 +1139,7 @@ async def step_command(request: Request, uuid: str):
     if 0 <= idx < len(steps):
         steps[idx] = ProcessingStep(command_name)
     ctx = _design_context(uuid, draft)
-    # Re-render just this one step row
-    step = steps[idx]
-    step_html = templates.get_template("partials/step_row.html").render(
-        step=step,
-        step_idx=idx,
-        workflow_uuid=uuid,
-        proc_name=proc_name,
-        command_groups=ctx["command_groups"],
-        command_args=ctx["command_args"],
-    )
-    return HTMLResponse(step_html)
+    return HTMLResponse(_render_step_row(uuid, draft, proc_name, idx, ctx))
 
 
 @router.post("/workflow/{uuid}/procedure/steps/reorder", response_class=HTMLResponse)
@@ -1206,5 +1300,19 @@ def _render_procedure_section(uuid: str, draft: Workflow, proc_name: str, ctx: d
         workflow_uuid=uuid,
         command_groups=ctx["command_groups"],
         command_args=ctx["command_args"],
+        var_types=ctx["var_types"],
         is_start=(proc_name == "start"),
+    )
+
+
+def _render_step_row(uuid: str, draft: Workflow, proc_name: str, step_idx: int, ctx: dict) -> str:
+    step = draft.procedures[proc_name][step_idx]
+    return templates.get_template("partials/step_row.html").render(
+        step=step,
+        step_idx=step_idx,
+        workflow_uuid=uuid,
+        proc_name=proc_name,
+        command_groups=ctx["command_groups"],
+        command_args=ctx["command_args"],
+        var_types=ctx["var_types"],
     )
