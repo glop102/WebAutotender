@@ -29,7 +29,7 @@
 <div class="arg-row{% if _is_complex %} arg-row-complex{% endif %}">
   <div class="arg-row-header">
     <span class="arg-label">{{ arg_name }}:</span>
-    <select class="var-type-select btn btn-sm"
+    <select class="var-type-select btn btn-sm" name="new_type"
             hx-post="/ui/variable/type"
             hx-target="{{ _target }}"
             hx-swap="outerHTML"
