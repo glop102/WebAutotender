@@ -6,16 +6,16 @@ except:
     # Personally I really like having the \K flag available so lets just force it to be available
     raise Exception("Unable to import regex module. This is an expanded regex support module for python. The package may be simply called python-regex in your package manager.")
 
-@Commands.register_command
+@Commands.register_command(category="Strings")
 async def str_regex_firstMatch(instance: Instance, regexPatern:String, inputString:String, outputVarname: VariableName) -> CommandReturnStatus:
     match:re.Match|None = re.search(regexPatern.value,inputString.value)
-    instance.log_line(f"Unable to find any match of {regexPatern.value} in the string {inputString.value}")
     if match is None:
+        instance.log_line(f"Unable to find any match of {regexPatern.value} in the string {inputString.value}")
         return CommandReturnStatus.Error
     instance[outputVarname] = String(match.group(0))
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="Strings")
 async def str_buildWithVars(instance: Instance, inputString:String, outputVarname: VariableName) -> CommandReturnStatus:
     """
     This is a bit of an odder one since we want to emulate the way python formatted strings work and implicitly pull in the variables that are in the formatted string but using the instance as a source.

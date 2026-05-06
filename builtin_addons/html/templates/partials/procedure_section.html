@@ -1,0 +1,67 @@
+{#
+  One procedure section (collapsible).
+  Context:
+    proc_name    : str
+    steps        : list[ProcessingStep]
+    workflow_uuid: str
+    command_groups: dict[str, list[str]]
+    command_args : dict
+    is_start     : bool
+#}
+<div class="procedure-section">
+  <div class="procedure-header">
+
+    {# View state (default) #}
+    <div class="procedure-name-view" id="proc-view-{{ proc_name }}">
+      <span class="procedure-name-span">{{ proc_name }}</span>
+      {% if not is_start %}
+      <button type="button" class="btn btn-sm"
+              onclick="document.getElementById('proc-view-{{ proc_name }}').style.display='none';
+                       document.getElementById('proc-edit-{{ proc_name }}').style.display='flex';"
+              >Rename</button>
+      <button type="button" class="btn btn-sm btn-danger"
+              hx-post="/ui/workflow/{{ workflow_uuid }}/procedure/delete"
+              hx-target="#tab-content"
+              hx-swap="innerHTML"
+              hx-vals='{"proc_name": "{{ proc_name }}"}'
+              hx-confirm="Delete procedure '{{ proc_name }}'?"
+              >Delete</button>
+      {% endif %}
+    </div>
+
+    {# Edit state (hidden by default) #}
+    <div class="procedure-name-edit" id="proc-edit-{{ proc_name }}">
+      <input type="text" id="proc-rename-input-{{ proc_name }}" value="{{ proc_name }}">
+      <button type="button" class="btn btn-sm btn-primary"
+              hx-post="/ui/workflow/{{ workflow_uuid }}/procedure/rename"
+              hx-target="#tab-content"
+              hx-swap="innerHTML"
+              hx-include="#proc-rename-input-{{ proc_name }}"
+              hx-vals='{"proc_name": "{{ proc_name }}", "new_name": ""}'
+              onclick="this.setAttribute('hx-vals', JSON.stringify({proc_name:'{{ proc_name }}', new_name: document.getElementById('proc-rename-input-{{ proc_name }}').value})); htmx.process(this);"
+              >Save</button>
+      <button type="button" class="btn btn-sm"
+              onclick="document.getElementById('proc-edit-{{ proc_name }}').style.display='none';
+                       document.getElementById('proc-view-{{ proc_name }}').style.display='flex';"
+              >Cancel</button>
+    </div>
+
+  </div>
+
+  <div class="step-list"
+       data-proc-name="{{ proc_name }}"
+       data-reorder-url="/ui/workflow/{{ workflow_uuid }}/procedure/steps/reorder">
+    {% for step_idx, step in steps | enumerate %}
+      {% include "partials/step_row.html" %}
+    {% endfor %}
+  </div>
+
+  <div class="step-footer">
+    <button type="button" class="btn btn-sm"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/procedure/step/add"
+            hx-target="closest .procedure-section"
+            hx-swap="outerHTML"
+            hx-vals='{"proc_name": "{{ proc_name }}"}'
+            >+ Add Step</button>
+  </div>
+</div>

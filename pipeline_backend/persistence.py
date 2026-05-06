@@ -3,6 +3,32 @@ from .instances import *
 from .variables import *
 import json
 
+# ── Secrets (separate file, not included in pipeline state) ──────────────────
+
+def save_secrets_state() -> str:
+    data = {name: v.json_savable() for name, v in global_secrets.items()}
+    return json.dumps(data, indent=4)
+
+def save_secrets_to_file(filepath: str) -> None:
+    s = save_secrets_state()
+    with open(filepath, "w") as f:
+        f.write(s)
+
+def load_secrets_state(state: str) -> None:
+    data = json.loads(state)
+    global_secrets.clear()
+    for var_name, var_data in data.items():
+        var = WorkVariable()
+        var.json_loadable(var_data)
+        global_secrets[var_name] = var
+
+def load_secrets_from_file(filepath: str) -> None:
+    try:
+        with open(filepath, "r") as f:
+            load_secrets_state(f.read())
+    except FileNotFoundError:
+        print(f"Unable to open secrets file {filepath} - skipping restoring secrets")
+
 # This is the functionality to save and restore the state of the program to/from disk.
 # global_workflows, global_instances, and global_variables are the state trackers that we care about
 

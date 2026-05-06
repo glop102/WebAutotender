@@ -1,0 +1,94 @@
+{% from "partials/variable_macros.html" import var_row %}
+{#
+  Design tab fragment.
+  Context:
+    workflow     : Workflow  (the draft)
+    workflow_uuid: str
+    var_types    : list[str]
+    command_groups: dict[str, list[str]]
+    command_args : dict
+    dirty        : bool
+#}
+
+{% set _ctx_constants = '"ctx_type": "wf_var", "ctx_uuid": "' ~ workflow_uuid ~ '", "ctx_section": "constants"' %}
+{% set _ctx_setup     = '"ctx_type": "wf_var", "ctx_uuid": "' ~ workflow_uuid ~ '", "ctx_section": "setup_variables"' %}
+
+<div id="design-form">
+
+  {# Section 0: Meta #}
+  <div class="section">
+    <div class="section-title">Meta</div>
+    <div class="var-row">
+      <label>Name</label>
+      <input type="text" name="name" value="{{ workflow.name }}" class="var-input">
+    </div>
+    <div class="var-row var-row-top">
+      <label>Notes</label>
+      <textarea name="user_notes" rows="3" class="var-input">{{ workflow.user_notes }}</textarea>
+    </div>
+    <div class="var-row">
+      <label>UUID</label>
+      <span class="var-uuid">{{ workflow_uuid }}</span>
+    </div>
+  </div>
+
+  {# Section 1: Constants #}
+  <div class="section">
+    <div class="section-title">Constants</div>
+    {% for var_name, var in workflow.constants.items() %}
+      {{ var_row(var_name, var, [], false, _ctx_constants, var_types,
+                 "#tab-content", "innerHTML",
+                 allow_rename=true, allow_delete=true, reorderable=true) }}
+    {% else %}
+      <p class="empty-state">No constants.</p>
+    {% endfor %}
+    <button type="button" class="btn btn-sm"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/design/variable/add"
+            hx-target="#tab-content" hx-swap="innerHTML"
+            hx-vals='{"section": "constants"}'>+ Add Constant</button>
+  </div>
+
+  {# Section 2: Setup Variables #}
+  <div class="section">
+    <div class="section-title">Setup Variables</div>
+    {% for var_name, var in workflow.setup_variables.items() %}
+      {{ var_row(var_name, var, [], false, _ctx_setup, var_types,
+                 "#tab-content", "innerHTML",
+                 allow_rename=true, allow_delete=true, reorderable=true) }}
+    {% else %}
+      <p class="empty-state">No setup variables.</p>
+    {% endfor %}
+    <button type="button" class="btn btn-sm"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/design/variable/add"
+            hx-target="#tab-content" hx-swap="innerHTML"
+            hx-vals='{"section": "setup_variables"}'>+ Add Setup Variable</button>
+  </div>
+
+  {# Section 3: Procedures #}
+  <div class="section">
+    <div class="section-title">Procedures</div>
+    {% for proc_name, steps in workflow.procedures.items() %}
+      {% set is_start = (proc_name == 'start') %}
+      {% include "partials/procedure_section.html" %}
+    {% endfor %}
+    <button type="button" class="btn btn-sm"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/procedure/add"
+            hx-target="#tab-content" hx-swap="innerHTML">+ Add Procedure</button>
+  </div>
+
+  <div class="action-bar">
+    <button type="button" class="btn btn-primary"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/save"
+            hx-target="#tab-content"
+            hx-swap="innerHTML"
+            hx-include="#design-form">Save{% if dirty %} *{% endif %}</button>
+    <button type="button" class="btn"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/design/discard"
+            hx-target="#tab-content" hx-swap="innerHTML">Revert Changes</button>
+    <button type="button" class="btn btn-danger"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/delete"
+            hx-confirm="Delete workflow '{{ workflow.name }}'? This cannot be undone."
+            hx-target="#right-pane" hx-swap="innerHTML">Delete Workflow</button>
+  </div>
+
+</div>

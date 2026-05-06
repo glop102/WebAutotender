@@ -1,0 +1,46 @@
+{% from "partials/variable_macros.html" import var_row %}
+{#
+  Unified variable store pane (globals, secrets, …).
+  Context:
+    vars           : dict[str, WorkVariable]
+    var_types      : list[str]
+    dirty          : bool
+    ctx_type       : str   e.g. "global" or "secret"
+    prefix         : str   e.g. "/ui/globals"
+    pane_id        : str   e.g. "globals-pane"
+    dirty_label_id : str   e.g. "globals-dirty-label"
+    title          : str
+    add_btn_label  : str
+    empty_msg      : str
+    description    : str   (optional)
+#}
+{% set _ctx = '"ctx_type": "' ~ ctx_type ~ '"' %}
+<div id="{{ pane_id }}">
+  <h2 class="pane-title">{{ title }}{% if dirty %} *{% endif %}</h2>
+  {% if description %}
+  <p class="pane-description">{{ description }}</p>
+  {% endif %}
+
+  <div class="section">
+    {% for var_name, var in vars.items() %}
+      {{ var_row(var_name, var, [], false, _ctx, var_types,
+                 "#" + pane_id, "outerHTML",
+                 allow_rename=true, allow_delete=true, reorderable=true) }}
+    {% else %}
+      <p class="empty-state">{{ empty_msg }}</p>
+    {% endfor %}
+    <button type="button" class="btn btn-sm"
+            hx-post="{{ prefix }}/variable/add"
+            hx-target="#{{ pane_id }}" hx-swap="outerHTML">{{ add_btn_label }}</button>
+  </div>
+
+  <div class="action-bar">
+    <button type="button" class="btn btn-primary"
+            hx-post="{{ prefix }}/save"
+            hx-target="#{{ pane_id }}" hx-swap="outerHTML">Save</button>
+    <button type="button" class="btn"
+            hx-post="{{ prefix }}/discard"
+            hx-target="#{{ pane_id }}" hx-swap="outerHTML">Revert Changes</button>
+  </div>
+</div>
+<span id="{{ dirty_label_id }}" hx-swap-oob="true">{{ title }}{% if dirty %} *{% endif %}</span>

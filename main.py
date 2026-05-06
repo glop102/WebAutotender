@@ -4,19 +4,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pipeline_backend import *
 import pipeline_backend.fastpi_endpoints
-from time import sleep
-
-# TODO
-# web frontend - htmx
-# - htmlapi endpoints for doing the same stuff as the json ones but without me needing to the templating in native javascript
-#   - still need to figure out how the submission process works for htmx
-# - websocket with Manager callbacks to let the UI know when to refresh certain elements
-
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
     print("Starting Pipeline")
     pipelineManager.restore_state()
+    pipelineManager.restore_secrets()
     await pipelineManager.start()
 
     app.include_router(

@@ -1,0 +1,46 @@
+{#
+  One procedure step row.
+  Context:
+    step          : ProcessingStep
+    step_idx      : int
+    workflow_uuid : str
+    proc_name     : str
+    command_groups: dict[str, list[str]]  — category → [command_names]
+    command_args  : dict[str, list[(arg_name, arg_types_str)]]
+#}
+<div class="step-row" id="step-{{ proc_name }}-{{ step_idx }}" data-step-idx="{{ step_idx }}">
+  <div class="step-row-header">
+    <span class="step-drag-handle" title="Drag to reorder">⠿</span>
+
+    <select name="command_name"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/procedure/step/command"
+            hx-target="closest .step-row"
+            hx-swap="outerHTML"
+            hx-include="closest .step-row">
+      {% for category, cmds in command_groups.items() %}
+      <optgroup label="{{ category }}">
+        {% for cmd in cmds %}
+        <option value="{{ cmd }}" {% if cmd == step.command_name %}selected{% endif %}>{{ cmd }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endfor %}
+    </select>
+
+    <input type="hidden" name="proc_name" value="{{ proc_name }}">
+    <input type="hidden" name="idx" value="{{ step_idx }}">
+
+    <button type="button" class="btn btn-sm btn-danger"
+            hx-post="/ui/workflow/{{ workflow_uuid }}/procedure/step/delete"
+            hx-target="closest .procedure-section"
+            hx-swap="outerHTML"
+            hx-vals='{"proc_name": "{{ proc_name }}", "idx": {{ step_idx }}}'>Delete</button>
+  </div>
+
+  <div class="step-args">
+    {% set args = command_args.get(step.command_name, []) %}
+    {% for arg_name, arg_types in args %}
+      {% set arg_var = step.variables.get(arg_name, none) %}
+      {% include "partials/arg_row.html" %}
+    {% endfor %}
+  </div>
+</div>

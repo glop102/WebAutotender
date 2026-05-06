@@ -1,0 +1,40 @@
+{#
+  Spawn instance modal overlay.
+  Context:
+    workflow  : Workflow
+    var_types : list[str]
+#}
+<div id="spawn-modal">
+  <div class="modal-box">
+    <h3>Spawn Instance — {{ workflow.name or '(Untitled)' }}</h3>
+    <form id="spawn-form"
+          hx-post="/ui/workflow/{{ workflow.uuid }}/instances/spawn"
+          hx-target="#instances-{{ workflow.uuid }}"
+          hx-swap="outerHTML">
+
+      {% if workflow.setup_variables %}
+        {% for var_name, var in workflow.setup_variables.items() %}
+        {# Always offer VariableName as an alternative — it is transparently dereferenced at runtime #}
+        {% set _types = [var.typename] if var.typename == 'VariableName' else [var.typename, 'VariableName'] %}
+        <div class="var-row">
+          <span class="var-name">{{ var_name }}</span>
+          <select class="var-type-select btn btn-sm" name="argtype__{{ var_name }}">
+            {% for t in _types %}
+            <option value="{{ t }}" {% if t == var.typename %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" class="var-input" name="arg__{{ var_name }}" value="{{ var.value }}">
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="empty-state">No setup variables — instance will use workflow defaults.</p>
+      {% endif %}
+
+      <div class="modal-actions">
+        <button type="button" class="btn"
+                onclick="document.getElementById('spawn-modal').remove()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Confirm Spawn</button>
+      </div>
+    </form>
+  </div>
+</div>

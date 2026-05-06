@@ -60,6 +60,8 @@ class Instance:
             return deepcopy(w.setup_variables[var_name])
         if var_name in variables.global_variables:
             return deepcopy(variables.global_variables[var_name])
+        if var_name in variables.global_secrets:
+            return deepcopy(variables.global_secrets[var_name])
         raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_uuid}/{self.uuid}")
 
     def __setitem__(self, var_name: str|variables.VariableName, value: variables.WorkVariable) -> None:

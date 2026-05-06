@@ -6,7 +6,7 @@ from pipeline_backend.commands_builtin import yield_for_seconds
 
 # RSS Spec https://www.rssboard.org/rss-specification#requiredChannelElements
 
-@Commands.register_command
+@Commands.register_command(category="RSS Feed")
 def rssfeed_get_entries(instance:Instance,feed_url:URL,output_list_name:VariableName) -> CommandReturnStatus:
     # gets all the items in an rssfeed at the given url and saves it to a variable, the first item being the oldest, the last being the newest
 
@@ -50,7 +50,7 @@ def rssfeed_get_entries(instance:Instance,feed_url:URL,output_list_name:Variable
     instance[output_list_name] = entries
     return CommandReturnStatus.Success
 
-@Commands.register_command
+@Commands.register_command(category="RSS Feed")
 def rssfeed_trim_entries_with_checkpoint(instance:Instance,entry_list_name:VariableName,checkpoint_id:VariableName) -> CommandReturnStatus:
     # trims off all items that are before or at the checkpoint_id and then updates the checkpoint id to the newest for subsequent calls
     # Remember that all entries are Dictionary() objects

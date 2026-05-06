@@ -11,15 +11,23 @@ from .event_callbacks import *
 class PipelineManager:
     delayedTask : Handle | TimerHandle | None
     __backing_store_filename : str # the filename used to restore the state of the pipeline to let us save back to
+    __secrets_filename : str
     def __init__(self) -> None:
         super().__init__()
         self.delayedTask = None
         self.__backing_store_filename = ""
+        self.__secrets_filename = ""
     def restore_state(self,filename:str="pipeline_state.json"):
         self.__backing_store_filename = filename
         load_pipeline_global_state_from_file(filename)
     def save_state(self, filename: str = "pipeline_state.json"):
         save_pipeline_global_state_to_file(filename)
+    def restore_secrets(self, filename: str = "secrets.json"):
+        self.__secrets_filename = filename
+        load_secrets_from_file(filename)
+    def save_secrets(self, filename: str = "secrets.json"):
+        target = self.__secrets_filename if self.__secrets_filename else filename
+        save_secrets_to_file(target)
 
     async def run_due_instances(self)->None:
         """Runs all the instances that are due to be run until they yield."""

@@ -112,7 +112,7 @@ async def unpause_workflow(uuid: str):
     )
 
 @workflow_router.post("/workflows/{uuid}/toggle_pause", status_code=status.HTTP_204_NO_CONTENT)
-async def pause_workflow(uuid: str):
+async def toggle_pause_workflow(uuid: str):
     if not uuid in global_workflows:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     w = global_workflows[uuid]

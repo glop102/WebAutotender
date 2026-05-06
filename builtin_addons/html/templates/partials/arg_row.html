@@ -1,0 +1,105 @@
+{% from "partials/variable_macros.html" import var_row %}
+{#
+  One argument row for a procedure step.
+  Context:
+    arg_name     : str
+    arg_types    : str | list[str]
+    arg_var      : WorkVariable | None
+    workflow_uuid: str
+    proc_name    : str
+    step_idx     : int
+    var_types    : list[str]
+#}
+{% set _ctx    = '"ctx_type": "step_arg", "ctx_uuid": "' ~ workflow_uuid ~ '", "ctx_proc": "' ~ proc_name ~ '", "ctx_step": ' ~ step_idx %}
+{% set _target = "#step-" ~ proc_name ~ "-" ~ step_idx %}
+
+{# Normalise to a list; append VariableName if the command didn't already declare it #}
+{% if arg_types is string %}
+  {% set _types = [arg_types] %}
+{% else %}
+  {% set _types = arg_types %}
+{% endif %}
+{% if 'VariableName' not in _types %}
+  {% set _types = _types + ['VariableName'] %}
+{% endif %}
+
+{% set _cur_type = arg_var.typename if arg_var else _types[0] %}
+{% set _is_complex = _cur_type in ('Dictionary', 'VariableList', 'VariableNameList', 'StringList') %}
+
+<div class="arg-row{% if _is_complex %} arg-row-complex{% endif %}">
+  <div class="arg-row-header">
+    <span class="arg-label">{{ arg_name }}:</span>
+    <select class="var-type-select btn btn-sm" name="new_type"
+            hx-post="/ui/variable/type"
+            hx-target="{{ _target }}"
+            hx-swap="outerHTML"
+            hx-vals='{"var_name": "{{ arg_name }}", "path": "[]", {{ _ctx }}}'
+            hx-trigger="change">
+      {% for t in _types %}
+      <option value="{{ t }}" {% if t == _cur_type %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    {% if not _is_complex %}
+    <input class="var-input" type="text" name="value" value="{{ arg_var.value if arg_var else '' }}"
+           hx-post="/ui/variable/value" hx-trigger="change" hx-swap="none"
+           hx-vals='{"var_name": "{{ arg_name }}", "path": "[]", {{ _ctx }}}'>
+    {% endif %}
+  </div>
+
+  {% if _is_complex %}
+  <div class="var-container">
+    {% if _cur_type == 'Dictionary' %}
+      {% if arg_var %}
+        {% for key, item in arg_var.value.items() %}
+          {{ var_row(arg_name, item, [key], false, _ctx, var_types,
+                     _target, "outerHTML", reorderable=true) }}
+        {% endfor %}
+      {% endif %}
+      <div class="var-row">
+        <input type="text" placeholder="new key" id="arg-dict-key-{{ arg_name }}-{{ proc_name }}-{{ step_idx }}">
+        <button type="button" class="btn btn-sm"
+                onclick="(function(){
+                  var k=document.getElementById('arg-dict-key-{{ arg_name }}-{{ proc_name }}-{{ step_idx }}').value.trim();
+                  if(!k) return;
+                  htmx.ajax('POST','/ui/variable/entry/add',{
+                    target:'{{ _target }}',
+                    swap:'outerHTML',
+                    values:Object.assign({var_name:'{{ arg_name }}',path:'[]',key:k},{ {{ _ctx }} })
+                  });
+                })()">+ Add Key</button>
+      </div>
+
+    {% elif _cur_type == 'VariableList' %}
+      {% if arg_var %}
+        {% for idx, item in arg_var.value | enumerate %}
+          {{ var_row(arg_name, item, [idx], false, _ctx, var_types,
+                     _target, "outerHTML", reorderable=true) }}
+        {% endfor %}
+      {% endif %}
+      <button type="button" class="btn btn-sm"
+              hx-post="/ui/variable/entry/add"
+              hx-target="{{ _target }}" hx-swap="outerHTML"
+              hx-vals='{"var_name": "{{ arg_name }}", "path": "[]", {{ _ctx }}}'>+ Add Entry</button>
+
+    {% elif _cur_type in ('StringList', 'VariableNameList') %}
+      {% if arg_var %}
+        {% for idx, item in arg_var.value | enumerate %}
+        <div class="var-row">
+          <input type="text" value="{{ item }}"
+                 hx-post="/ui/variable/value" hx-trigger="change" hx-swap="none"
+                 hx-vals='{"var_name": "{{ arg_name }}", "path": {{ ([idx] | tojson) | tojson }}, {{ _ctx }}}'>
+          <button type="button" class="btn btn-sm btn-danger"
+                  hx-post="/ui/variable/entry/delete"
+                  hx-target="{{ _target }}" hx-swap="outerHTML"
+                  hx-vals='{"var_name": "{{ arg_name }}", "path": "[]", "idx": {{ idx }}, {{ _ctx }}}'>×</button>
+        </div>
+        {% endfor %}
+      {% endif %}
+      <button type="button" class="btn btn-sm"
+              hx-post="/ui/variable/entry/add"
+              hx-target="{{ _target }}" hx-swap="outerHTML"
+              hx-vals='{"var_name": "{{ arg_name }}", "path": "[]", {{ _ctx }}}'>+ Add</button>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
