@@ -43,8 +43,13 @@ def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dicti
     if not workflow_uuid.value in global_workflows:
         instance.log_line(f"Error: Unable to find a Workflow with the uuid {workflow_uuid.value} to spawn an instance of.")
         return CommandReturnStatus.Error
-    #TODO Uhhhh... what do we do to pull values *out* of the source workflow? And VariableReference in the Dictionary will only point at the new workflow, so pulling values from the source instance/workflow like a show title will not work.
-    #Maybe it would be easiest to follow the workflow thought of having constants and references. The references get added to the constants before handing it to the workflow we are spawning. Obviously dereference the references.
+    #TODO VariableName values inside setup_vars are ambiguous in intent. There are three valid cases:
+    #  1. Dereference from the calling instance (e.g. pass the current value of "num_to_spawn" into the new instance)
+    #  2. Pass-through for the destination (the new workflow already has a variable by that name, let it resolve itself)
+    #  3. Global reference (valid in any context, no source instance needed)
+    # Cases 2 and 3 are currently fine as-is. Case 1 is broken — the new instance gets a VariableName that has no
+    # parent value to read. The problem is that VariableName encodes *what* to look up but not *where*, so any
+    # automatic resolution rule would silently break one of the other valid cases.
     workflow = global_workflows[workflow_uuid.value]
     workflow.spawn_instance(setup_vars.value)
     return CommandReturnStatus.Success
