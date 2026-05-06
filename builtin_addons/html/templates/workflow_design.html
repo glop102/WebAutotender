@@ -10,13 +10,8 @@
     dirty        : bool
 #}
 
-{% set _del   = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/delete" %}
-{% set _type  = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/type" %}
-{% set _val   = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/value" %}
-{% set _eadd  = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/entry/add" %}
-{% set _edel  = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/entry/delete" %}
-{% set _eren  = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/entry/reorder" %}
-{% set _ren   = "/ui/workflow/" ~ workflow_uuid ~ "/design/variable/rename" %}
+{% set _ctx_constants = '"ctx_type": "wf_var", "ctx_uuid": "' ~ workflow_uuid ~ '", "ctx_section": "constants"' %}
+{% set _ctx_setup     = '"ctx_type": "wf_var", "ctx_uuid": "' ~ workflow_uuid ~ '", "ctx_section": "setup_variables"' %}
 
 <div id="design-form">
 
@@ -41,11 +36,9 @@
   <div class="section">
     <div class="section-title">Constants</div>
     {% for var_name, var in workflow.constants.items() %}
-      {{ var_row(var_name, var, [], false,
-                 _val, _del, _type, _eadd, _edel,
-                 var_types, "constants",
-                 "#tab-content", "innerHTML", _ren,
-                 entry_reorder_endpoint=_eren) }}
+      {{ var_row(var_name, var, [], false, _ctx_constants, var_types,
+                 "#tab-content", "innerHTML",
+                 allow_rename=true, allow_delete=true, reorderable=true) }}
     {% else %}
       <p class="empty-state">No constants.</p>
     {% endfor %}
@@ -59,11 +52,9 @@
   <div class="section">
     <div class="section-title">Setup Variables</div>
     {% for var_name, var in workflow.setup_variables.items() %}
-      {{ var_row(var_name, var, [], false,
-                 _val, _del, _type, _eadd, _edel,
-                 var_types, "setup_variables",
-                 "#tab-content", "innerHTML", _ren,
-                 entry_reorder_endpoint=_eren) }}
+      {{ var_row(var_name, var, [], false, _ctx_setup, var_types,
+                 "#tab-content", "innerHTML",
+                 allow_rename=true, allow_delete=true, reorderable=true) }}
     {% else %}
       <p class="empty-state">No setup variables.</p>
     {% endfor %}

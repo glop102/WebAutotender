@@ -5,6 +5,7 @@
     vars           : dict[str, WorkVariable]
     var_types      : list[str]
     dirty          : bool
+    ctx_type       : str   e.g. "global" or "secret"
     prefix         : str   e.g. "/ui/globals"
     pane_id        : str   e.g. "globals-pane"
     dirty_label_id : str   e.g. "globals-dirty-label"
@@ -13,6 +14,7 @@
     empty_msg      : str
     description    : str   (optional)
 #}
+{% set _ctx = '"ctx_type": "' ~ ctx_type ~ '"' %}
 <div id="{{ pane_id }}">
   <h2 class="pane-title">{{ title }}{% if dirty %} *{% endif %}</h2>
   {% if description %}
@@ -21,16 +23,9 @@
 
   <div class="section">
     {% for var_name, var in vars.items() %}
-      {{ var_row(var_name, var, [], false,
-                 prefix + "/variable/value",
-                 prefix + "/variable/delete",
-                 prefix + "/variable/type",
-                 prefix + "/variable/entry/add",
-                 prefix + "/variable/entry/delete",
-                 var_types, "",
+      {{ var_row(var_name, var, [], false, _ctx, var_types,
                  "#" + pane_id, "outerHTML",
-                 prefix + "/variable/rename",
-                 entry_reorder_endpoint=prefix + "/variable/entry/reorder") }}
+                 allow_rename=true, allow_delete=true, reorderable=true) }}
     {% else %}
       <p class="empty-state">{{ empty_msg }}</p>
     {% endfor %}

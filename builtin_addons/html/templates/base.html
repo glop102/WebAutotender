@@ -197,7 +197,7 @@ function commitRename(el) {
     const newName = input.value.trim();
     if (!newName || newName === oldName) { cancelRename(el); return; }
     const vals = { old_name: oldName, new_name: newName };
-    if (label.dataset.section) vals.section = label.dataset.section;
+    if (label.dataset.ctx) Object.assign(vals, JSON.parse(label.dataset.ctx));
     htmx.ajax('POST', label.dataset.renameEp, {
         target: label.dataset.target,
         swap: label.dataset.swap,
@@ -279,12 +279,11 @@ function initSortable() {
                 htmx.ajax('POST', url, {
                     target: evt.from.dataset.target,
                     swap: evt.from.dataset.swap,
-                    values: {
+                    values: Object.assign({
                         var_name: evt.from.dataset.varName,
                         path: evt.from.dataset.path,
                         order: JSON.stringify(order),
-                        section: evt.from.dataset.section || ''
-                    }
+                    }, JSON.parse(evt.from.dataset.ctx || '{}'))
                 });
             }
         });

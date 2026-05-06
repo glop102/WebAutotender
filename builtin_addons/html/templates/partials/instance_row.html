@@ -37,7 +37,7 @@
     <details id="instance-vars-{{ inst.uuid }}" class="instance-vars">
       <summary class="section-title">Variables ({{ inst.variables | length }})</summary>
       {% for vname, var in inst.variables.items() %}
-        {{ var_row(vname, var, [], true, "", "", "", "", "", var_types) }}
+        {{ var_row(vname, var, [], true, "", var_types) }}
       {% endfor %}
     </details>
     {% endif %}

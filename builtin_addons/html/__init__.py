@@ -68,6 +68,7 @@ class VariableStore:
     def __init__(
         self,
         live: dict,
+        ctx_type: str,
         prefix: str,
         pane_id: str,
         dirty_label_id: str,
@@ -79,6 +80,7 @@ class VariableStore:
         description: str = "",
     ):
         self.live = live
+        self.ctx_type = ctx_type
         self.prefix = prefix
         self.pane_id = pane_id
         self.dirty_label_id = dirty_label_id
@@ -113,27 +115,33 @@ class VariableStore:
     def discard(self) -> None:
         self._draft = deepcopy(self.live)
 
+    def _ctx(self) -> dict:
+        return {
+            "vars": self.draft,
+            "var_types": _var_type_names(),
+            "dirty": self.is_dirty(),
+            "ctx_type": self.ctx_type,
+            "prefix": self.prefix,
+            "pane_id": self.pane_id,
+            "dirty_label_id": self.dirty_label_id,
+            "title": self.title,
+            "add_btn_label": self.add_btn_label,
+            "empty_msg": self.empty_msg,
+            "description": self.description,
+        }
+
     def render(self, request: Request):
         return templates.TemplateResponse(
-            "variable_store_pane.html",
-            {
-                "request": request,
-                "vars": self.draft,
-                "var_types": _var_type_names(),
-                "dirty": self.is_dirty(),
-                "prefix": self.prefix,
-                "pane_id": self.pane_id,
-                "dirty_label_id": self.dirty_label_id,
-                "title": self.title,
-                "add_btn_label": self.add_btn_label,
-                "empty_msg": self.empty_msg,
-                "description": self.description,
-            },
+            "variable_store_pane.html", {"request": request, **self._ctx()}
         )
+
+    def render_html(self) -> str:
+        return templates.get_template("variable_store_pane.html").render(**self._ctx())
 
 
 globals_store = VariableStore(
     live=global_variables,
+    ctx_type="global",
     prefix="/ui/globals",
     pane_id="globals-pane",
     dirty_label_id="globals-dirty-label",
@@ -146,6 +154,7 @@ globals_store = VariableStore(
 
 secrets_store = VariableStore(
     live=global_secrets,
+    ctx_type="secret",
     prefix="/ui/secrets",
     pane_id="secrets-pane",
     dirty_label_id="secrets-dirty-label",
@@ -580,89 +589,7 @@ async def toggle_workflow_pause(uuid: str):
 
 
 # ---------------------------------------------------------------------------
-# Design variable: update value (auto-persist on change)
-# ---------------------------------------------------------------------------
-
-@router.post("/workflow/{uuid}/design/variable/value")
-async def design_var_value(uuid: str, request: Request):
-    form = await request.form()
-    draft = _get_or_create_workflow_draft(uuid)
-    if not draft:
-        return Response(status_code=404)
-    _vars_value(
-        _section_vars(draft, form.get("section", "")),
-        form.get("var_name", ""),
-        json.loads(form.get("path") or "[]"),
-        form.get("value", ""),
-    )
-    return Response(status_code=204)
-
-
-# ---------------------------------------------------------------------------
-# Globals/Secrets variable: update value (auto-persist on change)
-# ---------------------------------------------------------------------------
-
-@router.post("/globals/variable/value")
-async def globals_var_value(request: Request):
-    form = await request.form()
-    _vars_value(globals_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("value", ""))
-    return Response(status_code=204)
-
-
-@router.post("/secrets/variable/value")
-async def secrets_var_value(request: Request):
-    form = await request.form()
-    _vars_value(secrets_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("value", ""))
-    return Response(status_code=204)
-
-
-# ---------------------------------------------------------------------------
-# Procedure step arg: update value (auto-persist on change)
-# ---------------------------------------------------------------------------
-
-@router.post("/workflow/{uuid}/procedure/step/arg/value")
-async def step_arg_value(uuid: str, request: Request):
-    form = await request.form()
-    proc_name = form.get("proc_name", "")
-    idx       = int(form.get("idx", 0))
-    arg_name  = form.get("arg_name", "")
-    raw_val   = form.get("value", "")
-    argtype   = form.get("argtype", None)  # set for union-type args
-    draft = _get_or_create_workflow_draft(uuid)
-    if not draft or proc_name not in draft.procedures:
-        return Response(status_code=204)
-    steps = draft.procedures[proc_name]
-    if idx >= len(steps):
-        return Response(status_code=204)
-    step = steps[idx]
-    if argtype:
-        try:
-            cls = WorkVariable.class_from_name(argtype)
-        except TypeError:
-            cls = None
-    else:
-        # Infer from existing variable or command signature
-        existing = step.variables.get(arg_name)
-        cls = existing.__class__ if existing else None
-        if cls is None:
-            args = Commands.get_command_input_variables(step.command_name)
-            for a_name, a_types in args:
-                if a_name == arg_name:
-                    cls = a_types if not isinstance(a_types, tuple) else a_types[0]
-                    break
-    if cls:
-        var = cls()
-        var.value = raw_val
-        try:
-            var.normalize()
-        except Exception:
-            pass
-        step.variables[arg_name] = var
-    return Response(status_code=204)
-
-
-# ---------------------------------------------------------------------------
-# Procedure step arg: structured CRUD  (proc_name + step_idx in URL)
+# Helpers: step variable access + initialisation
 # ---------------------------------------------------------------------------
 
 def _get_step_from_draft(draft, proc_name: str, step_idx: int):
@@ -673,7 +600,7 @@ def _get_step_from_draft(draft, proc_name: str, step_idx: int):
 
 
 def _ensure_step_var(step, var_name: str) -> None:
-    """If var_name is not yet in step.variables, initialise it from the command signature."""
+    """Initialise var_name in step.variables from the command signature if absent."""
     if var_name in step.variables:
         return
     for a_name, a_types in Commands.get_command_input_variables(step.command_name):
@@ -688,87 +615,163 @@ def _ensure_step_var(step, var_name: str) -> None:
             return
 
 
-@router.post("/workflow/{uuid}/procedure/{proc_name}/{step_idx}/arg/value")
-async def step_arg_value_structured(uuid: str, proc_name: str, step_idx: int, request: Request):
+# ---------------------------------------------------------------------------
+# Context resolver: maps ctx_type → (vars_dict, render_fn, ensure_fn)
+# ---------------------------------------------------------------------------
+
+def _ctx_resolve(form):
+    """
+    Decode the ctx_type/ctx_* fields submitted by every var_row request and
+    return (vars_dict, render_fn, ensure_fn) or None on failure.
+      vars_dict  – the dict[str, WorkVariable] to mutate
+      render_fn  – callable() → HTML string for the structural fragment
+      ensure_fn  – callable(var_name) → ensures the variable exists before mutation
+    """
+    ctx_type = form.get("ctx_type", "")
+
+    if ctx_type == "wf_var":
+        uuid = form.get("ctx_uuid", "")
+        section = form.get("ctx_section", "")
+        draft = _get_or_create_workflow_draft(uuid)
+        if not draft:
+            return None
+        try:
+            vars_dict = _section_vars(draft, section)
+        except ValueError:
+            return None
+        def render():
+            ctx = _design_context(uuid, draft)
+            return templates.get_template("workflow_design.html").render(**ctx)
+        def ensure(var_name): pass
+        return vars_dict, render, ensure
+
+    elif ctx_type == "step_arg":
+        uuid = form.get("ctx_uuid", "")
+        proc_name = form.get("ctx_proc", "")
+        step_idx = int(form.get("ctx_step", 0))
+        draft = _get_or_create_workflow_draft(uuid)
+        step = _get_step_from_draft(draft, proc_name, step_idx)
+        if not step:
+            return None
+        def render():
+            ctx = _design_context(uuid, draft)
+            return _render_step_row(uuid, draft, proc_name, step_idx, ctx)
+        def ensure(var_name):
+            _ensure_step_var(step, var_name)
+        return step.variables, render, ensure
+
+    elif ctx_type == "global":
+        def render(): return globals_store.render_html()
+        def ensure(var_name): pass
+        return globals_store.draft, render, ensure
+
+    elif ctx_type == "secret":
+        def render(): return secrets_store.render_html()
+        def ensure(var_name): pass
+        return secrets_store.draft, render, ensure
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Unified variable mutation endpoints (all var_row operations)
+# ---------------------------------------------------------------------------
+
+@router.post("/variable/value")
+async def variable_value(request: Request):
     form = await request.form()
+    result = _ctx_resolve(form)
+    if not result:
+        return Response(status_code=204)
+    vars_dict, _, ensure = result
     var_name = form.get("var_name", "")
     path = json.loads(form.get("path") or "[]")
-    raw_val = form.get("value", "")
-    draft = _get_or_create_workflow_draft(uuid)
-    step = _get_step_from_draft(draft, proc_name, step_idx)
-    if not step:
-        return Response(status_code=204)
-    _ensure_step_var(step, var_name)
-    _vars_value(step.variables, var_name, path, raw_val)
+    ensure(var_name)
+    _vars_value(vars_dict, var_name, path, form.get("value", ""))
     return Response(status_code=204)
 
 
-@router.post("/workflow/{uuid}/procedure/{proc_name}/{step_idx}/arg/type", response_class=HTMLResponse)
-async def step_arg_type(uuid: str, proc_name: str, step_idx: int, request: Request):
+@router.post("/variable/type", response_class=HTMLResponse)
+async def variable_type(request: Request):
     form = await request.form()
+    result = _ctx_resolve(form)
+    if not result:
+        return Response(status_code=204)
+    vars_dict, render, ensure = result
     var_name = form.get("var_name", "")
     path = json.loads(form.get("path") or "[]")
     new_type_name = form.get("new_type", "")
-    draft = _get_or_create_workflow_draft(uuid)
-    step = _get_step_from_draft(draft, proc_name, step_idx)
-    if not step:
-        return Response(status_code=204)
-    if var_name not in step.variables:
+    ensure(var_name)
+    if var_name not in vars_dict and not path:
         try:
-            step.variables[var_name] = WorkVariable.class_from_name(new_type_name)()
+            vars_dict[var_name] = WorkVariable.class_from_name(new_type_name)()
         except TypeError:
             pass
     else:
-        _vars_type(step.variables, var_name, path, new_type_name)
-    ctx = _design_context(uuid, draft)
-    return HTMLResponse(_render_step_row(uuid, draft, proc_name, step_idx, ctx))
+        _vars_type(vars_dict, var_name, path, new_type_name)
+    return HTMLResponse(render())
 
 
-@router.post("/workflow/{uuid}/procedure/{proc_name}/{step_idx}/arg/entry/add", response_class=HTMLResponse)
-async def step_arg_entry_add(uuid: str, proc_name: str, step_idx: int, request: Request):
+@router.post("/variable/delete", response_class=HTMLResponse)
+async def variable_delete(request: Request):
     form = await request.form()
+    result = _ctx_resolve(form)
+    if not result:
+        return Response(status_code=204)
+    vars_dict, render, _ = result
+    _vars_delete(vars_dict, form.get("var_name", ""))
+    return HTMLResponse(render())
+
+
+@router.post("/variable/rename", response_class=HTMLResponse)
+async def variable_rename(request: Request):
+    form = await request.form()
+    result = _ctx_resolve(form)
+    if not result:
+        return Response(status_code=204)
+    vars_dict, render, _ = result
+    _vars_rename(vars_dict, form.get("old_name", ""), (form.get("new_name") or "").strip())
+    return HTMLResponse(render())
+
+
+@router.post("/variable/entry/add", response_class=HTMLResponse)
+async def variable_entry_add(request: Request):
+    form = await request.form()
+    result = _ctx_resolve(form)
+    if not result:
+        return Response(status_code=204)
+    vars_dict, render, ensure = result
     var_name = form.get("var_name", "")
     path = json.loads(form.get("path") or "[]")
-    key = form.get("key", None)
-    draft = _get_or_create_workflow_draft(uuid)
-    step = _get_step_from_draft(draft, proc_name, step_idx)
-    if not step:
-        return Response(status_code=204)
-    _ensure_step_var(step, var_name)
-    _vars_entry_add(step.variables, var_name, path, key)
-    ctx = _design_context(uuid, draft)
-    return HTMLResponse(_render_step_row(uuid, draft, proc_name, step_idx, ctx))
+    ensure(var_name)
+    _vars_entry_add(vars_dict, var_name, path, form.get("key", None))
+    return HTMLResponse(render())
 
 
-@router.post("/workflow/{uuid}/procedure/{proc_name}/{step_idx}/arg/entry/delete", response_class=HTMLResponse)
-async def step_arg_entry_delete(uuid: str, proc_name: str, step_idx: int, request: Request):
+@router.post("/variable/entry/delete", response_class=HTMLResponse)
+async def variable_entry_delete(request: Request):
     form = await request.form()
+    result = _ctx_resolve(form)
+    if not result:
+        return Response(status_code=204)
+    vars_dict, render, _ = result
     var_name = form.get("var_name", "")
     path = json.loads(form.get("path") or "[]")
-    key = form.get("key", None)
-    idx_raw = form.get("idx", None)
-    draft = _get_or_create_workflow_draft(uuid)
-    step = _get_step_from_draft(draft, proc_name, step_idx)
-    if not step:
-        return Response(status_code=204)
-    _vars_entry_delete(step.variables, var_name, path, idx_raw, key)
-    ctx = _design_context(uuid, draft)
-    return HTMLResponse(_render_step_row(uuid, draft, proc_name, step_idx, ctx))
+    _vars_entry_delete(vars_dict, var_name, path, form.get("idx", None), form.get("key", None))
+    return HTMLResponse(render())
 
 
-@router.post("/workflow/{uuid}/procedure/{proc_name}/{step_idx}/arg/entry/reorder", response_class=HTMLResponse)
-async def step_arg_entry_reorder(uuid: str, proc_name: str, step_idx: int, request: Request):
+@router.post("/variable/entry/reorder", response_class=HTMLResponse)
+async def variable_entry_reorder(request: Request):
     form = await request.form()
+    result = _ctx_resolve(form)
+    if not result:
+        return Response(status_code=204)
+    vars_dict, render, _ = result
     var_name = form.get("var_name", "")
     path = json.loads(form.get("path") or "[]")
-    order = json.loads(form.get("order", "[]"))
-    draft = _get_or_create_workflow_draft(uuid)
-    step = _get_step_from_draft(draft, proc_name, step_idx)
-    if not step:
-        return Response(status_code=204)
-    _vars_entry_reorder(step.variables, var_name, path, order)
-    ctx = _design_context(uuid, draft)
-    return HTMLResponse(_render_step_row(uuid, draft, proc_name, step_idx, ctx))
+    _vars_entry_reorder(vars_dict, var_name, path, json.loads(form.get("order", "[]")))
+    return HTMLResponse(render())
 
 
 # ---------------------------------------------------------------------------
@@ -936,98 +939,6 @@ def design_var_add(request: Request, uuid: str, section: str = Form(...)):
     return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
 
-@router.post("/workflow/{uuid}/design/variable/rename", response_class=HTMLResponse)
-async def design_var_rename(request: Request, uuid: str):
-    form = await request.form()
-    draft = _get_or_create_workflow_draft(uuid)
-    if not draft:
-        return HTMLResponse("Not found", status_code=404)
-    _vars_rename(
-        _section_vars(draft, form.get("section", "")),
-        form.get("old_name", ""),
-        (form.get("new_name") or "").strip(),
-    )
-    ctx = _design_context(uuid, draft)
-    return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
-
-
-@router.post("/workflow/{uuid}/design/variable/delete", response_class=HTMLResponse)
-async def design_var_delete(request: Request, uuid: str):
-    form = await request.form()
-    draft = _get_or_create_workflow_draft(uuid)
-    if not draft:
-        return HTMLResponse("Not found", status_code=404)
-    _vars_delete(_section_vars(draft, form.get("section", "")), form.get("var_name", ""))
-    ctx = _design_context(uuid, draft)
-    return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
-
-
-@router.post("/workflow/{uuid}/design/variable/type", response_class=HTMLResponse)
-async def design_var_type(request: Request, uuid: str):
-    form = await request.form()
-    draft = _get_or_create_workflow_draft(uuid)
-    if not draft:
-        return HTMLResponse("Not found", status_code=404)
-    ok = _vars_type(
-        _section_vars(draft, form.get("section", "")),
-        form.get("var_name", ""),
-        json.loads(form.get("path") or "[]"),
-        form.get("new_type", ""),
-    )
-    ctx = _design_context(uuid, draft)
-    response = templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
-    if not ok:
-        response.headers["HX-Trigger"] = "toast"
-    return response
-
-
-@router.post("/workflow/{uuid}/design/variable/entry/add", response_class=HTMLResponse)
-async def design_var_entry_add(request: Request, uuid: str):
-    form = await request.form()
-    draft = _get_or_create_workflow_draft(uuid)
-    if not draft:
-        return HTMLResponse("Not found", status_code=404)
-    _vars_entry_add(
-        _section_vars(draft, form.get("section", "")),
-        form.get("var_name", ""),
-        json.loads(form.get("path") or "[]"),
-        form.get("key", None),
-    )
-    ctx = _design_context(uuid, draft)
-    return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
-
-
-@router.post("/workflow/{uuid}/design/variable/entry/delete", response_class=HTMLResponse)
-async def design_var_entry_delete(request: Request, uuid: str):
-    form = await request.form()
-    draft = _get_or_create_workflow_draft(uuid)
-    if not draft:
-        return HTMLResponse("Not found", status_code=404)
-    _vars_entry_delete(
-        _section_vars(draft, form.get("section", "")),
-        form.get("var_name", ""),
-        json.loads(form.get("path") or "[]"),
-        form.get("idx", None),
-        form.get("key", None),
-    )
-    ctx = _design_context(uuid, draft)
-    return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
-
-
-@router.post("/workflow/{uuid}/design/variable/entry/reorder", response_class=HTMLResponse)
-async def design_var_entry_reorder(request: Request, uuid: str):
-    form = await request.form()
-    draft = _get_or_create_workflow_draft(uuid)
-    if not draft:
-        return HTMLResponse("Not found", status_code=404)
-    _vars_entry_reorder(
-        _section_vars(draft, form.get("section", "")),
-        form.get("var_name", ""),
-        json.loads(form.get("path") or "[]"),
-        json.loads(form.get("order", "[]")),
-    )
-    ctx = _design_context(uuid, draft)
-    return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
 
 # ---------------------------------------------------------------------------
@@ -1182,46 +1093,6 @@ def globals_var_add(request: Request):
     return globals_store.render(request)
 
 
-@router.post("/globals/variable/delete", response_class=HTMLResponse)
-async def globals_var_delete(request: Request):
-    form = await request.form()
-    _vars_delete(globals_store.draft, form.get("var_name", ""))
-    return globals_store.render(request)
-
-
-@router.post("/globals/variable/rename", response_class=HTMLResponse)
-async def globals_var_rename(request: Request):
-    form = await request.form()
-    _vars_rename(globals_store.draft, form.get("old_name", ""), (form.get("new_name") or "").strip())
-    return globals_store.render(request)
-
-
-@router.post("/globals/variable/type", response_class=HTMLResponse)
-async def globals_var_type(request: Request):
-    form = await request.form()
-    _vars_type(globals_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("new_type", ""))
-    return globals_store.render(request)
-
-
-@router.post("/globals/variable/entry/add", response_class=HTMLResponse)
-async def globals_entry_add(request: Request):
-    form = await request.form()
-    _vars_entry_add(globals_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("key", None))
-    return globals_store.render(request)
-
-
-@router.post("/globals/variable/entry/delete", response_class=HTMLResponse)
-async def globals_entry_delete(request: Request):
-    form = await request.form()
-    _vars_entry_delete(globals_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("idx", None), form.get("key", None))
-    return globals_store.render(request)
-
-
-@router.post("/globals/variable/entry/reorder", response_class=HTMLResponse)
-async def globals_entry_reorder(request: Request):
-    form = await request.form()
-    _vars_entry_reorder(globals_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), json.loads(form.get("order", "[]")))
-    return globals_store.render(request)
 
 
 # ---------------------------------------------------------------------------
@@ -1246,46 +1117,6 @@ def secrets_var_add(request: Request):
     return secrets_store.render(request)
 
 
-@router.post("/secrets/variable/delete", response_class=HTMLResponse)
-async def secrets_var_delete(request: Request):
-    form = await request.form()
-    _vars_delete(secrets_store.draft, form.get("var_name", ""))
-    return secrets_store.render(request)
-
-
-@router.post("/secrets/variable/rename", response_class=HTMLResponse)
-async def secrets_var_rename(request: Request):
-    form = await request.form()
-    _vars_rename(secrets_store.draft, form.get("old_name", ""), (form.get("new_name") or "").strip())
-    return secrets_store.render(request)
-
-
-@router.post("/secrets/variable/type", response_class=HTMLResponse)
-async def secrets_var_type(request: Request):
-    form = await request.form()
-    _vars_type(secrets_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("new_type", ""))
-    return secrets_store.render(request)
-
-
-@router.post("/secrets/variable/entry/add", response_class=HTMLResponse)
-async def secrets_entry_add(request: Request):
-    form = await request.form()
-    _vars_entry_add(secrets_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("key", None))
-    return secrets_store.render(request)
-
-
-@router.post("/secrets/variable/entry/delete", response_class=HTMLResponse)
-async def secrets_entry_delete(request: Request):
-    form = await request.form()
-    _vars_entry_delete(secrets_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), form.get("idx", None), form.get("key", None))
-    return secrets_store.render(request)
-
-
-@router.post("/secrets/variable/entry/reorder", response_class=HTMLResponse)
-async def secrets_entry_reorder(request: Request):
-    form = await request.form()
-    _vars_entry_reorder(secrets_store.draft, form.get("var_name", ""), json.loads(form.get("path") or "[]"), json.loads(form.get("order", "[]")))
-    return secrets_store.render(request)
 
 
 # ---------------------------------------------------------------------------
