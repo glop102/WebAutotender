@@ -47,7 +47,7 @@ class ProcedureRunner:
         # Find the command - also guarentees we can find the var to go with it to build the variable list
         try:
             command:Callable = Commands.get_command_by_name(proc_step.command_name)
-        except:
+        except KeyError:
             return self.__mark_error(f"\nError: Unable to find the command {proc_step.command_name}",True)
 
         # check the vars it needs and resolve references if it is asking for a more concrete type but given a variable name, or error if given an invalid type
