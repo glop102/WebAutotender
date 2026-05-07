@@ -123,6 +123,35 @@ class TestErrorConditions:
         assert inst.state == RunStates.Error
 
 
+class TestMathEdgeCases:
+    async def test_division_by_zero_marks_error(self, workflow):
+        workflow.procedures["start"] = [
+            ProcessingStep("math_divide",
+                           first=Float(1.0),
+                           second=Float(0.0),
+                           output_variable=VariableName("r")),
+        ]
+        inst = workflow.spawn_instance()
+        runner = ProcedureRunner(inst)
+        result = await runner.run_single_step()
+        assert result != CommandReturnStatus.Success
+        assert inst.state == RunStates.Error
+
+    async def test_string_arg_to_math_add_marks_error(self, workflow):
+        # String cannot be coerced to Integer|Float, runner should reject it
+        workflow.procedures["start"] = [
+            ProcessingStep("math_add",
+                           first=String("a"),
+                           second=String("b"),
+                           output_variable=VariableName("r")),
+        ]
+        inst = workflow.spawn_instance()
+        runner = ProcedureRunner(inst)
+        result = await runner.run_single_step()
+        assert result != CommandReturnStatus.Success
+        assert inst.state == RunStates.Error
+
+
 class TestVariableResolution:
     async def test_variablename_dereferenced_from_instance(self, workflow):
         workflow.procedures["start"] = [

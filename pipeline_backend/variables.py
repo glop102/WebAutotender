@@ -271,11 +271,9 @@ class Dictionary(WorkVariable):
         if type(self.value) != dict:
             self.value = dict(self.value)
         # Make sure all keys are strings
-        for key in self.value:
-            if type(key) != str:
-                val = self.value[key]
-                self.value[str(key).strip()] = val
-                del self.value[key]
+        non_str_keys = [k for k in self.value if type(k) != str]
+        for key in non_str_keys:
+            self.value[str(key).strip()] = self.value.pop(key)
         # Make sure all values are work variables
         for key,val in self.value.items():
             if not isinstance(val,WorkVariable):

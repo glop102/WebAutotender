@@ -172,6 +172,123 @@ class TestVariableName:
         assert v.value == "my_var"
 
 
+class TestVariableList:
+    def test_default(self):
+        assert VariableList().value == []
+
+    def test_valid(self):
+        vl = VariableList([String("a"), Integer(1)])
+        assert vl.is_valid()
+
+    def test_invalid_non_list(self):
+        vl = VariableList()
+        vl.value = "not a list"
+        assert not vl.is_valid()
+
+    def test_invalid_contains_non_workvar(self):
+        vl = VariableList()
+        vl.value = ["raw string"]
+        assert not vl.is_valid()
+
+    def test_normalize_converts_dict_entries(self):
+        vl = VariableList()
+        vl.value = [{"value": "hello", "typename": "String"}]
+        vl.normalize()
+        assert isinstance(vl.value[0], String)
+        assert vl.value[0].value == "hello"
+
+    def test_normalize_raises_on_non_dict_non_workvar(self):
+        vl = VariableList()
+        vl.value = [42]  # neither WorkVariable nor dict
+        with pytest.raises(TypeError):
+            vl.normalize()
+
+    def test_json_roundtrip(self):
+        vl = VariableList([String("x"), Integer(7)])
+        data = vl.json_savable()
+        restored = WorkVariable()
+        restored.json_loadable(data)
+        assert isinstance(restored, VariableList)
+        assert restored.value[0].value == "x"
+        assert restored.value[1].value == 7
+
+    def test_convert_to_python_type(self):
+        vl = VariableList([String("a"), Integer(2)])
+        assert vl.convert_to_python_type() == ["a", 2]
+
+
+class TestVariableNameList:
+    def test_default(self):
+        assert VariableNameList().value == []
+
+    def test_valid(self):
+        assert VariableNameList(["foo", "bar"]).is_valid()
+
+    def test_invalid_non_list(self):
+        vnl = VariableNameList()
+        vnl.value = "not a list"
+        assert not vnl.is_valid()
+
+    def test_invalid_contains_non_string(self):
+        vnl = VariableNameList()
+        vnl.value = [123]
+        assert not vnl.is_valid()
+
+    def test_normalize_strips_elements(self):
+        vnl = VariableNameList(["  foo  ", " bar"])
+        vnl.normalize()
+        assert vnl.value == ["foo", "bar"]
+
+    def test_normalize_raises_on_non_list(self):
+        vnl = VariableNameList()
+        vnl.value = "not a list"
+        with pytest.raises(ValueError):
+            vnl.normalize()
+
+    def test_json_roundtrip(self):
+        vnl = VariableNameList(["a", "b", "c"])
+        data = vnl.json_savable()
+        restored = WorkVariable()
+        restored.json_loadable(data)
+        assert isinstance(restored, VariableNameList)
+        assert restored.value == ["a", "b", "c"]
+
+
+class TestURLNormalize:
+    def test_str_value_left_unchanged(self):
+        u = URL("https://example.com")
+        u.normalize()
+        assert u.value == "https://example.com"
+
+    def test_non_str_value_converted_to_str(self):
+        u = URL.__new__(URL)
+        u.value = 12345
+        u.normalize()
+        assert isinstance(u.value, str)
+
+
+class TestDictionaryNormalize:
+    def test_non_string_keys_converted_to_string(self):
+        d = Dictionary()
+        d.value = {1: String("val")}
+        d.normalize()
+        assert "1" in d.value
+        assert 1 not in d.value
+
+    def test_dict_values_loaded_from_raw_dicts(self):
+        d = Dictionary()
+        d.value = {"k": {"value": "hello", "typename": "String"}}
+        d.normalize()
+        assert isinstance(d.value["k"], String)
+        assert d.value["k"].value == "hello"
+
+    def test_non_dict_non_workvar_value_raises(self):
+        d = Dictionary()
+        d.value = {"k": 42}
+        with pytest.raises(TypeError):
+            d.normalize()
+
+
 class TestCoercion:
     def test_integer_to_float(self):
         result = Integer(5).coerce_into_type(Float)
@@ -203,6 +320,12 @@ class TestCoercion:
     def test_invalid_coercion_returns_none(self):
         s = String("abc")
         result = s.coerce_into_type(Float)
+        assert result is None
+
+    def test_normalize_exception_returns_none_not_raises(self):
+        # StringList.normalize() raises ValueError if value is not a list.
+        # coerce_into_type must catch that and return None rather than propagating.
+        result = String("hello").coerce_into_type(StringList)
         assert result is None
 
 
