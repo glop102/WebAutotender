@@ -3,7 +3,7 @@ import pytest
 from pipeline_backend.procedure_runner import ProcedureRunner
 from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep, global_workflows
 from pipeline_backend.instances import global_instances
-from pipeline_backend.variables import String, Integer, Float, VariableName, Dictionary
+from pipeline_backend.variables import String, Integer, Float, VariableName, VariableNameList, Dictionary
 
 
 @pytest.fixture
@@ -146,7 +146,8 @@ class TestSpawnChainWorkflow:
         parent_wf.procedures["start"] = [
             ProcessingStep("make_new_instance",
                            workflow_uuid=String("child-wf"),
-                           setup_vars=Dictionary({})),
+                           setup_vars=Dictionary({}),
+                           do_not_deref=VariableNameList([])),
             ProcessingStep("pause_this_instance"),
         ]
         global_workflows[parent_wf.uuid] = parent_wf

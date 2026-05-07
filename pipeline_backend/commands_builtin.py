@@ -39,19 +39,45 @@ def delete_this_instance(instance: Instance) -> CommandReturnStatus:
     return CommandReturnStatus.Yield
 
 @Commands.register_command(category="Core")
-def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dictionary) -> CommandReturnStatus:
-    if not workflow_uuid.value in global_workflows:
+def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dictionary, do_not_deref:VariableNameList) -> CommandReturnStatus:
+    if workflow_uuid.value not in global_workflows:
         instance.log_line(f"Error: Unable to find a Workflow with the uuid {workflow_uuid.value} to spawn an instance of.")
         return CommandReturnStatus.Error
-    #TODO VariableName values inside setup_vars are ambiguous in intent. There are three valid cases:
-    #  1. Dereference from the calling instance (e.g. pass the current value of "num_to_spawn" into the new instance)
-    #  2. Pass-through for the destination (the new workflow already has a variable by that name, let it resolve itself)
-    #  3. Global reference (valid in any context, no source instance needed)
-    # Cases 2 and 3 are currently fine as-is. Case 1 is broken — the new instance gets a VariableName that has no
-    # parent value to read. The problem is that VariableName encodes *what* to look up but not *where*, so any
-    # automatic resolution rule would silently break one of the other valid cases.
+
     workflow = global_workflows[workflow_uuid.value]
-    workflow.spawn_instance(setup_vars.value)
+
+    for key in setup_vars.value:
+        if key not in workflow.setup_variables:
+            instance.log_line(f"Error: '{key}' is not a declared setup variable of workflow '{workflow.name}'.")
+            return CommandReturnStatus.Error
+
+    for key in do_not_deref.value:
+        if key not in setup_vars.value:
+            instance.log_line(f"Error: '{key}' in do_not_deref is not present in setup_vars.")
+            return CommandReturnStatus.Error
+
+    resolved = {}
+    for key, var in setup_vars.value.items():
+        if key in do_not_deref.value:
+            resolved[key] = var
+            continue
+        dest_type = type(workflow.setup_variables[key])
+        current = var
+        while True:
+            if type(current) == dest_type:
+                resolved[key] = current
+                break
+            if type(current) == VariableName:
+                try:
+                    current = instance[current.value]
+                except KeyError:
+                    instance.log_line(f"Error: Dangling reference '{current.value}' when resolving setup var '{key}' for workflow '{workflow.name}'.")
+                    return CommandReturnStatus.Error
+            else:
+                instance.log_line(f"Error: Cannot resolve setup var '{key}' to type {dest_type.__name__} for workflow '{workflow.name}' (got {type(current).__name__}).")
+                return CommandReturnStatus.Error
+
+    workflow.spawn_instance(resolved)
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Core")
