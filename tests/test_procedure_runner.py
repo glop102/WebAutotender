@@ -92,6 +92,16 @@ class TestErrorConditions:
         assert result != CommandReturnStatus.Success
         assert inst.state == RunStates.Error
 
+    async def test_empty_command_name_marks_error(self, workflow):
+        workflow.procedures["start"] = [
+            ProcessingStep(),  # command_name defaults to ""
+        ]
+        inst = workflow.spawn_instance()
+        runner = ProcedureRunner(inst)
+        result = await runner.run_single_step()
+        assert result != CommandReturnStatus.Success
+        assert inst.state == RunStates.Error
+
     async def test_wrong_arg_count_marks_error(self, workflow):
         # log expects one arg (msg), passing none
         workflow.procedures["start"] = [
@@ -184,6 +194,17 @@ class TestVariableResolution:
         runner = ProcedureRunner(inst)
         await runner.run_single_step()
         assert inst.state != RunStates.Error
+
+    async def test_successful_coercion_passes_arg_to_command(self, workflow):
+        # log expects String; Integer(42) should coerce to String("42") and succeed
+        workflow.procedures["start"] = [
+            ProcessingStep("log", msg=Integer(42)),
+        ]
+        inst = workflow.spawn_instance()
+        runner = ProcedureRunner(inst)
+        result = await runner.run_single_step()
+        assert result == CommandReturnStatus.Success
+        assert "42" in inst.console_log
 
     async def test_incompatible_type_marks_error(self, workflow):
         # yield_for_seconds needs Integer|Float; String("abc") cannot be coerced

@@ -85,6 +85,40 @@ class TestLoopWorkflow:
         assert inst.console_log.count("looping") == 5
 
 
+class TestMultipleYields:
+    async def test_instance_resumes_correctly_across_multiple_yields(self):
+        """run_instance_until_yield stops at each yield; successive calls
+        advance the instance through each yield point in order."""
+        wf = Workflow()
+        wf.uuid = "multi-yield-wf"
+        wf.name = "Multi Yield"
+        wf.procedures["start"] = [
+            ProcessingStep("log", msg=String("step1")),
+            ProcessingStep("yield_for_seconds", num_seconds=Integer(0)),
+            ProcessingStep("log", msg=String("step2")),
+            ProcessingStep("yield_for_seconds", num_seconds=Integer(0)),
+            ProcessingStep("log", msg=String("step3")),
+            ProcessingStep("pause_this_instance"),
+        ]
+        global_workflows[wf.uuid] = wf
+        inst = wf.spawn_instance()
+        runner = ProcedureRunner(inst)
+
+        await runner.run_instance_until_yield()
+        assert "step1" in inst.console_log
+        assert "step2" not in inst.console_log
+        assert inst.processing_step == ("start", 2)
+
+        await runner.run_instance_until_yield()
+        assert "step2" in inst.console_log
+        assert "step3" not in inst.console_log
+        assert inst.processing_step == ("start", 4)
+
+        await runner.run_instance_until_yield()
+        assert "step3" in inst.console_log
+        assert inst.state == RunStates.Paused
+
+
 class TestSelfDeletingWorkflow:
     async def test_instance_deletes_itself_on_completion(self, loop_workflow):
         loop_workflow.procedures["done"] = [
