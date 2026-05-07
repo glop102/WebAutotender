@@ -47,7 +47,7 @@ class ProcedureRunner:
         # Find the command - also guarentees we can find the var to go with it to build the variable list
         try:
             command:Callable = Commands.get_command_by_name(proc_step.command_name)
-        except:
+        except KeyError:
             return self.__mark_error(f"\nError: Unable to find the command {proc_step.command_name}",True)
 
         # check the vars it needs and resolve references if it is asking for a more concrete type but given a variable name, or error if given an invalid type
@@ -120,7 +120,8 @@ class ProcedureRunner:
         if converted_var:
             return converted_var
         else:
-            self.__mark_error(f"Error: Unable to convert argument from a {given_var.__class__.__name__} to a {req_type.__name__} in the procedure step", True)
+            req_type_name = "|".join(t.__name__ for t in req_type) if isinstance(req_type, tuple) else req_type.__name__
+            self.__mark_error(f"Error: Unable to convert argument from a {given_var.__class__.__name__} to a {req_type_name} in the procedure step", True)
             return None
 
     def build_variables_list_for_command(self,proc_step:ProcessingStep) -> list|None:

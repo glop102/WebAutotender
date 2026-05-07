@@ -42,9 +42,8 @@ def save_pipeline_global_state() -> str:
 
 def save_pipeline_global_state_to_file(filepath: str) -> None:
     s = save_pipeline_global_state()
-    f = open(filepath,"w")
-    f.write(s)
-    f.close()
+    with open(filepath, "w") as f:
+        f.write(s)
 
 
 def load_pipeline_global_state(state:str) -> None:
