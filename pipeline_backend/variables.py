@@ -211,6 +211,24 @@ class VariableList(WorkVariable):
     def convert_to_python_type(self)->list[Any]:
         return [var.convert_to_python_type() for var in self.value]
 
+class Boolean(WorkVariable):
+    value:bool
+    def __init__(self, value: bool | Self | None = None):
+        if value is None:
+            value = False
+        super().__init__(value)
+    def is_valid(self) -> bool:
+        return type(self.value) == bool
+    def normalize(self) -> None:
+        if not self.is_valid():
+            if isinstance(self.value, str):
+                self.value = self.value.strip().lower() in ("true", "1", "yes")
+            else:
+                self.value = bool(self.value)
+    def reset_to_default(self) -> None:
+        self.value = False
+
+
 # Specific type that is intended to say that it is refering to a different variable; either in an Instance or Workflow.
 # Used for procedures to differentiate between variables and constants
 class VariableName(WorkVariable):

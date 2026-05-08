@@ -116,6 +116,12 @@ def jump_to_procedure(instance: Instance, procedure_name: String) -> CommandRetu
     return CommandReturnStatus.Success | CommandReturnStatus.Keep_Position
 
 @Commands.register_command(category="Core")
+def goto_if(instance: Instance, procedure_name: String, condition: Boolean) -> CommandReturnStatus:
+    if condition.value:
+        return jump_to_procedure(instance, procedure_name)
+    return CommandReturnStatus.Success
+
+@Commands.register_command(category="Core")
 def goto_if_equal(instance: Instance, procedure_name: String, value1:WorkVariable, value2:WorkVariable) -> CommandReturnStatus:
     while type(value1) == VariableName:
         value1 = instance[value1.value]

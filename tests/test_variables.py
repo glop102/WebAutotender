@@ -1,7 +1,7 @@
 import pytest
 from pipeline_backend.variables import (
     WorkVariable, String, Integer, Float, URL,
-    StringList, VariableList, VariableName, VariableNameList, Dictionary,
+    Boolean, StringList, VariableList, VariableName, VariableNameList, Dictionary,
 )
 
 
@@ -56,6 +56,68 @@ class TestInteger:
         restored.json_loadable(data)
         assert isinstance(restored, Integer)
         assert restored.value == 99
+
+
+class TestBoolean:
+    def test_default_is_false(self):
+        assert Boolean().value == False
+
+    def test_valid_true(self):
+        assert Boolean(True).is_valid()
+
+    def test_valid_false(self):
+        assert Boolean(False).is_valid()
+
+    def test_normalize_from_string_true(self):
+        b = Boolean()
+        b.value = "true"
+        b.normalize()
+        assert b.value is True
+
+    def test_normalize_from_string_false(self):
+        b = Boolean()
+        b.value = "false"
+        b.normalize()
+        assert b.value is False
+
+    def test_normalize_from_string_case_insensitive(self):
+        b = Boolean()
+        b.value = "True"
+        b.normalize()
+        assert b.value is True
+
+    def test_normalize_from_int_one(self):
+        b = Boolean()
+        b.value = 1
+        b.normalize()
+        assert b.value is True
+
+    def test_normalize_from_int_zero(self):
+        b = Boolean()
+        b.value = 0
+        b.normalize()
+        assert b.value is False
+
+    def test_reset(self):
+        b = Boolean(True)
+        b.reset_to_default()
+        assert b.value is False
+
+    def test_json_roundtrip_true(self):
+        b = Boolean(True)
+        data = b.json_savable()
+        restored = WorkVariable()
+        restored.json_loadable(data)
+        assert isinstance(restored, Boolean)
+        assert restored.value is True
+
+    def test_json_roundtrip_false(self):
+        b = Boolean(False)
+        data = b.json_savable()
+        restored = WorkVariable()
+        restored.json_loadable(data)
+        assert isinstance(restored, Boolean)
+        assert restored.value is False
 
 
 class TestFloat:
