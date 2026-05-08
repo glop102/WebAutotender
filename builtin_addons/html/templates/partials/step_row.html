@@ -7,6 +7,7 @@
     proc_name     : str
     command_groups: dict[str, list[str]]  — category → [command_names]
     command_args  : dict[str, list[(arg_name, arg_types_str)]]
+    command_docs  : dict[str, str|None]   — command_name → docstring or None
 #}
 <div class="step-row" id="step-{{ proc_name }}-{{ step_idx }}" data-step-idx="{{ step_idx }}">
   <div class="step-row-header">
@@ -34,6 +35,11 @@
             hx-target="closest .procedure-section"
             hx-swap="outerHTML"
             hx-vals='{"proc_name": "{{ proc_name }}", "idx": {{ step_idx }}}'>Delete</button>
+
+    {% set _doc = command_docs.get(step.command_name) %}
+    {% if _doc %}
+    <span class="step-doc-icon" title="{{ _doc }}" style="cursor: default;">ⓘ</span>
+    {% endif %}
   </div>
 
   <div class="step-args">

@@ -82,6 +82,7 @@ def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dicti
 
 @Commands.register_command(category="Core")
 def pause_this_instance(instance: Instance) -> CommandReturnStatus:
+    """Pauses this instance. It will not run again until manually resumed or another instance resumes it."""
     instance.state = RunStates.Paused
     return CommandReturnStatus.Yield
 
