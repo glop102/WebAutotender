@@ -5,33 +5,34 @@ from .workflows import *
 from datetime import datetime,timedelta
 import re
 
-# Some built in commands that we will need to have
-# string_builder(stringlist_commands,destination_var) - takes in strings and combines it together with some operations on segments like leftpad() so we can get a complicated string built up
-
-# TODO! Have a doc string with all of these commands and then also have the commands registry have a function to pull those doc strings to serve as hints or instructions that get sent to the UI
-# This way even addons can provide information for registered commands.
-
 # ====================================================================
 # State control of instances
 # ====================================================================
 
 @Commands.register_command(category="Core")
 def yield_for_seconds(instance:Instance,num_seconds:Integer|Float)->CommandReturnStatus:
+    """Suspend this instance for a number of seconds before continuing.
+  num_seconds: How long to wait, in seconds. Accepts Integer or Float."""
     instance.next_processing_time = datetime.now() + timedelta(seconds=num_seconds.value)
     return CommandReturnStatus.Yield
 
 @Commands.register_command(category="Core")
 def yield_for_minutes(instance:Instance,num_minutes:Integer|Float)->CommandReturnStatus:
+    """Suspend this instance for a number of minutes before continuing.
+  num_minutes: How long to wait, in minutes. Accepts Integer or Float."""
     instance.next_processing_time = datetime.now() + timedelta(minutes=num_minutes.value)
     return CommandReturnStatus.Yield
 
 @Commands.register_command(category="Core")
 def yield_until(instance: Instance, iso_datetime:String) -> CommandReturnStatus:
+    """Suspend this instance until a specific date and time.
+  iso_datetime: An ISO 8601 datetime string (e.g. 2026-05-08T14:00:00) indicating when to resume."""
     instance.next_processing_time = datetime.fromisoformat(iso_datetime.value)
     return CommandReturnStatus.Yield
 
 @Commands.register_command(category="Core")
 def delete_this_instance(instance: Instance) -> CommandReturnStatus:
+    """Permanently remove this instance. Execution stops and the instance will not appear again."""
     if not instance.uuid in global_instances:
         instance.log_line(f"Error: Unable to delete an instance that is not in the global_instances dictionary. The pipeline lib only supports a single global pipeline state for many operations.")
         return CommandReturnStatus.Error
@@ -40,6 +41,10 @@ def delete_this_instance(instance: Instance) -> CommandReturnStatus:
 
 @Commands.register_command(category="Core")
 def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dictionary, do_not_deref:VariableNameList) -> CommandReturnStatus:
+    """Spawn a new instance of another workflow, passing in initial variable values.
+  workflow_uuid: UUID of the target workflow to spawn an instance of.
+  setup_vars: Dictionary of setup variable names to values. VariableName values are resolved from the caller's scope to match the destination's declared type.
+  do_not_deref: List of keys in setup_vars whose VariableName values should be passed through as-is without resolution."""
     if workflow_uuid.value not in global_workflows:
         instance.log_line(f"Error: Unable to find a Workflow with the uuid {workflow_uuid.value} to spawn an instance of.")
         return CommandReturnStatus.Error
@@ -92,16 +97,17 @@ def pause_this_instance(instance: Instance) -> CommandReturnStatus:
 
 @Commands.register_command(category="Core")
 def log(instance: Instance, msg: String) -> CommandReturnStatus:
+    """Append a message to this instance's console log.
+  msg: The text to log."""
     instance.log_line(msg.value)
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Core")
 def error(instance: Instance, msg: String) -> CommandReturnStatus:
+    """Log a message and put this instance into the Error state, halting execution.
+  msg: The error message to log."""
     instance.log_line(msg.value)
     return CommandReturnStatus.Error
-
-# TODO - Have string formatting versions so it can print variables and whatnot inbetween
-# Maybe have it follow the python formatting style and then somehow have python give the contents of the replacment groups for me to then safely implement string formatting?
 
 # ====================================================================
 # conditionals and branches
@@ -109,6 +115,8 @@ def error(instance: Instance, msg: String) -> CommandReturnStatus:
 
 @Commands.register_command(category="Core")
 def jump_to_procedure(instance: Instance, procedure_name: String) -> CommandReturnStatus:
+    """Unconditionally jump to the start of another procedure in this workflow.
+  procedure_name: Name of the procedure to jump to."""
     workflow = instance.get_associated_workflow()
     if not procedure_name.value in workflow.procedures:
         instance.log_line(f"Error: Cannot jump to the procedure {procedure_name} because it does not exist in the workflow {instance.workflow_uuid}")
@@ -118,17 +126,24 @@ def jump_to_procedure(instance: Instance, procedure_name: String) -> CommandRetu
 
 @Commands.register_command(category="Core")
 def goto_if(instance: Instance, procedure_name: String, condition: Boolean) -> CommandReturnStatus:
+    """Jump to a procedure if a Boolean condition is true. Continues to the next step if false.
+  procedure_name: Name of the procedure to jump to when condition is true.
+  condition: The Boolean value to test."""
     if condition.value:
         return jump_to_procedure(instance, procedure_name)
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Core")
 def goto_if_equal(instance: Instance, procedure_name: String, value1:WorkVariable, value2:WorkVariable) -> CommandReturnStatus:
+    """Jump to a procedure if two values are equal. Compares by type then by string representation.
+  procedure_name: Name of the procedure to jump to when values are equal.
+  value1: First value to compare. VariableNames are dereferenced automatically.
+  value2: Second value to compare. VariableNames are dereferenced automatically."""
     while type(value1) == VariableName:
         value1 = instance[value1.value]
     while type(value2) == VariableName:
         value2 = instance[value2.value]
-    
+
     if type(value1) == type(value2) and value1.value == value2.value:
         return jump_to_procedure(instance,procedure_name)
     if str(value1.value) == str(value2.value):
@@ -140,6 +155,10 @@ def goto_if_equal(instance: Instance, procedure_name: String, value1:WorkVariabl
 
 @Commands.register_command(category="Core")
 def goto_if_not_equal(instance: Instance, procedure_name: String, value1: WorkVariable, value2: WorkVariable) -> CommandReturnStatus:
+    """Jump to a procedure if two values are not equal. Compares by type then by string representation.
+  procedure_name: Name of the procedure to jump to when values are not equal.
+  value1: First value to compare. VariableNames are dereferenced automatically.
+  value2: Second value to compare. VariableNames are dereferenced automatically."""
     while type(value1) == VariableName:
         value1 = instance[value1.value]
     while type(value2) == VariableName:
@@ -154,6 +173,10 @@ def goto_if_not_equal(instance: Instance, procedure_name: String, value1: WorkVa
 
 @Commands.register_command(category="Core")
 def goto_if_first_larger(instance: Instance, procedure_name: String, value1: Integer|Float, value2: Integer|Float) -> CommandReturnStatus:
+    """Jump to a procedure if value1 is strictly greater than value2.
+  procedure_name: Name of the procedure to jump to.
+  value1: The value to test as larger.
+  value2: The value to test against."""
     if value1.value > value2.value:
         return jump_to_procedure(instance, procedure_name)
 
@@ -165,24 +188,40 @@ def goto_if_first_larger(instance: Instance, procedure_name: String, value1: Int
 
 @Commands.register_command(category="Math")
 def math_add(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+    """Add two numbers and store the result.
+  first: The base value to add to.
+  second: The value to add.
+  output_variable: Name of the variable to store the result in."""
     first.value += second.value
     instance[output_variable] = first
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Math")
 def math_subtract(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+    """Subtract second from first and store the result.
+  first: The value to subtract from.
+  second: The value to subtract.
+  output_variable: Name of the variable to store the result in."""
     first.value -= second.value
     instance[output_variable] = first
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Math")
 def math_multiply(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+    """Multiply two numbers and store the result.
+  first: The first factor.
+  second: The second factor.
+  output_variable: Name of the variable to store the result in."""
     first.value *= second.value
     instance[output_variable] = first
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Math")
 def math_divide(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+    """Divide first by second and store the result.
+  first: The dividend.
+  second: The divisor.
+  output_variable: Name of the variable to store the result in."""
     first.value /= second.value
     instance[output_variable] = first
     return CommandReturnStatus.Success
@@ -193,6 +232,10 @@ def math_divide(instance: Instance, first: Integer|Float, second: Integer|Float,
 
 @Commands.register_command(category="Strings")
 def regex_first_match(instance: Instance, format_string: String, input_string: String, output_variable:VariableName) -> CommandReturnStatus:
+    """Find the first regex match in a string and store it. Errors if no match is found.
+  format_string: The regex pattern to search with.
+  input_string: The string to search in.
+  output_variable: Name of the variable to store the matched text in."""
     matcher = re.compile(format_string.value)
     first_match = matcher.search(input_string.value)
     if not first_match:
@@ -204,19 +247,21 @@ def regex_first_match(instance: Instance, format_string: String, input_string: S
 
 @Commands.register_command(category="Strings")
 def regex_match_all(instance: Instance, format_string: String, input_string: String, output_variable: VariableName) -> CommandReturnStatus:
+    """Find all regex matches in a string and store them as a StringList. Stores an empty list if there are no matches.
+  format_string: The regex pattern to search with.
+  input_string: The string to search in.
+  output_variable: Name of the variable to store the list of matched strings in."""
     matcher = re.compile(format_string.value)
     matches = matcher.findall(input_string.value)
-    # I think we can trust prople handling when the list of matches is 0 length. It is still a list after all.
-    # if len(matches) == 0:
-    #     instance.log_line(
-    #         f"Error: Unable to find a match of {format_string} on the input {input_string}")
-    #     return CommandReturnStatus.Error
-
     instance[output_variable.value] = StringList(matches)
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Core")
 def stringlist_pop_next(instance: Instance, list_varname: VariableName, item_varname: VariableName, empty_procedure: String) -> CommandReturnStatus:
+    """Pop the first item from a StringList into a variable, looping until the list is empty. Jumps to empty_procedure when the list is already empty on entry, so the last item is always processed before the jump.
+  list_varname: Name of the StringList variable to pop from.
+  item_varname: Name of the variable to store the popped item in.
+  empty_procedure: Procedure to jump to when the list is empty on entry."""
     the_list = instance[list_varname.value]
     if not isinstance(the_list, StringList):
         instance.log_line(f"Error: '{list_varname.value}' is not a StringList.")
@@ -231,11 +276,18 @@ def stringlist_pop_next(instance: Instance, list_varname: VariableName, item_var
 
 @Commands.register_command(category="Core")
 def set_variable_value(instance: Instance, variable_name: VariableName, value:WorkVariable) -> CommandReturnStatus:
+    """Set a variable on this instance to the given value.
+  variable_name: Name of the variable to set.
+  value: The value to assign."""
     instance[variable_name.value] = value
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Core")
 def set_variable_value_in_another_instance(instance: Instance, instance_uuid:String, variable_name: VariableName, value: WorkVariable) -> CommandReturnStatus:
+    """Set a variable on a different instance by its UUID.
+  instance_uuid: UUID of the target instance to modify.
+  variable_name: Name of the variable to set on the target instance.
+  value: The value to assign."""
     if not instance_uuid.value in global_instances:
         instance.log_line(f"Unable to find an instance with the UUID {instance_uuid.value} to set a variable in")
         return CommandReturnStatus.Error
@@ -245,5 +297,6 @@ def set_variable_value_in_another_instance(instance: Instance, instance_uuid:Str
 
 @Commands.register_command(category="Core")
 def save_uuid_to_variables(instance: Instance) -> CommandReturnStatus:
+    """Store this instance's UUID into a variable named 'uuid' for use in subsequent steps."""
     instance["uuid"] = String(instance.uuid)
     return CommandReturnStatus.Success

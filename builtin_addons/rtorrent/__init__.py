@@ -140,6 +140,10 @@ class Torrent:
 
 @Commands.register_command(category="rTorrent")
 def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary,url:String,outputHashName:VariableName)->CommandReturnStatus:
+    """Add a torrent URL or magnet link to an rTorrent server and store the resulting infohash.
+  serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
+  url: HTTP/HTTPS URL to a .torrent file, or a magnet link.
+  outputHashName: Name of the variable to store the torrent infohash string in."""
     server = Server(instance,serverInfo)
     torrent = server.add_url_to_rtorrent(url)
     instance[outputHashName] = String(torrent.infohash)
@@ -147,6 +151,9 @@ def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary,url:S
 
 @Commands.register_command(category="rTorrent")
 def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,infohash:String)->CommandReturnStatus:
+    """Yield and re-check every 30 seconds until a torrent finishes downloading.
+  serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
+  infohash: The infohash string of the torrent to wait on."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
     if torrent.is_complete():
@@ -156,6 +163,10 @@ def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,infohas
 
 @Commands.register_command(category="rTorrent")
 def rtorrent_wait_until_ratio(instance:Instance,serverInfo:Dictionary,infohash:String,ratio:Float)->CommandReturnStatus:
+    """Yield and re-check every 30 seconds until a torrent's seed ratio reaches the target.
+  serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
+  infohash: The infohash string of the torrent to wait on.
+  ratio: The minimum seed ratio to wait for (e.g. 1.0 for 1:1)."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
     if torrent.get_ratio() >= ratio.value:
@@ -165,6 +176,10 @@ def rtorrent_wait_until_ratio(instance:Instance,serverInfo:Dictionary,infohash:S
 
 @Commands.register_command(category="rTorrent")
 def rtorrent_set_torrent_label(instance:Instance,serverInfo:Dictionary,infohash:String,label:String)->CommandReturnStatus:
+    """Set the custom label (custom1) on a torrent in rTorrent.
+  serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
+  infohash: The infohash string of the torrent to label.
+  label: The label string to assign."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
     torrent.set_label(label.value)
@@ -172,6 +187,10 @@ def rtorrent_set_torrent_label(instance:Instance,serverInfo:Dictionary,infohash:
 
 @Commands.register_command(category="rTorrent")
 def rtorrent_get_torrent_name(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariableName)->CommandReturnStatus:
+    """Retrieve the display name of a torrent and store it in a variable.
+  serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
+  infohash: The infohash string of the torrent.
+  varnameOut: Name of the variable to store the torrent name string in."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
     name = torrent.get_name()
@@ -180,6 +199,10 @@ def rtorrent_get_torrent_name(instance:Instance,serverInfo:Dictionary,infohash:S
 
 @Commands.register_command(category="rTorrent")
 def rtorrent_get_torrents_path(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariableName)->CommandReturnStatus:
+    """Retrieve the base download path of a torrent (where its files are saved) and store it in a variable.
+  serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
+  infohash: The infohash string of the torrent.
+  varnameOut: Name of the variable to store the base path string in."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
     path = torrent.get_torrent_basepath()
@@ -188,6 +211,9 @@ def rtorrent_get_torrents_path(instance:Instance,serverInfo:Dictionary,infohash:
 
 @Commands.register_command(category="rTorrent")
 def rtorrent_delete_torrent_but_not_files(instance:Instance,serverInfo:Dictionary,infohash:String)->CommandReturnStatus:
+    """Remove a torrent from rTorrent without deleting the downloaded files on the server.
+  serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
+  infohash: The infohash string of the torrent to remove."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
     torrent.delete_torrent()
