@@ -209,6 +209,20 @@ def regex_match_all(instance: Instance, format_string: String, input_string: Str
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Core")
+def stringlist_pop_next(instance: Instance, list_varname: VariableName, item_varname: VariableName, empty_procedure: String) -> CommandReturnStatus:
+    the_list = instance[list_varname.value]
+    if not isinstance(the_list, StringList):
+        instance.log_line(f"Error: '{list_varname.value}' is not a StringList.")
+        return CommandReturnStatus.Error
+    if len(the_list.value) == 0:
+        return jump_to_procedure(instance, empty_procedure)
+    item = the_list.value.pop(0)
+    instance[item_varname] = String(item)
+    instance[list_varname] = the_list
+    return CommandReturnStatus.Success
+
+
+@Commands.register_command(category="Core")
 def set_variable_value(instance: Instance, variable_name: VariableName, value:WorkVariable) -> CommandReturnStatus:
     instance[variable_name.value] = value
     return CommandReturnStatus.Success
