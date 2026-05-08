@@ -38,7 +38,7 @@
 
     {% set _doc = command_docs.get(step.command_name) %}
     {% if _doc %}
-    <span class="step-doc-icon" title="{{ _doc }}" style="cursor: default;">ⓘ</span>
+    <span class="step-doc-icon" data-tooltip="{{ _doc }}">ⓘ</span>
     {% endif %}
   </div>
 
