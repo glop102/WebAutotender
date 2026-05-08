@@ -97,6 +97,38 @@ def file_download_progress_callback(instance:Instance,print_thresholds:dict,sour
         entry["last_bytes"] = bytesdone
 
 @Commands.register_command(category="SSH/SFTP")
+async def sftp_delete_file(instance: Instance, serverInfo: Dictionary, remotepath: String) -> CommandReturnStatus:
+    """Delete a single file on a remote server over SFTP. Errors if the path does not exist or is a directory.
+  serverInfo: Dictionary with keys URL, username, and one of password / ssh key / ssh key filepath.
+  remotepath: Absolute path to the file on the remote server to delete."""
+    async with open_ssh_pipe(instance, serverInfo) as connection:
+        if not connection:
+            return CommandReturnStatus.Error
+        sftp: asyncssh.SFTPClient = await connection.start_sftp_client()
+        try:
+            await sftp.remove(remotepath.value)
+        except asyncssh.SFTPError as e:
+            instance.log_line(f"Error: Unable to delete remote file '{remotepath.value}': {e}")
+            return CommandReturnStatus.Error
+    return CommandReturnStatus.Success
+
+@Commands.register_command(category="SSH/SFTP")
+async def sftp_delete_folder(instance: Instance, serverInfo: Dictionary, remotepath: String) -> CommandReturnStatus:
+    """Recursively delete a folder and all its contents on a remote server over SFTP.
+  serverInfo: Dictionary with keys URL, username, and one of password / ssh key / ssh key filepath.
+  remotepath: Absolute path to the folder on the remote server to delete."""
+    async with open_ssh_pipe(instance, serverInfo) as connection:
+        if not connection:
+            return CommandReturnStatus.Error
+        sftp: asyncssh.SFTPClient = await connection.start_sftp_client()
+        try:
+            await sftp.rmtree(remotepath.value)
+        except asyncssh.SFTPError as e:
+            instance.log_line(f"Error: Unable to delete remote folder '{remotepath.value}': {e}")
+            return CommandReturnStatus.Error
+    return CommandReturnStatus.Success
+
+@Commands.register_command(category="SSH/SFTP")
 async def sftp_list_directory(instance: Instance, serverInfo: Dictionary, directory: String, outputVarname: VariableName) -> CommandReturnStatus:
     """List the contents of a remote directory over SFTP and store the names as a StringList.
   serverInfo: Dictionary with keys URL, username, and one of password / ssh key / ssh key filepath.
