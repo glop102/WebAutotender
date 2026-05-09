@@ -1,9 +1,13 @@
 """Integration tests: run complete workflows end-to-end through ProcedureRunner."""
+import asyncio
 import pytest
 from pipeline_backend.procedure_runner import ProcedureRunner
 from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep, global_workflows
 from pipeline_backend.instances import global_instances
-from pipeline_backend.variables import String, Integer, Float, VariablePath, VariableNameList, Dictionary
+from pipeline_backend.variables import String, Integer, Float, VariablePath, VariableNameList, Dictionary, VariableList, StringList
+from pipeline_backend.commands import CommandReturnStatus
+from pipeline_backend.commands_builtin import list_pop_next
+from builtin_addons.string_operations import str_regex_matchAll
 
 
 @pytest.fixture
@@ -157,3 +161,168 @@ class TestSpawnChainWorkflow:
 
         child_instances = [i for i in global_instances.values() if i.workflow_uuid == "child-wf"]
         assert len(child_instances) == 1
+
+
+class TestDotNotationWorkflowScenario:
+    """Exercises list_pop_next + dot-notation output paths in a realistic workflow scenario.
+
+    The workflow has two constants:
+      - strings_to_match: VariableList of two strings containing numbers
+      - dict: Dictionary with keys matches1 and matches2 (initially empty StringLists)
+
+    The test pops each string in turn, runs a regex to extract numbers, and stores
+    the results via dot-notation paths (dict.matches1, dict.matches2).
+    After each write it verifies that the workflow constants are unmodified while
+    the instance variables hold the updated copies.
+    """
+
+    def _make_workflow(self):
+        wf = Workflow()
+        wf.uuid = "dot-notation-scenario-wf"
+        wf.name = "Dot Notation Scenario"
+        wf.constants["strings_to_match"] = VariableList([
+            String("abc 42 def 99"),
+            String("hello 7 world 13"),
+        ])
+        wf.constants["dict"] = Dictionary({
+            "matches1": StringList([]),
+            "matches2": StringList([]),
+        })
+        wf.procedures["start"] = []
+        wf.procedures["done"] = []
+        global_workflows[wf.uuid] = wf
+        return wf
+
+    def test_pop_modifies_instance_not_workflow(self):
+        wf = self._make_workflow()
+        inst = wf.spawn_instance()
+
+        result = list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
+
+        assert result == CommandReturnStatus.Success
+        assert inst.variables["current"].value == "abc 42 def 99"
+        # Workflow constant untouched
+        assert len(wf.constants["strings_to_match"].value) == 2
+        # Instance copy has one item removed
+        assert len(inst.variables["strings_to_match"].value) == 1
+
+    def test_regex_into_dot_path_modifies_instance_not_workflow(self):
+        wf = self._make_workflow()
+        inst = wf.spawn_instance()
+
+        list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
+        result = asyncio.run(str_regex_matchAll(inst, String(r"\d+"), inst["current"], VariablePath("dict.matches1")))
+
+        assert result == CommandReturnStatus.Success
+        # Workflow constant dict untouched
+        assert wf.constants["dict"].value["matches1"].value == []
+        # Instance has matches1 populated via dot notation
+        assert inst["dict.matches1"].value == ["42", "99"]
+
+    def test_full_scenario_both_strings_processed(self):
+        wf = self._make_workflow()
+        inst = wf.spawn_instance()
+
+        # First string
+        list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
+        asyncio.run(str_regex_matchAll(inst, String(r"\d+"), inst["current"], VariablePath("dict.matches1")))
+
+        # Second string
+        result = list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
+        assert result == CommandReturnStatus.Success
+        assert inst.variables["current"].value == "hello 7 world 13"
+        assert len(inst.variables["strings_to_match"].value) == 0
+
+        asyncio.run(str_regex_matchAll(inst, String(r"\d+"), inst["current"], VariablePath("dict.matches2")))
+
+        # Workflow constants still completely unmodified
+        assert wf.constants["dict"].value["matches1"].value == []
+        assert wf.constants["dict"].value["matches2"].value == []
+        # Instance has both result sets
+        assert inst["dict.matches1"].value == ["42", "99"]
+        assert inst["dict.matches2"].value == ["7", "13"]
+
+    def test_list_exhausted_after_both_pops(self):
+        wf = self._make_workflow()
+        inst = wf.spawn_instance()
+
+        list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
+        list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
+        result = list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
+
+        # Third call hits empty list → jumps to done procedure
+        assert result == CommandReturnStatus.Success | CommandReturnStatus.Keep_Position
+        assert inst.processing_step == ("done", 0)
+
+
+class TestDotNotationWorkflowScenarioViaRunner:
+    """Same scenario as TestDotNotationWorkflowScenario but built as a real workflow
+    and executed through ProcedureRunner to verify state accumulation end-to-end."""
+
+    def _make_workflow(self):
+        wf = Workflow()
+        wf.uuid = "dot-notation-runner-wf"
+        wf.name = "Dot Notation Runner Scenario"
+        wf.constants["strings_to_match"] = VariableList([
+            String("abc 42 def 99"),
+            String("hello 7 world 13"),
+        ])
+        wf.constants["dict"] = Dictionary({
+            "matches1": StringList([]),
+            "matches2": StringList([]),
+        })
+        wf.procedures["start"] = [
+            ProcessingStep("list_pop_next",
+                           list_varname=VariablePath("strings_to_match"),
+                           item_varname=VariablePath("current"),
+                           empty_procedure=String("done")),
+            ProcessingStep("str_regex_matchAll",
+                           regexPatern=String(r"\d+"),
+                           inputString=VariablePath("current"),
+                           outputVarname=VariablePath("dict.matches1")),
+            ProcessingStep("list_pop_next",
+                           list_varname=VariablePath("strings_to_match"),
+                           item_varname=VariablePath("current"),
+                           empty_procedure=String("done")),
+            ProcessingStep("str_regex_matchAll",
+                           regexPatern=String(r"\d+"),
+                           inputString=VariablePath("current"),
+                           outputVarname=VariablePath("dict.matches2")),
+            ProcessingStep("pause_this_instance"),
+        ]
+        wf.procedures["done"] = [
+            ProcessingStep("pause_this_instance"),
+        ]
+        global_workflows[wf.uuid] = wf
+        return wf
+
+    async def test_workflow_constants_unmodified_after_run(self):
+        wf = self._make_workflow()
+        inst = wf.spawn_instance()
+        await ProcedureRunner(inst).run_instance_until_yield()
+
+        assert len(wf.constants["strings_to_match"].value) == 2
+        assert wf.constants["dict"].value["matches1"].value == []
+        assert wf.constants["dict"].value["matches2"].value == []
+
+    async def test_instance_strings_list_fully_consumed(self):
+        wf = self._make_workflow()
+        inst = wf.spawn_instance()
+        await ProcedureRunner(inst).run_instance_until_yield()
+
+        assert len(inst.variables["strings_to_match"].value) == 0
+
+    async def test_instance_dict_has_both_match_results(self):
+        wf = self._make_workflow()
+        inst = wf.spawn_instance()
+        await ProcedureRunner(inst).run_instance_until_yield()
+
+        assert inst["dict.matches1"].value == ["42", "99"]
+        assert inst["dict.matches2"].value == ["7", "13"]
+
+    async def test_instance_reaches_paused_state(self):
+        wf = self._make_workflow()
+        inst = wf.spawn_instance()
+        await ProcedureRunner(inst).run_instance_until_yield()
+
+        assert inst.state == RunStates.Paused
