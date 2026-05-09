@@ -42,8 +42,8 @@ def delete_this_instance(instance: Instance) -> CommandReturnStatus:
 def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dictionary, do_not_deref:VariableNameList) -> CommandReturnStatus:
     """Spawn a new instance of another workflow, passing in initial variable values.
   workflow_uuid: UUID of the target workflow to spawn an instance of.
-  setup_vars: Dictionary of setup variable names to values. VariableName values are resolved from the caller's scope to match the destination's declared type.
-  do_not_deref: List of keys in setup_vars whose VariableName values should be passed through as-is without resolution."""
+  setup_vars: Dictionary of setup variable names to values. VariablePath values are resolved from the caller's scope to match the destination's declared type.
+  do_not_deref: List of keys in setup_vars whose VariablePath values should be passed through as-is without resolution."""
     if workflow_uuid.value not in global_workflows:
         instance.log_line(f"Error: Unable to find a Workflow with the uuid {workflow_uuid.value} to spawn an instance of.")
         return CommandReturnStatus.Error
@@ -71,7 +71,7 @@ def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dicti
             if type(current) == dest_type:
                 resolved[key] = current
                 break
-            if type(current) == VariableName:
+            if type(current) == VariablePath:
                 try:
                     current = instance[current.value]
                 except KeyError:
@@ -136,11 +136,11 @@ def goto_if(instance: Instance, procedure_name: String, condition: Boolean) -> C
 def goto_if_equal(instance: Instance, procedure_name: String, value1:WorkVariable, value2:WorkVariable) -> CommandReturnStatus:
     """Jump to a procedure if two values are equal. Compares by type then by string representation.
   procedure_name: Name of the procedure to jump to when values are equal.
-  value1: First value to compare. VariableNames are dereferenced automatically.
-  value2: Second value to compare. VariableNames are dereferenced automatically."""
-    while type(value1) == VariableName:
+  value1: First value to compare. VariablePaths are dereferenced automatically.
+  value2: Second value to compare. VariablePaths are dereferenced automatically."""
+    while type(value1) == VariablePath:
         value1 = instance[value1.value]
-    while type(value2) == VariableName:
+    while type(value2) == VariablePath:
         value2 = instance[value2.value]
 
     if type(value1) == type(value2) and value1.value == value2.value:
@@ -156,11 +156,11 @@ def goto_if_equal(instance: Instance, procedure_name: String, value1:WorkVariabl
 def goto_if_not_equal(instance: Instance, procedure_name: String, value1: WorkVariable, value2: WorkVariable) -> CommandReturnStatus:
     """Jump to a procedure if two values are not equal. Compares by type then by string representation.
   procedure_name: Name of the procedure to jump to when values are not equal.
-  value1: First value to compare. VariableNames are dereferenced automatically.
-  value2: Second value to compare. VariableNames are dereferenced automatically."""
-    while type(value1) == VariableName:
+  value1: First value to compare. VariablePaths are dereferenced automatically.
+  value2: Second value to compare. VariablePaths are dereferenced automatically."""
+    while type(value1) == VariablePath:
         value1 = instance[value1.value]
-    while type(value2) == VariableName:
+    while type(value2) == VariablePath:
         value2 = instance[value2.value]
 
     if type(value1) == type(value2) and value1.value != value2.value:
@@ -186,7 +186,7 @@ def goto_if_first_larger(instance: Instance, procedure_name: String, value1: Int
 # ====================================================================
 
 @Commands.register_command(category="Math")
-def math_add(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+def math_add(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariablePath) -> CommandReturnStatus:
     """Add two numbers and store the result.
   first: The base value to add to.
   second: The value to add.
@@ -196,7 +196,7 @@ def math_add(instance: Instance, first: Integer|Float, second: Integer|Float, ou
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Math")
-def math_subtract(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+def math_subtract(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariablePath) -> CommandReturnStatus:
     """Subtract second from first and store the result.
   first: The value to subtract from.
   second: The value to subtract.
@@ -206,7 +206,7 @@ def math_subtract(instance: Instance, first: Integer|Float, second: Integer|Floa
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Math")
-def math_multiply(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+def math_multiply(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariablePath) -> CommandReturnStatus:
     """Multiply two numbers and store the result.
   first: The first factor.
   second: The second factor.
@@ -216,7 +216,7 @@ def math_multiply(instance: Instance, first: Integer|Float, second: Integer|Floa
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Math")
-def math_divide(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariableName) -> CommandReturnStatus:
+def math_divide(instance: Instance, first: Integer|Float, second: Integer|Float, output_variable: VariablePath) -> CommandReturnStatus:
     """Divide first by second and store the result.
   first: The dividend.
   second: The divisor.
@@ -231,7 +231,7 @@ def math_divide(instance: Instance, first: Integer|Float, second: Integer|Float,
 
 
 @Commands.register_command(category="Core")
-def list_pop_next(instance: Instance, list_varname: VariableName, item_varname: VariableName, empty_procedure: String) -> CommandReturnStatus:
+def list_pop_next(instance: Instance, list_varname: VariablePath, item_varname: VariablePath, empty_procedure: String) -> CommandReturnStatus:
     """Pop the first item from a StringList or VariableList into a variable. Jumps to empty_procedure when the list is already empty on entry, so the last item is always processed before the jump.
   list_varname: Name of the StringList or VariableList variable to pop from.
   item_varname: Name of the variable to store the popped item in.
@@ -252,7 +252,7 @@ def list_pop_next(instance: Instance, list_varname: VariableName, item_varname: 
 
 
 @Commands.register_command(category="Core")
-def set_variable_value(instance: Instance, variable_name: VariableName, value:WorkVariable) -> CommandReturnStatus:
+def set_variable_value(instance: Instance, variable_name: VariablePath, value:WorkVariable) -> CommandReturnStatus:
     """Set a variable on this instance to the given value.
   variable_name: Name of the variable to set.
   value: The value to assign."""
@@ -260,7 +260,7 @@ def set_variable_value(instance: Instance, variable_name: VariableName, value:Wo
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Core")
-def set_variable_value_in_another_instance(instance: Instance, instance_uuid:String, variable_name: VariableName, value: WorkVariable) -> CommandReturnStatus:
+def set_variable_value_in_another_instance(instance: Instance, instance_uuid:String, variable_name: VariablePath, value: WorkVariable) -> CommandReturnStatus:
     """Set a variable on a different instance by its UUID.
   instance_uuid: UUID of the target instance to modify.
   variable_name: Name of the variable to set on the target instance.

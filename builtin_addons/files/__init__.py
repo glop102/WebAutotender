@@ -55,7 +55,7 @@ def create_folder(instance: Instance, path: String) -> CommandReturnStatus:
 
 
 @Commands.register_command(category="Files")
-def file_exists(instance: Instance, path: String, output_varname: VariableName) -> CommandReturnStatus:
+def file_exists(instance: Instance, path: String, output_varname: VariablePath) -> CommandReturnStatus:
     """Check whether a path exists (file or folder) and store the result as a Boolean.
   path: The path to check.
   output_varname: Name of the variable to store the Boolean result in."""
@@ -64,7 +64,7 @@ def file_exists(instance: Instance, path: String, output_varname: VariableName) 
 
 
 @Commands.register_command(category="Files")
-def is_file(instance: Instance, path: String, output_varname: VariableName) -> CommandReturnStatus:
+def is_file(instance: Instance, path: String, output_varname: VariablePath) -> CommandReturnStatus:
     """Check whether a path points to a regular file and store the result as a Boolean.
   path: The path to check.
   output_varname: Name of the variable to store the Boolean result in."""
@@ -73,7 +73,7 @@ def is_file(instance: Instance, path: String, output_varname: VariableName) -> C
 
 
 @Commands.register_command(category="Files")
-def is_folder(instance: Instance, path: String, output_varname: VariableName) -> CommandReturnStatus:
+def is_folder(instance: Instance, path: String, output_varname: VariablePath) -> CommandReturnStatus:
     """Check whether a path points to a directory and store the result as a Boolean.
   path: The path to check.
   output_varname: Name of the variable to store the Boolean result in."""
@@ -102,7 +102,7 @@ def goto_if_folder(instance: Instance, procedure_name: String, path: String) -> 
 
 
 @Commands.register_command(category="Files")
-def list_folder_contents(instance: Instance, path: String, output_varname: VariableName) -> CommandReturnStatus:
+def list_folder_contents(instance: Instance, path: String, output_varname: VariablePath) -> CommandReturnStatus:
     """List the names of entries in a folder and store them as a sorted StringList.
   path: Path to the folder to list.
   output_varname: Name of the variable to store the StringList of entry names in."""

@@ -67,7 +67,7 @@
 
   {# ── value widget, dispatched on type ────────────────────── #}
 
-  {% if var.typename in ('String', 'VariableName') %}
+  {% if var.typename in ('String', 'VariablePath') %}
     {% if readonly %}
       <span class="var-input">{{ var.value }}</span>
     {% else %}

@@ -14,8 +14,8 @@
 
       {% if workflow.setup_variables %}
         {% for var_name, var in workflow.setup_variables.items() %}
-        {# Always offer VariableName as an alternative — it is transparently dereferenced at runtime #}
-        {% set _types = [var.typename] if var.typename == 'VariableName' else [var.typename, 'VariableName'] %}
+        {# Always offer VariablePath as an alternative — it is transparently dereferenced at runtime #}
+        {% set _types = [var.typename] if var.typename == 'VariablePath' else [var.typename, 'VariablePath'] %}
         <div class="var-row">
           <span class="var-name">{{ var_name }}</span>
           <select class="var-type-select btn btn-sm" name="argtype__{{ var_name }}">

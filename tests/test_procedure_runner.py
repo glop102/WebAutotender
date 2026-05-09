@@ -3,7 +3,7 @@ from pipeline_backend.procedure_runner import ProcedureRunner
 from pipeline_backend.commands import CommandReturnStatus
 from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep, global_workflows
 from pipeline_backend.instances import Instance
-from pipeline_backend.variables import String, Integer, Float, VariableName
+from pipeline_backend.variables import String, Integer, Float, VariablePath
 
 
 @pytest.fixture
@@ -139,7 +139,7 @@ class TestMathEdgeCases:
             ProcessingStep("math_divide",
                            first=Float(1.0),
                            second=Float(0.0),
-                           output_variable=VariableName("r")),
+                           output_variable=VariablePath("r")),
         ]
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
@@ -153,7 +153,7 @@ class TestMathEdgeCases:
             ProcessingStep("math_add",
                            first=String("a"),
                            second=String("b"),
-                           output_variable=VariableName("r")),
+                           output_variable=VariablePath("r")),
         ]
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
@@ -165,7 +165,7 @@ class TestMathEdgeCases:
 class TestVariableResolution:
     async def test_variablename_dereferenced_from_instance(self, workflow):
         workflow.procedures["start"] = [
-            ProcessingStep("log", msg=VariableName("my_msg")),
+            ProcessingStep("log", msg=VariablePath("my_msg")),
         ]
         inst = workflow.spawn_instance()
         inst.variables["my_msg"] = String("dereffed message")
@@ -177,7 +177,7 @@ class TestVariableResolution:
     async def test_variablename_derefs_from_workflow_constant(self, workflow):
         workflow.constants["greeting"] = String("hello from constant")
         workflow.procedures["start"] = [
-            ProcessingStep("log", msg=VariableName("greeting")),
+            ProcessingStep("log", msg=VariablePath("greeting")),
         ]
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
@@ -218,9 +218,9 @@ class TestVariableResolution:
         assert inst.state == RunStates.Error
 
     async def test_missing_variable_name_marks_error(self, workflow):
-        # VariableName pointing to a var that doesn't exist anywhere
+        # VariablePath pointing to a var that doesn't exist anywhere
         workflow.procedures["start"] = [
-            ProcessingStep("log", msg=VariableName("does_not_exist")),
+            ProcessingStep("log", msg=VariablePath("does_not_exist")),
         ]
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)

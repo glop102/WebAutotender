@@ -129,7 +129,7 @@ async def sftp_delete_folder(instance: Instance, serverInfo: Dictionary, remotep
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="SSH/SFTP")
-async def sftp_list_directory(instance: Instance, serverInfo: Dictionary, directory: String, outputVarname: VariableName) -> CommandReturnStatus:
+async def sftp_list_directory(instance: Instance, serverInfo: Dictionary, directory: String, outputVarname: VariablePath) -> CommandReturnStatus:
     """List the contents of a remote directory over SFTP and store the names as a StringList.
   serverInfo: Dictionary with keys URL, username, and one of password / ssh key / ssh key filepath.
   directory: Absolute path to the remote directory to list.

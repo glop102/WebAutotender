@@ -101,7 +101,7 @@ class ProcedureRunner:
                 return deepcopy(given_var)
 
         # Common case of giving a variable name but really we are wanting to pass the value of a variable
-        if given_var.__class__ == VariableName:
+        if given_var.__class__ == VariablePath:
             try:
                 retrieved_var = self.instance[given_var.value]
                 return self.__check_deref_coerce_variable(retrieved_var, req_type)

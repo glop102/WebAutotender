@@ -3,7 +3,7 @@ import pytest
 from pipeline_backend.procedure_runner import ProcedureRunner
 from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep, global_workflows
 from pipeline_backend.instances import global_instances
-from pipeline_backend.variables import String, Integer, Float, VariableName, VariableNameList, Dictionary
+from pipeline_backend.variables import String, Integer, Float, VariablePath, VariableNameList, Dictionary
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def loop_workflow():
 
     wf.procedures["start"] = [
         ProcessingStep("set_variable_value",
-                       variable_name=VariableName("counter"),
+                       variable_name=VariablePath("counter"),
                        value=Integer(0)),
         ProcessingStep("jump_to_procedure",
                        procedure_name=String("main_loop")),
@@ -25,14 +25,14 @@ def loop_workflow():
     wf.procedures["main_loop"] = [
         ProcessingStep("goto_if_equal",
                        procedure_name=String("done"),
-                       value1=VariableName("counter"),
-                       value2=VariableName("max_count")),
+                       value1=VariablePath("counter"),
+                       value2=VariablePath("max_count")),
         ProcessingStep("log",
                        msg=String("looping")),
         ProcessingStep("math_add",
-                       first=VariableName("counter"),
+                       first=VariablePath("counter"),
                        second=Integer(1),
-                       output_variable=VariableName("counter")),
+                       output_variable=VariablePath("counter")),
         ProcessingStep("jump_to_procedure",
                        procedure_name=String("main_loop")),
     ]

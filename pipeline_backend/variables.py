@@ -229,9 +229,9 @@ class Boolean(WorkVariable):
         self.value = False
 
 
-# Specific type that is intended to say that it is refering to a different variable; either in an Instance or Workflow.
-# Used for procedures to differentiate between variables and constants
-class VariableName(WorkVariable):
+# A reference to a variable or a dot-notation path into nested data (e.g. "entry.link").
+# Used in command arguments to dereference instance/workflow variables at runtime.
+class VariablePath(WorkVariable):
     value:str
     def __init__(self, value: str | Self | None = None):
         if not value:

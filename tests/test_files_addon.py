@@ -4,7 +4,7 @@ from pipeline_backend.commands import CommandReturnStatus
 from pipeline_backend.commands_builtin import list_pop_next
 from pipeline_backend.workflows import Workflow, RunStates, global_workflows
 from pipeline_backend.instances import Instance, global_instances
-from pipeline_backend.variables import String, StringList, VariableName, Boolean
+from pipeline_backend.variables import String, StringList, VariablePath, Boolean
 
 import builtin_addons.files
 from builtin_addons.files import (
@@ -123,43 +123,43 @@ class TestPathChecks:
     def test_file_exists_true_for_file(self, instance, tmp_path):
         f = tmp_path / "f.txt"
         f.write_text("")
-        file_exists(instance, String(str(f)), VariableName("result"))
+        file_exists(instance, String(str(f)), VariablePath("result"))
         assert type(instance.variables["result"]) == Boolean and instance.variables["result"].value is True
 
     def test_file_exists_false_for_missing(self, instance, tmp_path):
-        file_exists(instance, String(str(tmp_path / "nope")), VariableName("result"))
+        file_exists(instance, String(str(tmp_path / "nope")), VariablePath("result"))
         assert type(instance.variables["result"]) == Boolean and instance.variables["result"].value is False
 
     def test_file_exists_true_for_directory(self, instance, tmp_path):
-        file_exists(instance, String(str(tmp_path)), VariableName("result"))
+        file_exists(instance, String(str(tmp_path)), VariablePath("result"))
         assert type(instance.variables["result"]) == Boolean and instance.variables["result"].value is True
 
     def test_is_file_true_for_file(self, instance, tmp_path):
         f = tmp_path / "f.txt"
         f.write_text("")
-        is_file(instance, String(str(f)), VariableName("result"))
+        is_file(instance, String(str(f)), VariablePath("result"))
         assert type(instance.variables["result"]) == Boolean and instance.variables["result"].value is True
 
     def test_is_file_false_for_directory(self, instance, tmp_path):
-        is_file(instance, String(str(tmp_path)), VariableName("result"))
+        is_file(instance, String(str(tmp_path)), VariablePath("result"))
         assert type(instance.variables["result"]) == Boolean and instance.variables["result"].value is False
 
     def test_is_file_false_for_missing(self, instance, tmp_path):
-        is_file(instance, String(str(tmp_path / "nope")), VariableName("result"))
+        is_file(instance, String(str(tmp_path / "nope")), VariablePath("result"))
         assert type(instance.variables["result"]) == Boolean and instance.variables["result"].value is False
 
     def test_is_folder_true_for_directory(self, instance, tmp_path):
-        is_folder(instance, String(str(tmp_path)), VariableName("result"))
+        is_folder(instance, String(str(tmp_path)), VariablePath("result"))
         assert type(instance.variables["result"]) == Boolean and instance.variables["result"].value is True
 
     def test_is_folder_false_for_file(self, instance, tmp_path):
         f = tmp_path / "f.txt"
         f.write_text("")
-        is_folder(instance, String(str(f)), VariableName("result"))
+        is_folder(instance, String(str(f)), VariablePath("result"))
         assert type(instance.variables["result"]) == Boolean and instance.variables["result"].value is False
 
     def test_is_folder_false_for_missing(self, instance, tmp_path):
-        is_folder(instance, String(str(tmp_path / "nope")), VariableName("result"))
+        is_folder(instance, String(str(tmp_path / "nope")), VariablePath("result"))
         assert type(instance.variables["result"]) == Boolean and instance.variables["result"].value is False
 
 
@@ -209,24 +209,24 @@ class TestListFolderContents:
         (tmp_path / "c.txt").write_text("")
         (tmp_path / "a.txt").write_text("")
         (tmp_path / "b.txt").write_text("")
-        result = list_folder_contents(instance, String(str(tmp_path)), VariableName("entries"))
+        result = list_folder_contents(instance, String(str(tmp_path)), VariablePath("entries"))
         assert result == CommandReturnStatus.Success
         assert instance.variables["entries"].value == ["a.txt", "b.txt", "c.txt"]
 
     def test_includes_subdirectories(self, instance, tmp_path):
         (tmp_path / "file.txt").write_text("")
         (tmp_path / "subdir").mkdir()
-        list_folder_contents(instance, String(str(tmp_path)), VariableName("entries"))
+        list_folder_contents(instance, String(str(tmp_path)), VariablePath("entries"))
         assert "file.txt" in instance.variables["entries"].value
         assert "subdir" in instance.variables["entries"].value
 
     def test_empty_folder_returns_empty_list(self, instance, tmp_path):
-        result = list_folder_contents(instance, String(str(tmp_path)), VariableName("entries"))
+        result = list_folder_contents(instance, String(str(tmp_path)), VariablePath("entries"))
         assert result == CommandReturnStatus.Success
         assert instance.variables["entries"].value == []
 
     def test_nonexistent_folder_returns_error(self, instance, tmp_path):
-        result = list_folder_contents(instance, String(str(tmp_path / "nope")), VariableName("entries"))
+        result = list_folder_contents(instance, String(str(tmp_path / "nope")), VariablePath("entries"))
         assert result == CommandReturnStatus.Error
 
 
@@ -237,7 +237,7 @@ class TestListFolderContents:
 class TestStringlistPopNext:
     def test_pops_first_item_into_variable(self, workflow, instance):
         instance.variables["items"] = StringList(["a", "b", "c"])
-        result = list_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
+        result = list_pop_next(instance, VariablePath("items"), VariablePath("current"), String("target"))
         assert result == CommandReturnStatus.Success
         assert instance.variables["current"].value == "a"
         assert instance.variables["items"].value == ["b", "c"]
@@ -245,7 +245,7 @@ class TestStringlistPopNext:
     def test_pops_last_item_and_continues(self, workflow, instance):
         # Last item should be popped and returned normally — caller loops back and hits the empty check next time
         instance.variables["items"] = StringList(["only"])
-        result = list_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
+        result = list_pop_next(instance, VariablePath("items"), VariablePath("current"), String("target"))
         assert result == CommandReturnStatus.Success
         assert instance.variables["current"].value == "only"
         assert instance.variables["items"].value == []
@@ -253,7 +253,7 @@ class TestStringlistPopNext:
     def test_jumps_to_procedure_when_list_is_empty(self, workflow, instance):
         # Empty list on entry → jump immediately, item_varname not touched
         instance.variables["items"] = StringList([])
-        result = list_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
+        result = list_pop_next(instance, VariablePath("items"), VariablePath("current"), String("target"))
         assert result == CommandReturnStatus.Success | CommandReturnStatus.Keep_Position
         assert instance.processing_step == ("target", 0)
 
@@ -262,7 +262,7 @@ class TestStringlistPopNext:
         instance.variables["items"] = StringList(["x", "y", "z"])
         seen = []
         for _ in range(10):
-            result = list_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
+            result = list_pop_next(instance, VariablePath("items"), VariablePath("current"), String("target"))
             if result == CommandReturnStatus.Success | CommandReturnStatus.Keep_Position:
                 break
             seen.append(instance.variables["current"].value)
@@ -272,5 +272,5 @@ class TestStringlistPopNext:
     def test_non_stringlist_returns_error(self, workflow, instance):
         from pipeline_backend.variables import Integer
         instance.variables["items"] = Integer(5)
-        result = list_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
+        result = list_pop_next(instance, VariablePath("items"), VariablePath("current"), String("target"))
         assert result == CommandReturnStatus.Error

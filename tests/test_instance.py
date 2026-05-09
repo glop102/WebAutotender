@@ -1,7 +1,7 @@
 import pytest
 from pipeline_backend.instances import Instance, global_instances
 from pipeline_backend.workflows import Workflow, global_workflows
-from pipeline_backend.variables import String, Integer, VariableName, global_variables, global_secrets
+from pipeline_backend.variables import String, Integer, Float, VariablePath, StringList, VariableList, VariableNameList, Dictionary, global_variables, global_secrets
 
 
 @pytest.fixture
@@ -106,7 +106,7 @@ class TestSetItem:
 
     def test_accepts_variable_name_key(self, workflow):
         inst = workflow.spawn_instance()
-        inst[VariableName("x")] = Integer(5)
+        inst[VariablePath("x")] = Integer(5)
         assert inst.variables["x"].value == 5
 
     def test_stores_copy_not_reference(self, workflow):
@@ -166,3 +166,87 @@ class TestSpawnInstance:
         a = workflow.spawn_instance()
         b = workflow.spawn_instance()
         assert a.uuid != b.uuid
+
+
+class TestDotNotationGet:
+    def test_single_level_dict_key(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.variables["entry"] = Dictionary({"link": String("http://example.com")})
+        assert inst["entry.link"].value == "http://example.com"
+
+    def test_multi_level_nested_dicts(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.variables["a"] = Dictionary({"b": Dictionary({"c": String("deep")})})
+        assert inst["a.b.c"].value == "deep"
+
+    def test_integer_index_into_variablelist(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.variables["items"] = VariableList([String("first"), String("second")])
+        assert inst["items.0"].value == "first"
+        assert inst["items.1"].value == "second"
+
+    def test_integer_index_into_stringlist(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.variables["words"] = StringList(["hello", "world"])
+        result = inst["words.0"]
+        assert isinstance(result, String)
+        assert result.value == "hello"
+
+    def test_integer_index_into_variablenamelist(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.variables["names"] = VariableNameList(["foo", "bar"])
+        result = inst["names.1"]
+        assert isinstance(result, VariablePath)
+        assert result.value == "bar"
+
+    def test_missing_dict_key_raises_keyerror(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.variables["d"] = Dictionary({"a": String("x")})
+        with pytest.raises(KeyError):
+            _ = inst["d.missing"]
+
+    def test_indexing_into_non_container_raises_keyerror(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.variables["x"] = String("flat")
+        with pytest.raises(KeyError):
+            _ = inst["x.sub"]
+
+    def test_missing_first_segment_raises_keyerror(self, workflow):
+        inst = workflow.spawn_instance()
+        with pytest.raises(KeyError):
+            _ = inst["nonexistent.key"]
+
+    def test_variablepath_key_accepted(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.variables["d"] = Dictionary({"v": Integer(7)})
+        assert inst[VariablePath("d.v")].value == 7
+
+
+class TestDotNotationSet:
+    def test_single_level_unchanged(self, workflow):
+        inst = workflow.spawn_instance()
+        inst["x"] = String("flat")
+        assert inst.variables["x"].value == "flat"
+
+    def test_creates_dict_and_sets_key(self, workflow):
+        inst = workflow.spawn_instance()
+        inst["entry.link"] = String("http://example.com")
+        assert isinstance(inst.variables["entry"], Dictionary)
+        assert inst.variables["entry"].value["link"].value == "http://example.com"
+
+    def test_sets_key_in_existing_dict(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.variables["entry"] = Dictionary({"title": String("old")})
+        inst["entry.title"] = String("new")
+        assert inst.variables["entry"].value["title"].value == "new"
+
+    def test_creates_intermediate_dicts(self, workflow):
+        inst = workflow.spawn_instance()
+        inst["a.b.c"] = Integer(99)
+        assert inst.variables["a"].value["b"].value["c"].value == 99
+
+    def test_setting_into_non_dict_intermediate_raises(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.variables["x"] = String("flat")
+        with pytest.raises(TypeError):
+            inst["x.key"] = String("val")

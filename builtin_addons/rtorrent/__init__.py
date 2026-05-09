@@ -139,7 +139,7 @@ class Torrent:
         self.server.connection.d.erase(self.infohash)
 
 @Commands.register_command(category="rTorrent")
-def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary,url:String,outputHashName:VariableName)->CommandReturnStatus:
+def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary,url:String,outputHashName:VariablePath)->CommandReturnStatus:
     """Add a torrent URL or magnet link to an rTorrent server and store the resulting infohash.
   serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
   url: HTTP/HTTPS URL to a .torrent file, or a magnet link.
@@ -186,7 +186,7 @@ def rtorrent_set_torrent_label(instance:Instance,serverInfo:Dictionary,infohash:
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="rTorrent")
-def rtorrent_get_torrent_name(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariableName)->CommandReturnStatus:
+def rtorrent_get_torrent_name(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariablePath)->CommandReturnStatus:
     """Retrieve the display name of a torrent and store it in a variable.
   serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
   infohash: The infohash string of the torrent.
@@ -198,7 +198,7 @@ def rtorrent_get_torrent_name(instance:Instance,serverInfo:Dictionary,infohash:S
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="rTorrent")
-def rtorrent_get_torrents_path(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariableName)->CommandReturnStatus:
+def rtorrent_get_torrents_path(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariablePath)->CommandReturnStatus:
     """Retrieve the base download path of a torrent (where its files are saved) and store it in a variable.
   serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
   infohash: The infohash string of the torrent.

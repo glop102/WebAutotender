@@ -1,7 +1,7 @@
 import pytest
 from pipeline_backend.variables import (
     WorkVariable, String, Integer, Float, URL,
-    Boolean, StringList, VariableList, VariableName, VariableNameList, Dictionary,
+    Boolean, StringList, VariableList, VariablePath, VariableNameList, Dictionary,
 )
 
 
@@ -221,15 +221,15 @@ class TestDictionary:
         assert restored.value["inner"].value["x"].value == 1
 
 
-class TestVariableName:
+class TestVariablePath:
     def test_valid(self):
-        assert VariableName("my_var").is_valid()
+        assert VariablePath("my_var").is_valid()
 
     def test_default(self):
-        assert VariableName().value == ""
+        assert VariablePath().value == ""
 
     def test_normalize_strips(self):
-        v = VariableName("  my_var  ")
+        v = VariablePath("  my_var  ")
         v.normalize()
         assert v.value == "my_var"
 
