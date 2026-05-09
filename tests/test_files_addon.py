@@ -1,7 +1,7 @@
 import pytest
 import os
 from pipeline_backend.commands import CommandReturnStatus
-from pipeline_backend.commands_builtin import stringlist_pop_next
+from pipeline_backend.commands_builtin import list_pop_next
 from pipeline_backend.workflows import Workflow, RunStates, global_workflows
 from pipeline_backend.instances import Instance, global_instances
 from pipeline_backend.variables import String, StringList, VariableName, Boolean
@@ -231,13 +231,13 @@ class TestListFolderContents:
 
 
 # ============================================================
-# stringlist_pop_next (Core)
+# list_pop_next (Core)
 # ============================================================
 
 class TestStringlistPopNext:
     def test_pops_first_item_into_variable(self, workflow, instance):
         instance.variables["items"] = StringList(["a", "b", "c"])
-        result = stringlist_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
+        result = list_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
         assert result == CommandReturnStatus.Success
         assert instance.variables["current"].value == "a"
         assert instance.variables["items"].value == ["b", "c"]
@@ -245,7 +245,7 @@ class TestStringlistPopNext:
     def test_pops_last_item_and_continues(self, workflow, instance):
         # Last item should be popped and returned normally — caller loops back and hits the empty check next time
         instance.variables["items"] = StringList(["only"])
-        result = stringlist_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
+        result = list_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
         assert result == CommandReturnStatus.Success
         assert instance.variables["current"].value == "only"
         assert instance.variables["items"].value == []
@@ -253,7 +253,7 @@ class TestStringlistPopNext:
     def test_jumps_to_procedure_when_list_is_empty(self, workflow, instance):
         # Empty list on entry → jump immediately, item_varname not touched
         instance.variables["items"] = StringList([])
-        result = stringlist_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
+        result = list_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
         assert result == CommandReturnStatus.Success | CommandReturnStatus.Keep_Position
         assert instance.processing_step == ("target", 0)
 
@@ -262,7 +262,7 @@ class TestStringlistPopNext:
         instance.variables["items"] = StringList(["x", "y", "z"])
         seen = []
         for _ in range(10):
-            result = stringlist_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
+            result = list_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
             if result == CommandReturnStatus.Success | CommandReturnStatus.Keep_Position:
                 break
             seen.append(instance.variables["current"].value)
@@ -272,5 +272,5 @@ class TestStringlistPopNext:
     def test_non_stringlist_returns_error(self, workflow, instance):
         from pipeline_backend.variables import Integer
         instance.variables["items"] = Integer(5)
-        result = stringlist_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
+        result = list_pop_next(instance, VariableName("items"), VariableName("current"), String("target"))
         assert result == CommandReturnStatus.Error

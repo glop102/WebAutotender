@@ -231,19 +231,22 @@ def math_divide(instance: Instance, first: Integer|Float, second: Integer|Float,
 
 
 @Commands.register_command(category="Core")
-def stringlist_pop_next(instance: Instance, list_varname: VariableName, item_varname: VariableName, empty_procedure: String) -> CommandReturnStatus:
-    """Pop the first item from a StringList into a variable, looping until the list is empty. Jumps to empty_procedure when the list is already empty on entry, so the last item is always processed before the jump.
-  list_varname: Name of the StringList variable to pop from.
+def list_pop_next(instance: Instance, list_varname: VariableName, item_varname: VariableName, empty_procedure: String) -> CommandReturnStatus:
+    """Pop the first item from a StringList or VariableList into a variable. Jumps to empty_procedure when the list is already empty on entry, so the last item is always processed before the jump.
+  list_varname: Name of the StringList or VariableList variable to pop from.
   item_varname: Name of the variable to store the popped item in.
   empty_procedure: Procedure to jump to when the list is empty on entry."""
     the_list = instance[list_varname.value]
-    if not isinstance(the_list, StringList):
-        instance.log_line(f"Error: '{list_varname.value}' is not a StringList.")
+    if not isinstance(the_list, (StringList, VariableList)):
+        instance.log_line(f"Error: '{list_varname.value}' is not a StringList or VariableList.")
         return CommandReturnStatus.Error
     if len(the_list.value) == 0:
         return jump_to_procedure(instance, empty_procedure)
     item = the_list.value.pop(0)
-    instance[item_varname] = String(item)
+    if isinstance(the_list, StringList):
+        # StringList stores raw Python strings internally, so wrap in String before storing
+        item = String(item)
+    instance[item_varname] = item
     instance[list_varname] = the_list
     return CommandReturnStatus.Success
 
