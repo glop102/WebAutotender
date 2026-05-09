@@ -20,6 +20,16 @@ async def str_regex_firstMatch(instance: Instance, regexPatern:String, inputStri
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Strings")
+async def str_regex_matchAll(instance: Instance, regexPatern: String, inputString: String, outputVarname: VariableName) -> CommandReturnStatus:
+    """Find all regex matches in a string using extended regex syntax (supports \\K and other extras). Stores an empty list if there are no matches.
+  regexPatern: The regex pattern to search with.
+  inputString: The string to search in.
+  outputVarname: Name of the variable to store the StringList of matched strings in."""
+    matches = re.findall(regexPatern.value, inputString.value)
+    instance[outputVarname] = StringList(matches)
+    return CommandReturnStatus.Success
+
+@Commands.register_command(category="Strings")
 async def str_buildWithVars(instance: Instance, inputString:String, outputVarname: VariableName) -> CommandReturnStatus:
     """Build a string using Python-style {variable_name} placeholders filled from instance variables.
   inputString: A format string with {variable_name} placeholders referencing instance or global variables.

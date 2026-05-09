@@ -1137,6 +1137,7 @@ def _render_procedure_section(uuid: str, draft: Workflow, proc_name: str, ctx: d
         workflow_uuid=uuid,
         command_groups=ctx["command_groups"],
         command_args=ctx["command_args"],
+        command_docs=ctx["command_docs"],
         var_types=ctx["var_types"],
         is_start=(proc_name == "start"),
     )

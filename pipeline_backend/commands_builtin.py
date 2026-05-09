@@ -3,7 +3,6 @@ from .variables import *
 from .instances import *
 from .workflows import *
 from datetime import datetime,timedelta
-import re
 
 # ====================================================================
 # State control of instances
@@ -230,31 +229,6 @@ def math_divide(instance: Instance, first: Integer|Float, second: Integer|Float,
 # Utilities
 # ====================================================================
 
-@Commands.register_command(category="Strings")
-def regex_first_match(instance: Instance, format_string: String, input_string: String, output_variable:VariableName) -> CommandReturnStatus:
-    """Find the first regex match in a string and store it. Errors if no match is found.
-  format_string: The regex pattern to search with.
-  input_string: The string to search in.
-  output_variable: Name of the variable to store the matched text in."""
-    matcher = re.compile(format_string.value)
-    first_match = matcher.search(input_string.value)
-    if not first_match:
-        instance.log_line(f"Error: Unable to find a match of {format_string} on the input {input_string}")
-        return CommandReturnStatus.Error
-
-    instance[output_variable.value] = String(first_match.group())
-    return CommandReturnStatus.Success
-
-@Commands.register_command(category="Strings")
-def regex_match_all(instance: Instance, format_string: String, input_string: String, output_variable: VariableName) -> CommandReturnStatus:
-    """Find all regex matches in a string and store them as a StringList. Stores an empty list if there are no matches.
-  format_string: The regex pattern to search with.
-  input_string: The string to search in.
-  output_variable: Name of the variable to store the list of matched strings in."""
-    matcher = re.compile(format_string.value)
-    matches = matcher.findall(input_string.value)
-    instance[output_variable.value] = StringList(matches)
-    return CommandReturnStatus.Success
 
 @Commands.register_command(category="Core")
 def stringlist_pop_next(instance: Instance, list_varname: VariableName, item_varname: VariableName, empty_procedure: String) -> CommandReturnStatus:
