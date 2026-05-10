@@ -4,11 +4,13 @@ from datetime import datetime
 from copy import deepcopy,copy
 import pipeline_backend.variables as variables
 import pipeline_backend.workflows as workflows
+from pipeline_backend.context import PipelineContext
 
 class Instance:
     uuid: str
     workflow_uuid: str
     state: workflows.RunStates
+    ctx: PipelineContext
 
     # Per Instance Variables - Initially populated with setup_variables and then runtime can mutate it
     variables: dict[str, variables.WorkVariable]
@@ -21,7 +23,8 @@ class Instance:
     # It is handy to debug things when there is actually feedback to the user
     console_log: str
 
-    def __init__(self) -> None:
+    def __init__(self, ctx: PipelineContext) -> None:
+        self.ctx = ctx
         self.uuid = ""
         self.workflow_uuid = ""
         self.state = workflows.RunStates.Running
@@ -41,7 +44,7 @@ class Instance:
         return sss
 
     def get_associated_workflow(self) -> workflows.Workflow:
-        return workflows.global_workflows[self.workflow_uuid]
+        return self.ctx.workflows[self.workflow_uuid]
 
     def log_line(self, line):
         """Will add a line to the log. This will add its own newline to the end of the line"""
@@ -59,7 +62,7 @@ class Instance:
 
         w: workflows.Workflow = self.get_associated_workflow()
         for scope in (self.variables, w.constants, w.setup_variables,
-                      variables.global_variables, variables.global_secrets):
+                      self.ctx.variables, self.ctx.secrets):
             if first in scope:
                 result = deepcopy(scope[first])
                 break
