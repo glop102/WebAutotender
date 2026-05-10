@@ -12,15 +12,15 @@ from pipeline_backend.commands_builtin import (
 from pipeline_backend.workflows import Workflow, RunStates
 from pipeline_backend.instances import Instance
 from pipeline_backend.variables import String, Integer, Float, VariablePath, VariableNameList, StringList, Dictionary
-from pipeline_backend.manager import pipelineManager
+from pipeline_backend.manager import PipelineManager
 
 
 @pytest.fixture
-def workflow():
-    wf = Workflow(pipelineManager.ctx)
+def workflow(mgr):
+    wf = Workflow(mgr.ctx)
     wf.uuid = "wf-cmd-test"
     wf.name = "Command Test"
-    pipelineManager.ctx.workflows[wf.uuid] = wf
+    mgr.ctx.workflows[wf.uuid] = wf
     return wf
 
 
@@ -201,44 +201,43 @@ class TestInstanceLifecycle:
         assert result == CommandReturnStatus.Yield
         assert instance.state == RunStates.Paused
 
-    def test_delete_removes_from_global_instances(self, instance):
+    def test_delete_removes_from_global_instances(self, mgr, instance):
         uuid = instance.uuid
-        assert uuid in pipelineManager.ctx.instances
+        assert uuid in mgr.ctx.instances
         result = delete_this_instance(instance)
         assert result == CommandReturnStatus.Yield
-        assert uuid not in pipelineManager.ctx.instances
+        assert uuid not in mgr.ctx.instances
 
-    def test_delete_orphan_not_in_global_returns_error(self):
-        inst = Instance(pipelineManager.ctx)
+    def test_delete_orphan_not_in_global_returns_error(self, mgr):
+        inst = Instance(mgr.ctx)
         inst.uuid = "orphan-not-registered"
         result = delete_this_instance(inst)
         assert result == CommandReturnStatus.Error
 
 
 class TestMakeNewInstance:
-    def _target(self, uuid, **setup_vars):
-        """Helper: create and register a target workflow with the given setup_variables."""
-        wf = Workflow(pipelineManager.ctx)
+    def _target(self, mgr, uuid, **setup_vars):
+        wf = Workflow(mgr.ctx)
         wf.uuid = uuid
         wf.name = f"Target-{uuid}"
         for name, var in setup_vars.items():
             wf.setup_variables[name] = var
-        pipelineManager.ctx.workflows[uuid] = wf
+        mgr.ctx.workflows[uuid] = wf
         return wf
 
-    def _spawned(self, uuid):
-        return [i for i in pipelineManager.ctx.instances.values() if i.workflow_uuid == uuid]
+    def _spawned(self, mgr, uuid):
+        return [i for i in mgr.ctx.instances.values() if i.workflow_uuid == uuid]
 
-    def test_spawns_instance_in_target_workflow(self, workflow, instance):
-        self._target("target-wf")
+    def test_spawns_instance_in_target_workflow(self, mgr, workflow, instance):
+        self._target(mgr, "target-wf")
         result = make_new_instance(instance, String("target-wf"), Dictionary({}), VariableNameList([]))
         assert result == CommandReturnStatus.Success
-        assert len(self._spawned("target-wf")) == 1
+        assert len(self._spawned(mgr, "target-wf")) == 1
 
-    def test_passes_concrete_setup_var_to_new_instance(self, workflow, instance):
-        self._target("target-wf-concrete", name=String("default"))
+    def test_passes_concrete_setup_var_to_new_instance(self, mgr, workflow, instance):
+        self._target(mgr, "target-wf-concrete", name=String("default"))
         make_new_instance(instance, String("target-wf-concrete"), Dictionary({"name": String("custom")}), VariableNameList([]))
-        spawned = self._spawned("target-wf-concrete")
+        spawned = self._spawned(mgr, "target-wf-concrete")
         assert len(spawned) == 1
         assert spawned[0].variables["name"].value == "custom"
 
@@ -246,13 +245,13 @@ class TestMakeNewInstance:
         result = make_new_instance(instance, String("no-such-uuid"), Dictionary({}), VariableNameList([]))
         assert result == CommandReturnStatus.Error
 
-    def test_unknown_key_in_setup_vars_returns_error(self, workflow, instance):
-        self._target("target-wf-val")
+    def test_unknown_key_in_setup_vars_returns_error(self, mgr, workflow, instance):
+        self._target(mgr, "target-wf-val")
         result = make_new_instance(instance, String("target-wf-val"), Dictionary({"unknown": Integer(1)}), VariableNameList([]))
         assert result == CommandReturnStatus.Error
 
-    def test_do_not_deref_key_not_in_setup_vars_returns_error(self, workflow, instance):
-        self._target("target-wf-dnd-val", count=Integer(0))
+    def test_do_not_deref_key_not_in_setup_vars_returns_error(self, mgr, workflow, instance):
+        self._target(mgr, "target-wf-dnd-val", count=Integer(0))
         result = make_new_instance(
             instance, String("target-wf-dnd-val"),
             Dictionary({"count": Integer(1)}),
@@ -260,70 +259,67 @@ class TestMakeNewInstance:
         )
         assert result == CommandReturnStatus.Error
 
-    def test_absent_setup_var_uses_workflow_default(self, workflow, instance):
-        self._target("target-wf-default", count=Integer(99))
+    def test_absent_setup_var_uses_workflow_default(self, mgr, workflow, instance):
+        self._target(mgr, "target-wf-default", count=Integer(99))
         make_new_instance(instance, String("target-wf-default"), Dictionary({}), VariableNameList([]))
-        spawned = self._spawned("target-wf-default")
+        spawned = self._spawned(mgr, "target-wf-default")
         assert len(spawned) == 1
         assert spawned[0].variables["count"].value == 99
 
-    def test_concrete_value_matching_dest_type_passes_through(self, workflow, instance):
-        self._target("target-wf-passthrough", count=Integer(0))
+    def test_concrete_value_matching_dest_type_passes_through(self, mgr, workflow, instance):
+        self._target(mgr, "target-wf-passthrough", count=Integer(0))
         make_new_instance(instance, String("target-wf-passthrough"), Dictionary({"count": Integer(7)}), VariableNameList([]))
-        spawned = self._spawned("target-wf-passthrough")
+        spawned = self._spawned(mgr, "target-wf-passthrough")
         assert spawned[0].variables["count"].value == 7
 
-    def test_varname_resolved_to_dest_type(self, workflow, instance):
+    def test_varname_resolved_to_dest_type(self, mgr, workflow, instance):
         instance.variables["num"] = Integer(5)
-        self._target("target-wf-deref", count=Integer(0))
+        self._target(mgr, "target-wf-deref", count=Integer(0))
         make_new_instance(instance, String("target-wf-deref"), Dictionary({"count": VariablePath("num")}), VariableNameList([]))
-        spawned = self._spawned("target-wf-deref")
+        spawned = self._spawned(mgr, "target-wf-deref")
         assert spawned[0].variables["count"].value == 5
 
-    def test_multi_level_varname_resolution(self, workflow, instance):
+    def test_multi_level_varname_resolution(self, mgr, workflow, instance):
         instance.variables["alias"] = VariablePath("num")
         instance.variables["num"] = Integer(42)
-        self._target("target-wf-multilevel", count=Integer(0))
+        self._target(mgr, "target-wf-multilevel", count=Integer(0))
         make_new_instance(instance, String("target-wf-multilevel"), Dictionary({"count": VariablePath("alias")}), VariableNameList([]))
-        spawned = self._spawned("target-wf-multilevel")
+        spawned = self._spawned(mgr, "target-wf-multilevel")
         assert spawned[0].variables["count"].value == 42
 
-    def test_varname_resolved_via_global_variables(self, workflow, instance):
-        pipelineManager.ctx.variables["global_num"] = Integer(99)
-        try:
-            self._target("target-wf-global", count=Integer(0))
-            make_new_instance(instance, String("target-wf-global"), Dictionary({"count": VariablePath("global_num")}), VariableNameList([]))
-            spawned = self._spawned("target-wf-global")
-            assert spawned[0].variables["count"].value == 99
-        finally:
-            del pipelineManager.ctx.variables["global_num"]
+    def test_varname_resolved_via_global_variables(self, mgr, workflow, instance):
+        mgr.ctx.variables["global_num"] = Integer(99)
+        self._target(mgr, "target-wf-global", count=Integer(0))
+        make_new_instance(instance, String("target-wf-global"), Dictionary({"count": VariablePath("global_num")}), VariableNameList([]))
+        spawned = self._spawned(mgr, "target-wf-global")
+        assert spawned[0].variables["count"].value == 99
 
-    def test_varname_passes_through_when_dest_type_is_varname(self, workflow, instance):
-        self._target("target-wf-vn", ref=VariablePath("placeholder"))
+    def test_varname_passes_through_when_dest_type_is_varname(self, mgr, workflow, instance):
+        self._target(mgr, "target-wf-vn", ref=VariablePath("placeholder"))
         result = make_new_instance(
             instance, String("target-wf-vn"),
             Dictionary({"ref": VariablePath("something")}),
             VariableNameList([]),
         )
         assert result == CommandReturnStatus.Success
-        spawned = self._spawned("target-wf-vn")
+        spawned = self._spawned(mgr, "target-wf-vn")
         assert type(spawned[0].variables["ref"]) == VariablePath
         assert spawned[0].variables["ref"].value == "something"
 
-    def test_do_not_deref_prevents_resolution(self, workflow, instance):
-        self._target("target-wf-dnd", ref=Integer(0))
+    def test_do_not_deref_prevents_resolution(self, mgr, workflow, instance):
+        self._target(mgr, "target-wf-dnd", ref=Integer(0))
         result = make_new_instance(
             instance, String("target-wf-dnd"),
             Dictionary({"ref": VariablePath("missing")}),
             VariableNameList(["ref"]),
         )
         assert result == CommandReturnStatus.Success
-        spawned = self._spawned("target-wf-dnd")
+        spawned = self._spawned(mgr, "target-wf-dnd")
         assert type(spawned[0].variables["ref"]) == VariablePath
         assert spawned[0].variables["ref"].value == "missing"
 
-    def test_dangling_reference_returns_error(self, workflow, instance):
-        self._target("target-wf-dangle", count=Integer(0))
+    def test_dangling_reference_returns_error(self, mgr, workflow, instance):
+        self._target(mgr, "target-wf-dangle", count=Integer(0))
         result = make_new_instance(
             instance, String("target-wf-dangle"),
             Dictionary({"count": VariablePath("no_such_var")}),
@@ -331,8 +327,8 @@ class TestMakeNewInstance:
         )
         assert result == CommandReturnStatus.Error
 
-    def test_wrong_concrete_type_returns_error(self, workflow, instance):
-        self._target("target-wf-wrongtype", count=Integer(0))
+    def test_wrong_concrete_type_returns_error(self, mgr, workflow, instance):
+        self._target(mgr, "target-wf-wrongtype", count=Integer(0))
         result = make_new_instance(
             instance, String("target-wf-wrongtype"),
             Dictionary({"count": String("hello")}),

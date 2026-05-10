@@ -4,7 +4,7 @@ from pipeline_backend.commands import CommandReturnStatus
 from pipeline_backend.commands_builtin import list_pop_next
 from pipeline_backend.workflows import Workflow, RunStates
 from pipeline_backend.variables import String, StringList, VariablePath, Boolean
-from pipeline_backend.manager import pipelineManager
+from pipeline_backend.manager import PipelineManager
 
 import builtin_addons.files
 from builtin_addons.files import (
@@ -16,12 +16,12 @@ from builtin_addons.files import (
 
 
 @pytest.fixture
-def workflow():
-    wf = Workflow(pipelineManager.ctx)
+def workflow(mgr):
+    wf = Workflow(mgr.ctx)
     wf.uuid = "wf-files-test"
     wf.name = "Files Test"
     wf.procedures["target"] = []
-    pipelineManager.ctx.workflows[wf.uuid] = wf
+    mgr.ctx.workflows[wf.uuid] = wf
     return wf
 
 

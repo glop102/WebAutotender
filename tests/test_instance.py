@@ -2,15 +2,15 @@ import pytest
 from pipeline_backend.instances import Instance
 from pipeline_backend.workflows import Workflow
 from pipeline_backend.variables import String, Integer, Float, VariablePath, StringList, VariableList, VariableNameList, Dictionary
-from pipeline_backend.manager import pipelineManager
+from pipeline_backend.manager import PipelineManager
 
 
 @pytest.fixture
-def workflow():
-    wf = Workflow(pipelineManager.ctx)
+def workflow(mgr):
+    wf = Workflow(mgr.ctx)
     wf.uuid = "wf-instance-test"
     wf.name = "Instance Test"
-    pipelineManager.ctx.workflows[wf.uuid] = wf
+    mgr.ctx.workflows[wf.uuid] = wf
     return wf
 
 
@@ -32,14 +32,12 @@ class TestVariableLookupChain:
         assert inst["x"].value == "constant_val"
 
     def test_constant_shadows_setup_variable(self, workflow):
-        # Constant takes priority over setup_variables added after spawn
         workflow.constants["x"] = String("constant_val")
         inst = workflow.spawn_instance()
         workflow.setup_variables["x"] = String("setup_val")
         assert inst["x"].value == "constant_val"
 
     def test_falls_through_to_setup_variable_added_after_spawn(self, workflow):
-        # setup_variables added after spawn are not in inst.variables but still reachable
         inst = workflow.spawn_instance()
         workflow.setup_variables["late_var"] = String("setup_val")
         assert inst["late_var"].value == "setup_val"
@@ -55,13 +53,13 @@ class TestVariableLookupChain:
         inst = workflow.spawn_instance({"x": String("override")})
         assert inst["x"].value == "override"
 
-    def test_falls_through_to_global_variable(self, workflow):
-        pipelineManager.ctx.variables["g"] = Integer(42)
+    def test_falls_through_to_global_variable(self, mgr, workflow):
+        mgr.ctx.variables["g"] = Integer(42)
         inst = workflow.spawn_instance()
         assert inst["g"].value == 42
 
-    def test_falls_through_to_global_secret(self, workflow):
-        pipelineManager.ctx.secrets["s"] = String("secret_val")
+    def test_falls_through_to_global_secret(self, mgr, workflow):
+        mgr.ctx.secrets["s"] = String("secret_val")
         inst = workflow.spawn_instance()
         assert inst["s"].value == "secret_val"
 
@@ -89,8 +87,8 @@ class TestContains:
         inst = workflow.spawn_instance()
         assert "k" in inst
 
-    def test_contains_true_for_global(self, workflow):
-        pipelineManager.ctx.variables["g"] = Integer(1)
+    def test_contains_true_for_global(self, mgr, workflow):
+        mgr.ctx.variables["g"] = Integer(1)
         inst = workflow.spawn_instance()
         assert "g" in inst
 
@@ -143,17 +141,16 @@ class TestDelItem:
 
 
 class TestSpawnInstance:
-    def test_registers_in_global_instances(self, workflow):
+    def test_registers_in_global_instances(self, mgr, workflow):
         inst = workflow.spawn_instance()
-        assert inst.uuid in pipelineManager.ctx.instances
+        assert inst.uuid in mgr.ctx.instances
 
-    def test_unregistered_workflow_not_added_to_global(self):
-        wf = Workflow(pipelineManager.ctx)
+    def test_unregistered_workflow_not_added_to_global(self, mgr):
+        wf = Workflow(mgr.ctx)
         wf.uuid = "unregistered"
         wf.name = "Unregistered"
-        # Not added to pipelineManager.ctx.workflows
         inst = wf.spawn_instance()
-        assert inst.uuid not in pipelineManager.ctx.instances
+        assert inst.uuid not in mgr.ctx.instances
 
     def test_sets_workflow_uuid(self, workflow):
         inst = workflow.spawn_instance()

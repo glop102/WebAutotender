@@ -3,7 +3,7 @@ import pytest
 from pipeline_backend.procedure_runner import ProcedureRunner
 from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep
 from pipeline_backend.variables import String, Integer, Float, VariablePath, Dictionary, VariableList, StringList
-from pipeline_backend.manager import pipelineManager
+from pipeline_backend.manager import PipelineManager
 import builtin_addons.string_operations  # registers string commands
 import builtin_addons.files              # registers file commands
 
@@ -12,8 +12,8 @@ class TestDotNotationWorkflowScenarioViaRunner:
     """Same scenario as TestDotNotationWorkflowScenario but built as a real workflow
     and executed through ProcedureRunner to verify state accumulation end-to-end."""
 
-    def _make_workflow(self):
-        wf = Workflow(pipelineManager.ctx)
+    def _make_workflow(self, mgr):
+        wf = Workflow(mgr.ctx)
         wf.uuid = "dot-notation-runner-wf"
         wf.name = "Dot Notation Runner Scenario"
         wf.constants["strings_to_match"] = VariableList([
@@ -46,11 +46,11 @@ class TestDotNotationWorkflowScenarioViaRunner:
         wf.procedures["done"] = [
             ProcessingStep("pause_this_instance"),
         ]
-        pipelineManager.ctx.workflows[wf.uuid] = wf
+        mgr.ctx.workflows[wf.uuid] = wf
         return wf
 
-    async def test_workflow_constants_unmodified_after_run(self):
-        wf = self._make_workflow()
+    async def test_workflow_constants_unmodified_after_run(self, mgr):
+        wf = self._make_workflow(mgr)
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
 
@@ -58,23 +58,23 @@ class TestDotNotationWorkflowScenarioViaRunner:
         assert wf.constants["dict"].value["matches1"].value == []
         assert wf.constants["dict"].value["matches2"].value == []
 
-    async def test_instance_strings_list_fully_consumed(self):
-        wf = self._make_workflow()
+    async def test_instance_strings_list_fully_consumed(self, mgr):
+        wf = self._make_workflow(mgr)
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
 
         assert len(inst.variables["strings_to_match"].value) == 0
 
-    async def test_instance_dict_has_both_match_results(self):
-        wf = self._make_workflow()
+    async def test_instance_dict_has_both_match_results(self, mgr):
+        wf = self._make_workflow(mgr)
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
 
         assert inst["dict.matches1"].value == ["42", "99"]
         assert inst["dict.matches2"].value == ["7", "13"]
 
-    async def test_instance_reaches_paused_state(self):
-        wf = self._make_workflow()
+    async def test_instance_reaches_paused_state(self, mgr):
+        wf = self._make_workflow(mgr)
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
 
@@ -85,8 +85,8 @@ class TestBatchCounterWithBranching:
     """Workflow that iterates a VariableList of Integer scores, accumulates a
     running total, and counts how many scores exceed a threshold."""
 
-    def _make_workflow(self):
-        wf = Workflow(pipelineManager.ctx)
+    def _make_workflow(self, mgr):
+        wf = Workflow(mgr.ctx)
         wf.uuid = "batch-counter-wf"
         wf.name = "Batch Counter"
         wf.constants["scores"] = VariableList([
@@ -137,36 +137,36 @@ class TestBatchCounterWithBranching:
         wf.procedures["done"] = [
             ProcessingStep("pause_this_instance"),
         ]
-        pipelineManager.ctx.workflows[wf.uuid] = wf
+        mgr.ctx.workflows[wf.uuid] = wf
         return wf
 
-    async def test_total_is_correct(self):
-        wf = self._make_workflow()
+    async def test_total_is_correct(self, mgr):
+        wf = self._make_workflow(mgr)
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
         assert inst["total"].value == 232
 
-    async def test_above_count_is_correct(self):
-        wf = self._make_workflow()
+    async def test_above_count_is_correct(self, mgr):
+        wf = self._make_workflow(mgr)
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
         assert inst["above_count"].value == 2
 
-    async def test_scores_list_exhausted(self):
-        wf = self._make_workflow()
+    async def test_scores_list_exhausted(self, mgr):
+        wf = self._make_workflow(mgr)
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
         assert len(inst["scores"].value) == 0
 
-    async def test_workflow_constants_unmodified(self):
-        wf = self._make_workflow()
+    async def test_workflow_constants_unmodified(self, mgr):
+        wf = self._make_workflow(mgr)
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
         assert len(wf.constants["scores"].value) == 5
         assert wf.constants["threshold"].value == 50
 
-    async def test_instance_reaches_paused_state(self):
-        wf = self._make_workflow()
+    async def test_instance_reaches_paused_state(self, mgr):
+        wf = self._make_workflow(mgr)
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
         assert inst.state == RunStates.Paused
@@ -184,8 +184,8 @@ class TestFileOrganiserPipeline:
     ]
     DEPT_PATTERN = r"_\K[a-z]+(?=\.csv)"
 
-    def _make_workflow(self, staging_dir: str, dest_dir: str):
-        wf = Workflow(pipelineManager.ctx)
+    def _make_workflow(self, mgr, staging_dir: str, dest_dir: str):
+        wf = Workflow(mgr.ctx)
         wf.uuid = "file-organiser-wf"
         wf.name = "File Organiser"
         wf.constants["staging_dir"] = String(staging_dir)
@@ -225,10 +225,10 @@ class TestFileOrganiserPipeline:
         wf.procedures["done"] = [
             ProcessingStep("pause_this_instance"),
         ]
-        pipelineManager.ctx.workflows[wf.uuid] = wf
+        mgr.ctx.workflows[wf.uuid] = wf
         return wf
 
-    async def test_files_moved_to_correct_subdirs(self, tmp_path):
+    async def test_files_moved_to_correct_subdirs(self, mgr, tmp_path):
         staging = tmp_path / "staging"
         dest = tmp_path / "dest"
         staging.mkdir()
@@ -236,7 +236,7 @@ class TestFileOrganiserPipeline:
         for f in self.FILENAMES:
             (staging / f).write_text("data")
 
-        wf = self._make_workflow(str(staging), str(dest))
+        wf = self._make_workflow(mgr, str(staging), str(dest))
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
 
@@ -244,7 +244,7 @@ class TestFileOrganiserPipeline:
         assert (dest / "hr" / "report_2026-04_hr.csv").is_file()
         assert (dest / "engineering" / "report_2026-06_engineering.csv").is_file()
 
-    async def test_source_files_no_longer_in_staging(self, tmp_path):
+    async def test_source_files_no_longer_in_staging(self, mgr, tmp_path):
         staging = tmp_path / "staging"
         dest = tmp_path / "dest"
         staging.mkdir()
@@ -252,14 +252,14 @@ class TestFileOrganiserPipeline:
         for f in self.FILENAMES:
             (staging / f).write_text("data")
 
-        wf = self._make_workflow(str(staging), str(dest))
+        wf = self._make_workflow(mgr, str(staging), str(dest))
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
 
         for f in self.FILENAMES:
             assert not (staging / f).exists()
 
-    async def test_filenames_list_exhausted(self, tmp_path):
+    async def test_filenames_list_exhausted(self, mgr, tmp_path):
         staging = tmp_path / "staging"
         dest = tmp_path / "dest"
         staging.mkdir()
@@ -267,13 +267,13 @@ class TestFileOrganiserPipeline:
         for f in self.FILENAMES:
             (staging / f).write_text("data")
 
-        wf = self._make_workflow(str(staging), str(dest))
+        wf = self._make_workflow(mgr, str(staging), str(dest))
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
 
         assert len(inst["filenames"].value) == 0
 
-    async def test_workflow_constants_unmodified(self, tmp_path):
+    async def test_workflow_constants_unmodified(self, mgr, tmp_path):
         staging = tmp_path / "staging"
         dest = tmp_path / "dest"
         staging.mkdir()
@@ -281,13 +281,13 @@ class TestFileOrganiserPipeline:
         for f in self.FILENAMES:
             (staging / f).write_text("data")
 
-        wf = self._make_workflow(str(staging), str(dest))
+        wf = self._make_workflow(mgr, str(staging), str(dest))
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
 
         assert wf.constants["filenames"].value == list(self.FILENAMES)
 
-    async def test_instance_reaches_paused_state(self, tmp_path):
+    async def test_instance_reaches_paused_state(self, mgr, tmp_path):
         staging = tmp_path / "staging"
         dest = tmp_path / "dest"
         staging.mkdir()
@@ -295,7 +295,7 @@ class TestFileOrganiserPipeline:
         for f in self.FILENAMES:
             (staging / f).write_text("data")
 
-        wf = self._make_workflow(str(staging), str(dest))
+        wf = self._make_workflow(mgr, str(staging), str(dest))
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
 

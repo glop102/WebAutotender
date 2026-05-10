@@ -4,15 +4,15 @@ from pipeline_backend.commands import CommandReturnStatus
 from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep
 from pipeline_backend.instances import Instance
 from pipeline_backend.variables import String, Integer, Float, VariablePath
-from pipeline_backend.manager import pipelineManager
+from pipeline_backend.manager import PipelineManager
 
 
 @pytest.fixture
-def workflow():
-    wf = Workflow(pipelineManager.ctx)
+def workflow(mgr):
+    wf = Workflow(mgr.ctx)
     wf.uuid = "wf-runner-test"
     wf.name = "Runner Test"
-    pipelineManager.ctx.workflows[wf.uuid] = wf
+    mgr.ctx.workflows[wf.uuid] = wf
     return wf
 
 
@@ -114,8 +114,8 @@ class TestErrorConditions:
         assert result != CommandReturnStatus.Success
         assert inst.state == RunStates.Error
 
-    async def test_orphan_instance_marks_error(self):
-        inst = Instance(pipelineManager.ctx)
+    async def test_orphan_instance_marks_error(self, mgr):
+        inst = Instance(mgr.ctx)
         inst.uuid = "orphan"
         inst.workflow_uuid = "workflow-that-does-not-exist"
         runner = ProcedureRunner(inst)
