@@ -140,6 +140,21 @@
     /* Pointer cursor on all collapsible summaries */
     summary { cursor: pointer; }
 
+    /* Step doc tooltip */
+    .step-doc-icon { cursor: default; color: #888; position: relative; user-select: none; }
+    .step-doc-icon:hover { color: #ccc; }
+    .step-doc-icon:hover::after {
+      content: attr(data-tooltip);
+      white-space: pre-wrap;
+      position: absolute;
+      left: 1.5rem; top: 0;
+      background: #2d2d2d; border: 1px solid #555; border-radius: 0.25rem;
+      padding: 0.5rem 0.75rem;
+      color: #ccc; font-size: 0.75rem; line-height: 1.5;
+      width: max-content; max-width: 100em; min-width: 10rem;
+      z-index: 100; pointer-events: none;
+    }
+
     /* Toast */
     #toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #5a1a1a; border: 1px solid #f44747; color: #f44747; padding: 0.625rem 1rem; border-radius: 0.25rem; z-index: 9998; display: flex; align-items: center; gap: 0.625rem; }
 

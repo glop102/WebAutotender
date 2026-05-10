@@ -91,11 +91,10 @@ class Commands:
         return cls.commands[command_name]
 
     @classmethod
-    def get_command_doc_string(cls,command_name:str) -> str|None:
+    def get_command_doc_string(cls, command_name: str) -> str | None:
         if not command_name in cls.commands:
             raise KeyError(f"Unable to find {command_name} in the list of available commands")
-        sig = signature(cls.commands[command_name])
-        return sig.__doc__
+        return cls.commands[command_name].__doc__
 
     @classmethod
     def json_savable_all_commands_with_args(cls) -> dict:
@@ -106,7 +105,6 @@ class Commands:
     
     @classmethod
     def json_savable_command_information(cls,command_name:str) -> dict:
-        # TODO - Also pass back the doc string
         args = cls.get_command_input_variables(command_name)
         args_str = {}
         for arg in args:
@@ -116,7 +114,7 @@ class Commands:
                 args_str[arg_name] = [vt.__name__ for vt in arg_types]
             else:
                 args_str[arg_name] = arg_types.__name__
-        return {"arguments":args_str}
+        return {"arguments": args_str, "doc": cls.get_command_doc_string(command_name)}
 
     @classmethod
     def json_savable_all_command_names(cls) -> list:

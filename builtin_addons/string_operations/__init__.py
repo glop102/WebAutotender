@@ -7,7 +7,11 @@ except:
     raise Exception("Unable to import regex module. This is an expanded regex support module for python. The package may be simply called python-regex in your package manager.")
 
 @Commands.register_command(category="Strings")
-async def str_regex_firstMatch(instance: Instance, regexPatern:String, inputString:String, outputVarname: VariableName) -> CommandReturnStatus:
+async def str_regex_firstMatch(instance: Instance, regexPatern:String, inputString:String, outputVarname: VariablePath) -> CommandReturnStatus:
+    """Find the first regex match in a string using extended regex syntax (supports \\K and other extras). Errors if no match is found.
+  regexPatern: The regex pattern to search with.
+  inputString: The string to search in.
+  outputVarname: Name of the variable to store the matched text in."""
     match:re.Match|None = re.search(regexPatern.value,inputString.value)
     if match is None:
         instance.log_line(f"Unable to find any match of {regexPatern.value} in the string {inputString.value}")
@@ -16,12 +20,20 @@ async def str_regex_firstMatch(instance: Instance, regexPatern:String, inputStri
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="Strings")
-async def str_buildWithVars(instance: Instance, inputString:String, outputVarname: VariableName) -> CommandReturnStatus:
-    """
-    This is a bit of an odder one since we want to emulate the way python formatted strings work and implicitly pull in the variables that are in the formatted string but using the instance as a source.
-    This is why we are not having a variable list as an input source in addition since the variable names will be required in the {} and then we will rtequire the types to match up to have the builtin python formatting rules work.
-    https://docs.python.org/3.8/library/string.html#string.Formatter
-    """
+async def str_regex_matchAll(instance: Instance, regexPatern: String, inputString: String, outputVarname: VariablePath) -> CommandReturnStatus:
+    """Find all regex matches in a string using extended regex syntax (supports \\K and other extras). Stores an empty list if there are no matches.
+  regexPatern: The regex pattern to search with.
+  inputString: The string to search in.
+  outputVarname: Name of the variable to store the StringList of matched strings in."""
+    matches = re.findall(regexPatern.value, inputString.value)
+    instance[outputVarname] = StringList(matches)
+    return CommandReturnStatus.Success
+
+@Commands.register_command(category="Strings")
+async def str_buildWithVars(instance: Instance, inputString:String, outputVarname: VariablePath) -> CommandReturnStatus:
+    """Build a string using Python-style {variable_name} placeholders filled from instance variables.
+  inputString: A format string with {variable_name} placeholders referencing instance or global variables.
+  outputVarname: Name of the variable to store the resulting string in."""
     vars = {name:var.convert_to_python_type() for name,var in instance.variables.items()}
     for name,var in instance.get_associated_workflow().constants.items():
         if not name in vars:

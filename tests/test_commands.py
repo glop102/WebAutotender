@@ -8,11 +8,10 @@ from pipeline_backend.commands_builtin import (
     jump_to_procedure, goto_if_equal, goto_if_not_equal, goto_if_first_larger,
     yield_for_seconds, yield_for_minutes,
     pause_this_instance, delete_this_instance, make_new_instance,
-    regex_first_match, regex_match_all,
 )
 from pipeline_backend.workflows import Workflow, RunStates, global_workflows
 from pipeline_backend.instances import Instance, global_instances
-from pipeline_backend.variables import String, Integer, Float, VariableName, StringList, Dictionary
+from pipeline_backend.variables import String, Integer, Float, VariablePath, VariableNameList, StringList, Dictionary, global_variables
 
 
 @pytest.fixture
@@ -55,26 +54,26 @@ class TestError:
 
 class TestSetVariableValue:
     def test_sets_instance_variable(self, instance):
-        result = set_variable_value(instance, VariableName("x"), Integer(42))
+        result = set_variable_value(instance, VariablePath("x"), Integer(42))
         assert result == CommandReturnStatus.Success
         assert instance.variables["x"].value == 42
 
     def test_overwrites_existing_variable(self, instance):
         instance.variables["x"] = String("old")
-        set_variable_value(instance, VariableName("x"), String("new"))
+        set_variable_value(instance, VariablePath("x"), String("new"))
         assert instance.variables["x"].value == "new"
 
     def test_set_in_another_instance(self, workflow, instance):
         other = workflow.spawn_instance()
         result = set_variable_value_in_another_instance(
-            instance, String(other.uuid), VariableName("shared"), Integer(99)
+            instance, String(other.uuid), VariablePath("shared"), Integer(99)
         )
         assert result == CommandReturnStatus.Success
         assert other.variables["shared"].value == 99
 
     def test_set_in_nonexistent_instance_errors(self, instance):
         result = set_variable_value_in_another_instance(
-            instance, String("no-such-uuid"), VariableName("x"), Integer(1)
+            instance, String("no-such-uuid"), VariablePath("x"), Integer(1)
         )
         assert result == CommandReturnStatus.Error
 
@@ -87,35 +86,35 @@ class TestSetVariableValue:
 class TestMath:
     def test_add_integers(self, instance):
         instance.variables["r"] = Integer(0)
-        math_add(instance, Integer(3), Integer(4), VariableName("r"))
+        math_add(instance, Integer(3), Integer(4), VariablePath("r"))
         assert instance.variables["r"].value == 7
 
     def test_subtract_integers(self, instance):
         instance.variables["r"] = Integer(0)
-        math_subtract(instance, Integer(10), Integer(4), VariableName("r"))
+        math_subtract(instance, Integer(10), Integer(4), VariablePath("r"))
         assert instance.variables["r"].value == 6
 
     def test_multiply_integers(self, instance):
         instance.variables["r"] = Integer(0)
-        math_multiply(instance, Integer(3), Integer(4), VariableName("r"))
+        math_multiply(instance, Integer(3), Integer(4), VariablePath("r"))
         assert instance.variables["r"].value == 12
 
     def test_divide_floats(self, instance):
         instance.variables["r"] = Float(0.0)
-        math_divide(instance, Float(10.0), Float(4.0), VariableName("r"))
+        math_divide(instance, Float(10.0), Float(4.0), VariablePath("r"))
         assert instance.variables["r"].value == 2.5
 
     def test_add_floats(self, instance):
         instance.variables["r"] = Float(0.0)
-        math_add(instance, Float(1.5), Float(2.5), VariableName("r"))
+        math_add(instance, Float(1.5), Float(2.5), VariablePath("r"))
         assert instance.variables["r"].value == 4.0
 
     def test_all_math_return_success(self, instance):
         instance.variables["r"] = Integer(0)
-        assert math_add(instance, Integer(1), Integer(1), VariableName("r")) == CommandReturnStatus.Success
-        assert math_subtract(instance, Integer(1), Integer(1), VariableName("r")) == CommandReturnStatus.Success
-        assert math_multiply(instance, Integer(1), Integer(1), VariableName("r")) == CommandReturnStatus.Success
-        assert math_divide(instance, Float(1.0), Float(1.0), VariableName("r")) == CommandReturnStatus.Success
+        assert math_add(instance, Integer(1), Integer(1), VariablePath("r")) == CommandReturnStatus.Success
+        assert math_subtract(instance, Integer(1), Integer(1), VariablePath("r")) == CommandReturnStatus.Success
+        assert math_multiply(instance, Integer(1), Integer(1), VariablePath("r")) == CommandReturnStatus.Success
+        assert math_divide(instance, Float(1.0), Float(1.0), VariablePath("r")) == CommandReturnStatus.Success
 
 
 class TestControlFlow:
@@ -148,7 +147,7 @@ class TestControlFlow:
     def test_goto_if_equal_deref_variable_name(self, workflow, instance):
         workflow.procedures["target"] = []
         instance.variables["val"] = Integer(7)
-        goto_if_equal(instance, String("target"), VariableName("val"), Integer(7))
+        goto_if_equal(instance, String("target"), VariablePath("val"), Integer(7))
         assert instance.processing_step == ("target", 0)
 
     def test_goto_if_not_equal_jumps_when_not_equal(self, workflow, instance):
@@ -216,51 +215,189 @@ class TestInstanceLifecycle:
 
 
 class TestMakeNewInstance:
+    def _target(self, uuid, **setup_vars):
+        """Helper: create and register a target workflow with the given setup_variables."""
+        wf = Workflow()
+        wf.uuid = uuid
+        wf.name = f"Target-{uuid}"
+        for name, var in setup_vars.items():
+            wf.setup_variables[name] = var
+        global_workflows[uuid] = wf
+        return wf
+
+    def _spawned(self, uuid):
+        return [i for i in global_instances.values() if i.workflow_uuid == uuid]
+
+    # ------------------------------------------------------------------
+    # Existing behaviour
+    # ------------------------------------------------------------------
+
     def test_spawns_instance_in_target_workflow(self, workflow, instance):
-        target = Workflow()
-        target.uuid = "target-wf"
-        target.name = "Target"
-        global_workflows[target.uuid] = target
-
-        result = make_new_instance(instance, String("target-wf"), Dictionary({}))
+        self._target("target-wf")
+        result = make_new_instance(instance, String("target-wf"), Dictionary({}), VariableNameList([]))
         assert result == CommandReturnStatus.Success
-        spawned = [i for i in global_instances.values() if i.workflow_uuid == "target-wf"]
-        assert len(spawned) == 1
+        assert len(self._spawned("target-wf")) == 1
 
-    def test_passes_setup_vars_to_new_instance(self, workflow, instance):
-        target = Workflow()
-        target.uuid = "target-wf2"
-        target.name = "Target"
-        target.setup_variables["name"] = String("default")
-        global_workflows[target.uuid] = target
-
-        make_new_instance(instance, String("target-wf2"), Dictionary({"name": String("custom")}))
-        spawned = [i for i in global_instances.values() if i.workflow_uuid == "target-wf2"]
+    def test_passes_concrete_setup_var_to_new_instance(self, workflow, instance):
+        self._target("target-wf-concrete", name=String("default"))
+        make_new_instance(instance, String("target-wf-concrete"), Dictionary({"name": String("custom")}), VariableNameList([]))
+        spawned = self._spawned("target-wf-concrete")
         assert len(spawned) == 1
         assert spawned[0].variables["name"].value == "custom"
 
     def test_nonexistent_workflow_uuid_returns_error(self, instance):
-        result = make_new_instance(instance, String("no-such-uuid"), Dictionary({}))
+        result = make_new_instance(instance, String("no-such-uuid"), Dictionary({}), VariableNameList([]))
+        assert result == CommandReturnStatus.Error
+
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+
+    def test_unknown_key_in_setup_vars_returns_error(self, workflow, instance):
+        self._target("target-wf-val")
+        result = make_new_instance(instance, String("target-wf-val"), Dictionary({"unknown": Integer(1)}), VariableNameList([]))
+        assert result == CommandReturnStatus.Error
+
+    def test_do_not_deref_key_not_in_setup_vars_returns_error(self, workflow, instance):
+        self._target("target-wf-dnd-val", count=Integer(0))
+        result = make_new_instance(
+            instance, String("target-wf-dnd-val"),
+            Dictionary({"count": Integer(1)}),
+            VariableNameList(["not_in_dict"]),
+        )
+        assert result == CommandReturnStatus.Error
+
+    def test_absent_setup_var_uses_workflow_default(self, workflow, instance):
+        self._target("target-wf-default", count=Integer(99))
+        make_new_instance(instance, String("target-wf-default"), Dictionary({}), VariableNameList([]))
+        spawned = self._spawned("target-wf-default")
+        assert len(spawned) == 1
+        assert spawned[0].variables["count"].value == 99
+
+    # ------------------------------------------------------------------
+    # Resolution: concrete value already matches — no lookup attempted
+    # ------------------------------------------------------------------
+
+    def test_concrete_value_matching_dest_type_passes_through(self, workflow, instance):
+        self._target("target-wf-passthrough", count=Integer(0))
+        # "count" is an Integer in dict, dest expects Integer — passes without touching instance vars
+        make_new_instance(instance, String("target-wf-passthrough"), Dictionary({"count": Integer(7)}), VariableNameList([]))
+        spawned = self._spawned("target-wf-passthrough")
+        assert spawned[0].variables["count"].value == 7
+
+    # ------------------------------------------------------------------
+    # Resolution: VariablePath dereferenced from caller scope
+    # ------------------------------------------------------------------
+
+    def test_varname_resolved_to_dest_type(self, workflow, instance):
+        instance.variables["num"] = Integer(5)
+        self._target("target-wf-deref", count=Integer(0))
+        make_new_instance(instance, String("target-wf-deref"), Dictionary({"count": VariablePath("num")}), VariableNameList([]))
+        spawned = self._spawned("target-wf-deref")
+        assert spawned[0].variables["count"].value == 5
+
+    def test_multi_level_varname_resolution(self, workflow, instance):
+        instance.variables["alias"] = VariablePath("num")
+        instance.variables["num"] = Integer(42)
+        self._target("target-wf-multilevel", count=Integer(0))
+        make_new_instance(instance, String("target-wf-multilevel"), Dictionary({"count": VariablePath("alias")}), VariableNameList([]))
+        spawned = self._spawned("target-wf-multilevel")
+        assert spawned[0].variables["count"].value == 42
+
+    def test_varname_resolved_via_global_variables(self, workflow, instance):
+        global_variables["global_num"] = Integer(99)
+        try:
+            self._target("target-wf-global", count=Integer(0))
+            make_new_instance(instance, String("target-wf-global"), Dictionary({"count": VariablePath("global_num")}), VariableNameList([]))
+            spawned = self._spawned("target-wf-global")
+            assert spawned[0].variables["count"].value == 99
+        finally:
+            del global_variables["global_num"]
+
+    # ------------------------------------------------------------------
+    # Resolution: dest type is VariablePath — passes through immediately
+    # ------------------------------------------------------------------
+
+    def test_varname_passes_through_when_dest_type_is_varname(self, workflow, instance):
+        # dest declares VariablePath; given value is already VariablePath — type matches at step 1,
+        # no lookup of "something" is attempted even if it doesn't exist in instance
+        self._target("target-wf-vn", ref=VariablePath("placeholder"))
+        result = make_new_instance(
+            instance, String("target-wf-vn"),
+            Dictionary({"ref": VariablePath("something")}),
+            VariableNameList([]),
+        )
+        assert result == CommandReturnStatus.Success
+        spawned = self._spawned("target-wf-vn")
+        assert type(spawned[0].variables["ref"]) == VariablePath
+        assert spawned[0].variables["ref"].value == "something"
+
+    # ------------------------------------------------------------------
+    # Resolution: do_not_deref skips resolution
+    # ------------------------------------------------------------------
+
+    def test_do_not_deref_prevents_resolution(self, workflow, instance):
+        # "ref" is excluded; VariablePath("missing") is never looked up
+        self._target("target-wf-dnd", ref=Integer(0))
+        result = make_new_instance(
+            instance, String("target-wf-dnd"),
+            Dictionary({"ref": VariablePath("missing")}),
+            VariableNameList(["ref"]),
+        )
+        assert result == CommandReturnStatus.Success
+        spawned = self._spawned("target-wf-dnd")
+        assert type(spawned[0].variables["ref"]) == VariablePath
+        assert spawned[0].variables["ref"].value == "missing"
+
+    # ------------------------------------------------------------------
+    # Resolution errors
+    # ------------------------------------------------------------------
+
+    def test_dangling_reference_returns_error(self, workflow, instance):
+        self._target("target-wf-dangle", count=Integer(0))
+        result = make_new_instance(
+            instance, String("target-wf-dangle"),
+            Dictionary({"count": VariablePath("no_such_var")}),
+            VariableNameList([]),
+        )
+        assert result == CommandReturnStatus.Error
+
+    def test_wrong_concrete_type_returns_error(self, workflow, instance):
+        # String cannot be coerced to Integer by the resolution loop
+        self._target("target-wf-wrongtype", count=Integer(0))
+        result = make_new_instance(
+            instance, String("target-wf-wrongtype"),
+            Dictionary({"count": String("hello")}),
+            VariableNameList([]),
+        )
         assert result == CommandReturnStatus.Error
 
 
 class TestRegex:
     def test_first_match_returns_success(self, instance):
-        result = regex_first_match(instance, String(r"\d+"), String("abc 123 def"), VariableName("out"))
+        import asyncio
+        from builtin_addons.string_operations import str_regex_firstMatch
+        result = asyncio.run(str_regex_firstMatch(instance, String(r"\d+"), String("abc 123 def"), VariablePath("out")))
         assert result == CommandReturnStatus.Success
         assert instance.variables["out"].value == "123"
 
     def test_first_match_no_match_returns_error(self, instance):
-        result = regex_first_match(instance, String(r"\d+"), String("no digits here"), VariableName("out"))
+        import asyncio
+        from builtin_addons.string_operations import str_regex_firstMatch
+        result = asyncio.run(str_regex_firstMatch(instance, String(r"\d+"), String("no digits here"), VariablePath("out")))
         assert result == CommandReturnStatus.Error
 
     def test_match_all_returns_list(self, instance):
-        result = regex_match_all(instance, String(r"\d+"), String("1 and 2 and 3"), VariableName("out"))
+        import asyncio
+        from builtin_addons.string_operations import str_regex_matchAll
+        result = asyncio.run(str_regex_matchAll(instance, String(r"\d+"), String("1 and 2 and 3"), VariablePath("out")))
         assert result == CommandReturnStatus.Success
         assert isinstance(instance.variables["out"], StringList)
         assert instance.variables["out"].value == ["1", "2", "3"]
 
     def test_match_all_no_matches_returns_empty_list(self, instance):
-        result = regex_match_all(instance, String(r"\d+"), String("no digits"), VariableName("out"))
+        import asyncio
+        from builtin_addons.string_operations import str_regex_matchAll
+        result = asyncio.run(str_regex_matchAll(instance, String(r"\d+"), String("no digits"), VariablePath("out")))
         assert result == CommandReturnStatus.Success
         assert instance.variables["out"].value == []

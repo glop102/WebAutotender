@@ -7,7 +7,10 @@ from pipeline_backend.commands_builtin import yield_for_seconds
 # RSS Spec https://www.rssboard.org/rss-specification#requiredChannelElements
 
 @Commands.register_command(category="RSS Feed")
-def rssfeed_get_entries(instance:Instance,feed_url:URL,output_list_name:VariableName) -> CommandReturnStatus:
+def rssfeed_get_entries(instance:Instance,feed_url:URL,output_list_name:VariablePath) -> CommandReturnStatus:
+    """Fetch all entries from an RSS feed and store them as a VariableList of Dictionaries, sorted oldest-first. Yields and retries on network errors.
+  feed_url: URL of the RSS feed to fetch.
+  output_list_name: Name of the variable to store the VariableList of entry Dictionaries in. Each entry may have keys: title, link, summary, id, published."""
     # gets all the items in an rssfeed at the given url and saves it to a variable, the first item being the oldest, the last being the newest
 
     try:
@@ -51,7 +54,10 @@ def rssfeed_get_entries(instance:Instance,feed_url:URL,output_list_name:Variable
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="RSS Feed")
-def rssfeed_trim_entries_with_checkpoint(instance:Instance,entry_list_name:VariableName,checkpoint_id:VariableName) -> CommandReturnStatus:
+def rssfeed_trim_entries_with_checkpoint(instance:Instance,entry_list_name:VariablePath,checkpoint_id:VariablePath) -> CommandReturnStatus:
+    """Remove already-seen entries from a feed list using a saved checkpoint, then advance the checkpoint to the newest entry. On the first call with no checkpoint set, keeps all entries and saves the newest as the starting point.
+  entry_list_name: Name of the VariableList variable containing the feed entries (from rssfeed_get_entries).
+  checkpoint_id: Name of the variable used to persist the last-seen entry id or link across calls."""
     # trims off all items that are before or at the checkpoint_id and then updates the checkpoint id to the newest for subsequent calls
     # Remember that all entries are Dictionary() objects
 

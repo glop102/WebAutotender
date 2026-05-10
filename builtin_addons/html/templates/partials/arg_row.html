@@ -13,14 +13,14 @@
 {% set _ctx    = '"ctx_type": "step_arg", "ctx_uuid": "' ~ workflow_uuid ~ '", "ctx_proc": "' ~ proc_name ~ '", "ctx_step": ' ~ step_idx %}
 {% set _target = "#step-" ~ proc_name ~ "-" ~ step_idx %}
 
-{# Normalise to a list; append VariableName if the command didn't already declare it #}
+{# Normalise to a list; append VariablePath if the command didn't already declare it #}
 {% if arg_types is string %}
   {% set _types = [arg_types] %}
 {% else %}
   {% set _types = arg_types %}
 {% endif %}
-{% if 'VariableName' not in _types %}
-  {% set _types = _types + ['VariableName'] %}
+{% if 'VariablePath' not in _types %}
+  {% set _types = _types + ['VariablePath'] %}
 {% endif %}
 
 {% set _cur_type = arg_var.typename if arg_var else _types[0] %}

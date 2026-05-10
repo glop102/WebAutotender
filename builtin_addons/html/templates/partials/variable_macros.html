@@ -67,7 +67,7 @@
 
   {# ── value widget, dispatched on type ────────────────────── #}
 
-  {% if var.typename in ('String', 'VariableName') %}
+  {% if var.typename in ('String', 'VariablePath') %}
     {% if readonly %}
       <span class="var-input">{{ var.value }}</span>
     {% else %}
@@ -83,6 +83,18 @@
       <input class="var-input" type="url" name="value" value="{{ var.value }}"
              hx-post="/ui/variable/value" hx-trigger="change" hx-swap="none"
              hx-vals='{ {{ _bv }} }'>
+    {% endif %}
+
+  {% elif var.typename == 'Boolean' %}
+    {% if readonly %}
+      <span class="var-input">{{ var.value }}</span>
+    {% else %}
+      <select class="var-input" name="value"
+              hx-post="/ui/variable/value" hx-trigger="change" hx-swap="none"
+              hx-vals='{ {{ _bv }} }'>
+        <option value="true"  {% if var.value %}selected{% endif %}>true</option>
+        <option value="false" {% if not var.value %}selected{% endif %}>false</option>
+      </select>
     {% endif %}
 
   {% elif var.typename == 'Integer' %}

@@ -11,7 +11,7 @@ from pipeline_backend.persistence import (
 from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep, global_workflows
 from pipeline_backend.instances import Instance, global_instances
 from pipeline_backend.variables import (
-    String, Integer, Float, VariableName, Dictionary,
+    String, Integer, Float, VariablePath, Dictionary,
     global_variables, global_secrets,
 )
 

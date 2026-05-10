@@ -47,38 +47,83 @@ class Instance:
         """Will add a line to the log. This will add its own newline to the end of the line"""
         self.console_log += line+"\n"
 
-    def __getitem__(self, var_name: str|variables.VariableName) -> variables.WorkVariable:
-        """Get the value of the variable of the given name. Will throw a KeyError if it cannot find the variable. This handles the complication of searching the associated workflow as well."""
-        if type(var_name) == variables.VariableName:
+    def __getitem__(self, var_name: str|variables.VariablePath) -> variables.WorkVariable:
+        """Get the value of the variable at the given name or dot-notation path (e.g. 'entry.link').
+        Searches instance variables, workflow constants/setup_variables, then globals.
+        Will throw a KeyError if the variable or any path segment cannot be found."""
+        if type(var_name) == variables.VariablePath:
             var_name = var_name.value
-        if var_name in self.variables:
-            return deepcopy(self.variables[var_name])
-        w:workflows.Workflow = self.get_associated_workflow()
-        if var_name in w.constants:
-            return deepcopy(w.constants[var_name])
-        if var_name in w.setup_variables:
-            return deepcopy(w.setup_variables[var_name])
-        if var_name in variables.global_variables:
-            return deepcopy(variables.global_variables[var_name])
-        if var_name in variables.global_secrets:
-            return deepcopy(variables.global_secrets[var_name])
-        raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_uuid}/{self.uuid}")
 
-    def __setitem__(self, var_name: str|variables.VariableName, value: variables.WorkVariable) -> None:
-        if type(var_name) == variables.VariableName:
+        parts = var_name.split('.')
+        first = parts[0]
+
+        w: workflows.Workflow = self.get_associated_workflow()
+        for scope in (self.variables, w.constants, w.setup_variables,
+                      variables.global_variables, variables.global_secrets):
+            if first in scope:
+                result = deepcopy(scope[first])
+                break
+        else:
+            raise KeyError(f"Unable to find the variable named {first} - {self.workflow_uuid}/{self.uuid}")
+
+        for part in parts[1:]:
+            match result:
+                case variables.Dictionary():
+                    if part not in result.value:
+                        raise KeyError(f"Key '{part}' not found in Dictionary")
+                    result = deepcopy(result.value[part])
+                case variables.VariableList():
+                    result = deepcopy(result.value[int(part)])
+                case variables.StringList():
+                    result = variables.String(result.value[int(part)])
+                case variables.VariableNameList():
+                    result = variables.VariablePath(result.value[int(part)])
+                case _:
+                    raise KeyError(f"Cannot index into {type(result).__name__} with '{part}'")
+
+        return result
+
+    def __setitem__(self, var_name: str|variables.VariablePath, value: variables.WorkVariable) -> None:
+        if type(var_name) == variables.VariablePath:
             var_name = var_name.value
-        if not issubclass(type(value),variables.WorkVariable):
+        if not issubclass(type(value), variables.WorkVariable):
             raise TypeError(f"Cannot save a variable of type {type(value)} to an instance. Please wrap it in a WorkVariable type. (value={value})")
-        self.variables[var_name] = deepcopy(value)
-    
-    def __delitem__(self,var_name:str|variables.VariableName) -> None:
-        if type(var_name) == variables.VariableName:
+
+        parts = var_name.split('.')
+
+        if len(parts) == 1:
+            self.variables[var_name] = deepcopy(value)
+            return
+
+        # Get or create the top-level container
+        top_key = parts[0]
+        if top_key in self.variables:
+            top = deepcopy(self.variables[top_key])
+        else:
+            top = variables.Dictionary()
+
+        # Navigate down, creating intermediate Dictionaries as needed
+        current = top
+        for part in parts[1:-1]:
+            if not isinstance(current, variables.Dictionary):
+                raise TypeError(f"Cannot set into {type(current).__name__} with key '{part}' — only Dictionary supports auto-creation")
+            if part not in current.value:
+                current.value[part] = variables.Dictionary()
+            current = current.value[part]
+
+        if not isinstance(current, variables.Dictionary):
+            raise TypeError(f"Cannot set key '{parts[-1]}' into {type(current).__name__}")
+        current.value[parts[-1]] = deepcopy(value)
+        self.variables[top_key] = top
+
+    def __delitem__(self, var_name: str|variables.VariablePath) -> None:
+        if type(var_name) == variables.VariablePath:
             var_name = var_name.value
         if not var_name in self.variables:
             raise KeyError(f"Unable to find the variable named {var_name} - {self.workflow_uuid}/{self.uuid}")
         del self.variables[var_name]
-    
-    def __contains__(self,var_name:str|variables.VariableName) -> bool:
+
+    def __contains__(self, var_name: str|variables.VariablePath) -> bool:
         try:
             self.__getitem__(var_name)
             return True

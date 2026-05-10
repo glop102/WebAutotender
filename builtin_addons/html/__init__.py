@@ -182,6 +182,10 @@ def _var_type_names() -> list[str]:
 # command_args: dict[cmd_name -> list[(arg_name, type_str_or_list)]]
 # ---------------------------------------------------------------------------
 
+def _command_docstrings_for_template() -> dict:
+    return {name: Commands.get_command_doc_string(name) for name in Commands.commands}
+
+
 def _command_args_for_template() -> dict:
     result = {}
     for name in Commands.commands:
@@ -207,6 +211,7 @@ def _design_context(workflow_uuid: str, draft: Workflow) -> dict:
         "var_types": _var_type_names(),
         "command_groups": Commands.get_commands_grouped(),
         "command_args": _command_args_for_template(),
+        "command_docs": _command_docstrings_for_template(),
         "dirty": _is_draft_dirty(workflow_uuid),
         "active_tab": "design",
     }
@@ -470,6 +475,7 @@ def get_workflow_pane(request: Request, uuid: str):
     ctx["dirty"] = _is_draft_dirty(uuid)
     ctx["command_groups"] = Commands.get_commands_grouped()
     ctx["command_args"] = _command_args_for_template()
+    ctx["command_docs"] = _command_docstrings_for_template()
     return templates.TemplateResponse("workflow_pane.html", {"request": request, **ctx})
 
 
@@ -1131,6 +1137,7 @@ def _render_procedure_section(uuid: str, draft: Workflow, proc_name: str, ctx: d
         workflow_uuid=uuid,
         command_groups=ctx["command_groups"],
         command_args=ctx["command_args"],
+        command_docs=ctx["command_docs"],
         var_types=ctx["var_types"],
         is_start=(proc_name == "start"),
     )
@@ -1145,5 +1152,6 @@ def _render_step_row(uuid: str, draft: Workflow, proc_name: str, step_idx: int, 
         proc_name=proc_name,
         command_groups=ctx["command_groups"],
         command_args=ctx["command_args"],
+        command_docs=ctx["command_docs"],
         var_types=ctx["var_types"],
     )
