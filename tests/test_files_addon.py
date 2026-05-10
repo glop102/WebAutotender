@@ -2,9 +2,9 @@ import pytest
 import os
 from pipeline_backend.commands import CommandReturnStatus
 from pipeline_backend.commands_builtin import list_pop_next
-from pipeline_backend.workflows import Workflow, RunStates, global_workflows
-from pipeline_backend.instances import Instance, global_instances
+from pipeline_backend.workflows import Workflow, RunStates
 from pipeline_backend.variables import String, StringList, VariablePath, Boolean
+from pipeline_backend.manager import pipelineManager
 
 import builtin_addons.files
 from builtin_addons.files import (
@@ -17,11 +17,11 @@ from builtin_addons.files import (
 
 @pytest.fixture
 def workflow():
-    wf = Workflow()
+    wf = Workflow(pipelineManager.ctx)
     wf.uuid = "wf-files-test"
     wf.name = "Files Test"
     wf.procedures["target"] = []
-    global_workflows[wf.uuid] = wf
+    pipelineManager.ctx.workflows[wf.uuid] = wf
     return wf
 
 
@@ -243,7 +243,6 @@ class TestStringlistPopNext:
         assert instance.variables["items"].value == ["b", "c"]
 
     def test_pops_last_item_and_continues(self, workflow, instance):
-        # Last item should be popped and returned normally — caller loops back and hits the empty check next time
         instance.variables["items"] = StringList(["only"])
         result = list_pop_next(instance, VariablePath("items"), VariablePath("current"), String("target"))
         assert result == CommandReturnStatus.Success
@@ -251,14 +250,12 @@ class TestStringlistPopNext:
         assert instance.variables["items"].value == []
 
     def test_jumps_to_procedure_when_list_is_empty(self, workflow, instance):
-        # Empty list on entry → jump immediately, item_varname not touched
         instance.variables["items"] = StringList([])
         result = list_pop_next(instance, VariablePath("items"), VariablePath("current"), String("target"))
         assert result == CommandReturnStatus.Success | CommandReturnStatus.Keep_Position
         assert instance.processing_step == ("target", 0)
 
     def test_drain_loop_visits_all_items(self, workflow, instance):
-        # Simulate the full drain: call repeatedly until we get the jump
         instance.variables["items"] = StringList(["x", "y", "z"])
         seen = []
         for _ in range(10):

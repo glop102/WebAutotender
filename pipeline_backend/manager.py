@@ -27,8 +27,8 @@ class PipelineManager:
 
     # ── Persistence ───────────────────────────────────────────────────────────
 
-    def save_state(self, filename: str = "pipeline_state.json") -> None:
-        target = self.__backing_store_filename if self.__backing_store_filename else filename
+    def save_state(self, filename: str = "") -> None:
+        target = filename or self.__backing_store_filename or "pipeline_state.json"
         data = {
             "workflows": {uuid: w.json_savable() for uuid, w in self.ctx.workflows.items()},
             "instances": {uuid: i.json_savable() for uuid, i in self.ctx.instances.items()},
@@ -64,8 +64,8 @@ class PipelineManager:
             var.json_loadable(var_data)
             self.ctx.variables[var_name] = var
 
-    def save_secrets(self, filename: str = "secrets.json") -> None:
-        target = self.__secrets_filename if self.__secrets_filename else filename
+    def save_secrets(self, filename: str = "") -> None:
+        target = filename or self.__secrets_filename or "secrets.json"
         data = {name: v.json_savable() for name, v in self.ctx.secrets.items()}
         with open(target, "w") as f:
             f.write(json.dumps(data, indent=4))

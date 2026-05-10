@@ -9,17 +9,18 @@ from pipeline_backend.commands_builtin import (
     yield_for_seconds, yield_for_minutes,
     pause_this_instance, delete_this_instance, make_new_instance,
 )
-from pipeline_backend.workflows import Workflow, RunStates, global_workflows
-from pipeline_backend.instances import Instance, global_instances
-from pipeline_backend.variables import String, Integer, Float, VariablePath, VariableNameList, StringList, Dictionary, global_variables
+from pipeline_backend.workflows import Workflow, RunStates
+from pipeline_backend.instances import Instance
+from pipeline_backend.variables import String, Integer, Float, VariablePath, VariableNameList, StringList, Dictionary
+from pipeline_backend.manager import pipelineManager
 
 
 @pytest.fixture
 def workflow():
-    wf = Workflow()
+    wf = Workflow(pipelineManager.ctx)
     wf.uuid = "wf-cmd-test"
     wf.name = "Command Test"
-    global_workflows[wf.uuid] = wf
+    pipelineManager.ctx.workflows[wf.uuid] = wf
     return wf
 
 
@@ -202,13 +203,13 @@ class TestInstanceLifecycle:
 
     def test_delete_removes_from_global_instances(self, instance):
         uuid = instance.uuid
-        assert uuid in global_instances
+        assert uuid in pipelineManager.ctx.instances
         result = delete_this_instance(instance)
         assert result == CommandReturnStatus.Yield
-        assert uuid not in global_instances
+        assert uuid not in pipelineManager.ctx.instances
 
     def test_delete_orphan_not_in_global_returns_error(self):
-        inst = Instance()
+        inst = Instance(pipelineManager.ctx)
         inst.uuid = "orphan-not-registered"
         result = delete_this_instance(inst)
         assert result == CommandReturnStatus.Error
@@ -217,20 +218,16 @@ class TestInstanceLifecycle:
 class TestMakeNewInstance:
     def _target(self, uuid, **setup_vars):
         """Helper: create and register a target workflow with the given setup_variables."""
-        wf = Workflow()
+        wf = Workflow(pipelineManager.ctx)
         wf.uuid = uuid
         wf.name = f"Target-{uuid}"
         for name, var in setup_vars.items():
             wf.setup_variables[name] = var
-        global_workflows[uuid] = wf
+        pipelineManager.ctx.workflows[uuid] = wf
         return wf
 
     def _spawned(self, uuid):
-        return [i for i in global_instances.values() if i.workflow_uuid == uuid]
-
-    # ------------------------------------------------------------------
-    # Existing behaviour
-    # ------------------------------------------------------------------
+        return [i for i in pipelineManager.ctx.instances.values() if i.workflow_uuid == uuid]
 
     def test_spawns_instance_in_target_workflow(self, workflow, instance):
         self._target("target-wf")
@@ -248,10 +245,6 @@ class TestMakeNewInstance:
     def test_nonexistent_workflow_uuid_returns_error(self, instance):
         result = make_new_instance(instance, String("no-such-uuid"), Dictionary({}), VariableNameList([]))
         assert result == CommandReturnStatus.Error
-
-    # ------------------------------------------------------------------
-    # Validation
-    # ------------------------------------------------------------------
 
     def test_unknown_key_in_setup_vars_returns_error(self, workflow, instance):
         self._target("target-wf-val")
@@ -274,20 +267,11 @@ class TestMakeNewInstance:
         assert len(spawned) == 1
         assert spawned[0].variables["count"].value == 99
 
-    # ------------------------------------------------------------------
-    # Resolution: concrete value already matches — no lookup attempted
-    # ------------------------------------------------------------------
-
     def test_concrete_value_matching_dest_type_passes_through(self, workflow, instance):
         self._target("target-wf-passthrough", count=Integer(0))
-        # "count" is an Integer in dict, dest expects Integer — passes without touching instance vars
         make_new_instance(instance, String("target-wf-passthrough"), Dictionary({"count": Integer(7)}), VariableNameList([]))
         spawned = self._spawned("target-wf-passthrough")
         assert spawned[0].variables["count"].value == 7
-
-    # ------------------------------------------------------------------
-    # Resolution: VariablePath dereferenced from caller scope
-    # ------------------------------------------------------------------
 
     def test_varname_resolved_to_dest_type(self, workflow, instance):
         instance.variables["num"] = Integer(5)
@@ -305,22 +289,16 @@ class TestMakeNewInstance:
         assert spawned[0].variables["count"].value == 42
 
     def test_varname_resolved_via_global_variables(self, workflow, instance):
-        global_variables["global_num"] = Integer(99)
+        pipelineManager.ctx.variables["global_num"] = Integer(99)
         try:
             self._target("target-wf-global", count=Integer(0))
             make_new_instance(instance, String("target-wf-global"), Dictionary({"count": VariablePath("global_num")}), VariableNameList([]))
             spawned = self._spawned("target-wf-global")
             assert spawned[0].variables["count"].value == 99
         finally:
-            del global_variables["global_num"]
-
-    # ------------------------------------------------------------------
-    # Resolution: dest type is VariablePath — passes through immediately
-    # ------------------------------------------------------------------
+            del pipelineManager.ctx.variables["global_num"]
 
     def test_varname_passes_through_when_dest_type_is_varname(self, workflow, instance):
-        # dest declares VariablePath; given value is already VariablePath — type matches at step 1,
-        # no lookup of "something" is attempted even if it doesn't exist in instance
         self._target("target-wf-vn", ref=VariablePath("placeholder"))
         result = make_new_instance(
             instance, String("target-wf-vn"),
@@ -332,12 +310,7 @@ class TestMakeNewInstance:
         assert type(spawned[0].variables["ref"]) == VariablePath
         assert spawned[0].variables["ref"].value == "something"
 
-    # ------------------------------------------------------------------
-    # Resolution: do_not_deref skips resolution
-    # ------------------------------------------------------------------
-
     def test_do_not_deref_prevents_resolution(self, workflow, instance):
-        # "ref" is excluded; VariablePath("missing") is never looked up
         self._target("target-wf-dnd", ref=Integer(0))
         result = make_new_instance(
             instance, String("target-wf-dnd"),
@@ -349,10 +322,6 @@ class TestMakeNewInstance:
         assert type(spawned[0].variables["ref"]) == VariablePath
         assert spawned[0].variables["ref"].value == "missing"
 
-    # ------------------------------------------------------------------
-    # Resolution errors
-    # ------------------------------------------------------------------
-
     def test_dangling_reference_returns_error(self, workflow, instance):
         self._target("target-wf-dangle", count=Integer(0))
         result = make_new_instance(
@@ -363,7 +332,6 @@ class TestMakeNewInstance:
         assert result == CommandReturnStatus.Error
 
     def test_wrong_concrete_type_returns_error(self, workflow, instance):
-        # String cannot be coerced to Integer by the resolution loop
         self._target("target-wf-wrongtype", count=Integer(0))
         result = make_new_instance(
             instance, String("target-wf-wrongtype"),

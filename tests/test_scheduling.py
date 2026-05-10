@@ -3,11 +3,11 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from pipeline_backend.manager import PipelineManager
 from pipeline_backend.procedure_runner import ProcedureRunner
-from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep, global_workflows
-from pipeline_backend.instances import Instance, global_instances
+from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep
+from pipeline_backend.instances import Instance
 from pipeline_backend.variables import String, Integer
+from pipeline_backend.manager import pipelineManager
 
 
 # ---------------------------------------------------------------------------
@@ -15,19 +15,12 @@ from pipeline_backend.variables import String, Integer
 # ---------------------------------------------------------------------------
 
 def make_workflow(uuid="wf-sched", name="Sched Test"):
-    wf = Workflow()
+    wf = Workflow(pipelineManager.ctx)
     wf.uuid = uuid
     wf.name = name
     wf.procedures["start"] = [ProcessingStep("pause_this_instance")]
-    global_workflows[wf.uuid] = wf
+    pipelineManager.ctx.workflows[wf.uuid] = wf
     return wf
-
-
-def make_manager():
-    """Fresh PipelineManager with save_state patched out to avoid file I/O."""
-    mgr = PipelineManager()
-    mgr._PipelineManager__backing_store_filename = ""
-    return mgr
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +90,7 @@ class TestIsAllowedToRun:
         assert inst.is_allowed_to_run() is False
 
     def test_false_for_orphan_instance(self):
-        inst = Instance()
+        inst = Instance(pipelineManager.ctx)
         inst.uuid = "orphan"
         inst.workflow_uuid = "no-such-workflow"
         assert inst.is_allowed_to_run() is False
@@ -112,18 +105,16 @@ class TestRunDueInstances:
         wf = make_workflow()
         inst = wf.spawn_instance()
         inst.next_processing_time = datetime.now() - timedelta(seconds=1)
-        mgr = make_manager()
-        with patch.object(mgr, 'save_state'):
-            await mgr.run_due_instances()
+        with patch.object(pipelineManager, 'save_state'):
+            await pipelineManager.run_due_instances()
         assert inst.state == RunStates.Paused  # pause_this_instance ran
 
     async def test_skips_future_instance(self):
         wf = make_workflow()
         inst = wf.spawn_instance()
         inst.next_processing_time = datetime.now() + timedelta(seconds=60)
-        mgr = make_manager()
-        with patch.object(mgr, 'save_state'):
-            await mgr.run_due_instances()
+        with patch.object(pipelineManager, 'save_state'):
+            await pipelineManager.run_due_instances()
         assert inst.state == RunStates.Running  # untouched
 
     async def test_skips_paused_instance(self):
@@ -131,9 +122,8 @@ class TestRunDueInstances:
         inst = wf.spawn_instance()
         inst.next_processing_time = datetime.now() - timedelta(seconds=1)
         inst.state = RunStates.Paused
-        mgr = make_manager()
-        with patch.object(mgr, 'save_state') as mock_save:
-            await mgr.run_due_instances()
+        with patch.object(pipelineManager, 'save_state') as mock_save:
+            await pipelineManager.run_due_instances()
         mock_save.assert_not_called()
 
     async def test_skips_instance_when_workflow_paused(self):
@@ -141,9 +131,8 @@ class TestRunDueInstances:
         inst = wf.spawn_instance()
         inst.next_processing_time = datetime.now() - timedelta(seconds=1)
         wf.state = RunStates.Paused
-        mgr = make_manager()
-        with patch.object(mgr, 'save_state') as mock_save:
-            await mgr.run_due_instances()
+        with patch.object(pipelineManager, 'save_state') as mock_save:
+            await pipelineManager.run_due_instances()
         mock_save.assert_not_called()
         assert inst.state == RunStates.Running  # untouched
 
@@ -151,18 +140,16 @@ class TestRunDueInstances:
         wf = make_workflow()
         inst = wf.spawn_instance()
         inst.next_processing_time = datetime.now() - timedelta(seconds=1)
-        mgr = make_manager()
-        with patch.object(mgr, 'save_state') as mock_save:
-            await mgr.run_due_instances()
+        with patch.object(pipelineManager, 'save_state') as mock_save:
+            await pipelineManager.run_due_instances()
         mock_save.assert_called_once()
 
     async def test_does_not_save_state_when_nothing_ran(self):
         wf = make_workflow()
         inst = wf.spawn_instance()
         inst.next_processing_time = datetime.now() + timedelta(seconds=60)
-        mgr = make_manager()
-        with patch.object(mgr, 'save_state') as mock_save:
-            await mgr.run_due_instances()
+        with patch.object(pipelineManager, 'save_state') as mock_save:
+            await pipelineManager.run_due_instances()
         mock_save.assert_not_called()
 
     async def test_runs_multiple_due_instances(self):
@@ -172,9 +159,8 @@ class TestRunDueInstances:
         inst_b = wf.spawn_instance()
         inst_a.next_processing_time = past
         inst_b.next_processing_time = past
-        mgr = make_manager()
-        with patch.object(mgr, 'save_state'):
-            await mgr.run_due_instances()
+        with patch.object(pipelineManager, 'save_state'):
+            await pipelineManager.run_due_instances()
         assert inst_a.state == RunStates.Paused
         assert inst_b.state == RunStates.Paused
 
@@ -185,29 +171,25 @@ class TestRunDueInstances:
 
 class TestGetNextDueTime:
     def test_returns_none_when_no_instances(self):
-        mgr = make_manager()
-        assert mgr.get_next_due_time() is None
+        assert pipelineManager.get_next_due_time() is None
 
     def test_returns_none_when_all_instances_paused(self):
         wf = make_workflow()
         inst = wf.spawn_instance()
         inst.state = RunStates.Paused
-        mgr = make_manager()
-        assert mgr.get_next_due_time() is None
+        assert pipelineManager.get_next_due_time() is None
 
     def test_returns_none_when_workflow_paused(self):
         wf = make_workflow()
         wf.spawn_instance()
         wf.state = RunStates.Paused
-        mgr = make_manager()
-        assert mgr.get_next_due_time() is None
+        assert pipelineManager.get_next_due_time() is None
 
     def test_enforces_one_second_minimum_floor(self):
         wf = make_workflow()
         inst = wf.spawn_instance()
         inst.next_processing_time = datetime.now() - timedelta(seconds=10)
-        mgr = make_manager()
-        result = mgr.get_next_due_time()
+        result = pipelineManager.get_next_due_time()
         assert result is not None
         assert result > datetime.now()
 
@@ -219,8 +201,6 @@ class TestGetNextDueTime:
         inst_b = wf.spawn_instance()
         inst_a.next_processing_time = soon
         inst_b.next_processing_time = later
-        mgr = make_manager()
-        result = mgr.get_next_due_time()
-        # Should be close to 'soon', but floored at now+1s
+        result = pipelineManager.get_next_due_time()
         assert result <= later
         assert result >= datetime.now()

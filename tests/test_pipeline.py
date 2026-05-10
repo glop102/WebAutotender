@@ -1,8 +1,9 @@
 """Full pipeline tests: complete workflows executed end-to-end through ProcedureRunner."""
 import pytest
 from pipeline_backend.procedure_runner import ProcedureRunner
-from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep, global_workflows
+from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep
 from pipeline_backend.variables import String, Integer, Float, VariablePath, Dictionary, VariableList, StringList
+from pipeline_backend.manager import pipelineManager
 import builtin_addons.string_operations  # registers string commands
 import builtin_addons.files              # registers file commands
 
@@ -12,7 +13,7 @@ class TestDotNotationWorkflowScenarioViaRunner:
     and executed through ProcedureRunner to verify state accumulation end-to-end."""
 
     def _make_workflow(self):
-        wf = Workflow()
+        wf = Workflow(pipelineManager.ctx)
         wf.uuid = "dot-notation-runner-wf"
         wf.name = "Dot Notation Runner Scenario"
         wf.constants["strings_to_match"] = VariableList([
@@ -45,7 +46,7 @@ class TestDotNotationWorkflowScenarioViaRunner:
         wf.procedures["done"] = [
             ProcessingStep("pause_this_instance"),
         ]
-        global_workflows[wf.uuid] = wf
+        pipelineManager.ctx.workflows[wf.uuid] = wf
         return wf
 
     async def test_workflow_constants_unmodified_after_run(self):
@@ -82,15 +83,10 @@ class TestDotNotationWorkflowScenarioViaRunner:
 
 class TestBatchCounterWithBranching:
     """Workflow that iterates a VariableList of Integer scores, accumulates a
-    running total, and counts how many scores exceed a threshold — exercising
-    list_pop_next, goto_if_first_larger, math_add, and loop-back jumps."""
-
-    # Scores: 10, 85, 40, 92, 5  — threshold 50
-    # Above threshold: 85, 92  → above_count = 2
-    # Total: 10+85+40+92+5 = 232
+    running total, and counts how many scores exceed a threshold."""
 
     def _make_workflow(self):
-        wf = Workflow()
+        wf = Workflow(pipelineManager.ctx)
         wf.uuid = "batch-counter-wf"
         wf.name = "Batch Counter"
         wf.constants["scores"] = VariableList([
@@ -104,7 +100,6 @@ class TestBatchCounterWithBranching:
         wf.setup_variables["total"] = Integer(0)
         wf.setup_variables["above_count"] = Integer(0)
 
-        # start: initialise accumulators then enter loop
         wf.procedures["start"] = [
             ProcessingStep("set_variable_value",
                            variable_name=VariablePath("total"),
@@ -115,7 +110,6 @@ class TestBatchCounterWithBranching:
             ProcessingStep("jump_to_procedure",
                            procedure_name=String("loop")),
         ]
-        # loop: pop next score; if list empty → done
         wf.procedures["loop"] = [
             ProcessingStep("list_pop_next",
                            list_varname=VariablePath("scores"),
@@ -132,7 +126,6 @@ class TestBatchCounterWithBranching:
             ProcessingStep("jump_to_procedure",
                            procedure_name=String("loop")),
         ]
-        # increment_above: bump the above-threshold counter then re-enter loop
         wf.procedures["increment_above"] = [
             ProcessingStep("math_add",
                            first=VariablePath("above_count"),
@@ -144,35 +137,31 @@ class TestBatchCounterWithBranching:
         wf.procedures["done"] = [
             ProcessingStep("pause_this_instance"),
         ]
-        global_workflows[wf.uuid] = wf
+        pipelineManager.ctx.workflows[wf.uuid] = wf
         return wf
 
     async def test_total_is_correct(self):
         wf = self._make_workflow()
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
-
         assert inst["total"].value == 232
 
     async def test_above_count_is_correct(self):
         wf = self._make_workflow()
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
-
         assert inst["above_count"].value == 2
 
     async def test_scores_list_exhausted(self):
         wf = self._make_workflow()
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
-
         assert len(inst["scores"].value) == 0
 
     async def test_workflow_constants_unmodified(self):
         wf = self._make_workflow()
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
-
         assert len(wf.constants["scores"].value) == 5
         assert wf.constants["threshold"].value == 50
 
@@ -180,28 +169,23 @@ class TestBatchCounterWithBranching:
         wf = self._make_workflow()
         inst = wf.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
-
         assert inst.state == RunStates.Paused
 
 
 class TestFileOrganiserPipeline:
     """Workflow that loops over a StringList of filenames, extracts a department
     name via regex, builds destination paths with str_buildWithVars, creates the
-    department sub-folder, and moves each file there — exercising list_pop_next,
-    str_regex_firstMatch, str_buildWithVars, create_folder, and move_file."""
+    department sub-folder, and moves each file there."""
 
-    # Filenames follow the pattern report_<date>_<department>.csv
     FILENAMES = [
         "report_2026-05_finance.csv",
         "report_2026-04_hr.csv",
         "report_2026-06_engineering.csv",
     ]
-    # _\K[a-z]+(?=\.csv) uses \K to drop the underscore from the match,
-    # leaving only the department name before the .csv extension.
     DEPT_PATTERN = r"_\K[a-z]+(?=\.csv)"
 
     def _make_workflow(self, staging_dir: str, dest_dir: str):
-        wf = Workflow()
+        wf = Workflow(pipelineManager.ctx)
         wf.uuid = "file-organiser-wf"
         wf.name = "File Organiser"
         wf.constants["staging_dir"] = String(staging_dir)
@@ -241,7 +225,7 @@ class TestFileOrganiserPipeline:
         wf.procedures["done"] = [
             ProcessingStep("pause_this_instance"),
         ]
-        global_workflows[wf.uuid] = wf
+        pipelineManager.ctx.workflows[wf.uuid] = wf
         return wf
 
     async def test_files_moved_to_correct_subdirs(self, tmp_path):

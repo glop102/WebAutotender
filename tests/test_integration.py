@@ -2,18 +2,18 @@
 import asyncio
 import pytest
 from pipeline_backend.procedure_runner import ProcedureRunner
-from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep, global_workflows
-from pipeline_backend.instances import global_instances
+from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep
 from pipeline_backend.variables import String, Integer, Float, VariablePath, VariableNameList, Dictionary, VariableList, StringList
 from pipeline_backend.commands import CommandReturnStatus
 from pipeline_backend.commands_builtin import list_pop_next
+from pipeline_backend.manager import pipelineManager
 from builtin_addons.string_operations import str_regex_matchAll
 
 
 @pytest.fixture
 def loop_workflow():
     """Counts from 0 up to max_count (3), logging each iteration, then pauses."""
-    wf = Workflow()
+    wf = Workflow(pipelineManager.ctx)
     wf.uuid = "loop-wf"
     wf.name = "Loop Test"
     wf.constants["max_count"] = Integer(3)
@@ -45,7 +45,7 @@ def loop_workflow():
                        msg=String("done")),
         ProcessingStep("pause_this_instance"),
     ]
-    global_workflows[wf.uuid] = wf
+    pipelineManager.ctx.workflows[wf.uuid] = wf
     return wf
 
 
@@ -78,7 +78,7 @@ class TestLoopWorkflow:
         inst = loop_workflow.spawn_instance()
         await ProcedureRunner(inst).run_instance_until_yield()
 
-        assert inst.uuid in global_instances
+        assert inst.uuid in pipelineManager.ctx.instances
 
     async def test_loop_with_different_max(self, loop_workflow):
         loop_workflow.constants["max_count"] = Integer(5)
@@ -93,7 +93,7 @@ class TestMultipleYields:
     async def test_instance_resumes_correctly_across_multiple_yields(self):
         """run_instance_until_yield stops at each yield; successive calls
         advance the instance through each yield point in order."""
-        wf = Workflow()
+        wf = Workflow(pipelineManager.ctx)
         wf.uuid = "multi-yield-wf"
         wf.name = "Multi Yield"
         wf.procedures["start"] = [
@@ -104,7 +104,7 @@ class TestMultipleYields:
             ProcessingStep("log", msg=String("step3")),
             ProcessingStep("pause_this_instance"),
         ]
-        global_workflows[wf.uuid] = wf
+        pipelineManager.ctx.workflows[wf.uuid] = wf
         inst = wf.spawn_instance()
         runner = ProcedureRunner(inst)
 
@@ -132,19 +132,19 @@ class TestSelfDeletingWorkflow:
         uuid = inst.uuid
         await ProcedureRunner(inst).run_instance_until_yield()
 
-        assert uuid not in global_instances
+        assert uuid not in pipelineManager.ctx.instances
 
 
 class TestSpawnChainWorkflow:
     async def test_instance_spawns_child_instance(self):
         """A workflow that immediately spawns one instance of another workflow."""
-        child_wf = Workflow()
+        child_wf = Workflow(pipelineManager.ctx)
         child_wf.uuid = "child-wf"
         child_wf.name = "Child"
         child_wf.procedures["start"] = []
-        global_workflows[child_wf.uuid] = child_wf
+        pipelineManager.ctx.workflows[child_wf.uuid] = child_wf
 
-        parent_wf = Workflow()
+        parent_wf = Workflow(pipelineManager.ctx)
         parent_wf.uuid = "parent-wf"
         parent_wf.name = "Parent"
         parent_wf.procedures["start"] = [
@@ -154,30 +154,20 @@ class TestSpawnChainWorkflow:
                            do_not_deref=VariableNameList([])),
             ProcessingStep("pause_this_instance"),
         ]
-        global_workflows[parent_wf.uuid] = parent_wf
+        pipelineManager.ctx.workflows[parent_wf.uuid] = parent_wf
 
         parent_inst = parent_wf.spawn_instance()
         await ProcedureRunner(parent_inst).run_instance_until_yield()
 
-        child_instances = [i for i in global_instances.values() if i.workflow_uuid == "child-wf"]
+        child_instances = [i for i in pipelineManager.ctx.instances.values() if i.workflow_uuid == "child-wf"]
         assert len(child_instances) == 1
 
 
 class TestDotNotationWorkflowScenario:
-    """Exercises list_pop_next + dot-notation output paths in a realistic workflow scenario.
-
-    The workflow has two constants:
-      - strings_to_match: VariableList of two strings containing numbers
-      - dict: Dictionary with keys matches1 and matches2 (initially empty StringLists)
-
-    The test pops each string in turn, runs a regex to extract numbers, and stores
-    the results via dot-notation paths (dict.matches1, dict.matches2).
-    After each write it verifies that the workflow constants are unmodified while
-    the instance variables hold the updated copies.
-    """
+    """Exercises list_pop_next + dot-notation output paths in a realistic workflow scenario."""
 
     def _make_workflow(self):
-        wf = Workflow()
+        wf = Workflow(pipelineManager.ctx)
         wf.uuid = "dot-notation-scenario-wf"
         wf.name = "Dot Notation Scenario"
         wf.constants["strings_to_match"] = VariableList([
@@ -190,7 +180,7 @@ class TestDotNotationWorkflowScenario:
         })
         wf.procedures["start"] = []
         wf.procedures["done"] = []
-        global_workflows[wf.uuid] = wf
+        pipelineManager.ctx.workflows[wf.uuid] = wf
         return wf
 
     def test_pop_modifies_instance_not_workflow(self):
@@ -201,9 +191,7 @@ class TestDotNotationWorkflowScenario:
 
         assert result == CommandReturnStatus.Success
         assert inst.variables["current"].value == "abc 42 def 99"
-        # Workflow constant untouched
         assert len(wf.constants["strings_to_match"].value) == 2
-        # Instance copy has one item removed
         assert len(inst.variables["strings_to_match"].value) == 1
 
     def test_regex_into_dot_path_modifies_instance_not_workflow(self):
@@ -214,20 +202,16 @@ class TestDotNotationWorkflowScenario:
         result = asyncio.run(str_regex_matchAll(inst, String(r"\d+"), inst["current"], VariablePath("dict.matches1")))
 
         assert result == CommandReturnStatus.Success
-        # Workflow constant dict untouched
         assert wf.constants["dict"].value["matches1"].value == []
-        # Instance has matches1 populated via dot notation
         assert inst["dict.matches1"].value == ["42", "99"]
 
     def test_full_scenario_both_strings_processed(self):
         wf = self._make_workflow()
         inst = wf.spawn_instance()
 
-        # First string
         list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
         asyncio.run(str_regex_matchAll(inst, String(r"\d+"), inst["current"], VariablePath("dict.matches1")))
 
-        # Second string
         result = list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
         assert result == CommandReturnStatus.Success
         assert inst.variables["current"].value == "hello 7 world 13"
@@ -235,10 +219,8 @@ class TestDotNotationWorkflowScenario:
 
         asyncio.run(str_regex_matchAll(inst, String(r"\d+"), inst["current"], VariablePath("dict.matches2")))
 
-        # Workflow constants still completely unmodified
         assert wf.constants["dict"].value["matches1"].value == []
         assert wf.constants["dict"].value["matches2"].value == []
-        # Instance has both result sets
         assert inst["dict.matches1"].value == ["42", "99"]
         assert inst["dict.matches2"].value == ["7", "13"]
 
@@ -250,8 +232,5 @@ class TestDotNotationWorkflowScenario:
         list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
         result = list_pop_next(inst, VariablePath("strings_to_match"), VariablePath("current"), String("done"))
 
-        # Third call hits empty list → jumps to done procedure
         assert result == CommandReturnStatus.Success | CommandReturnStatus.Keep_Position
         assert inst.processing_step == ("done", 0)
-
-
