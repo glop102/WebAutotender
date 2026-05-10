@@ -32,10 +32,10 @@ def yield_until(instance: Instance, iso_datetime:String) -> CommandReturnStatus:
 @Commands.register_command(category="Core")
 def delete_this_instance(instance: Instance) -> CommandReturnStatus:
     """Permanently remove this instance. Execution stops and the instance will not appear again."""
-    if not instance.uuid in global_instances:
-        instance.log_line(f"Error: Unable to delete an instance that is not in the global_instances dictionary. The pipeline lib only supports a single global pipeline state for many operations.")
+    if not instance.uuid in instance.ctx.instances:
+        instance.log_line(f"Error: Unable to delete an instance that is not registered in the pipeline context.")
         return CommandReturnStatus.Error
-    del global_instances[instance.uuid]
+    del instance.ctx.instances[instance.uuid]
     return CommandReturnStatus.Yield
 
 @Commands.register_command(category="Core")
@@ -44,11 +44,11 @@ def make_new_instance(instance: Instance, workflow_uuid:String, setup_vars:Dicti
   workflow_uuid: UUID of the target workflow to spawn an instance of.
   setup_vars: Dictionary of setup variable names to values. VariablePath values are resolved from the caller's scope to match the destination's declared type.
   do_not_deref: List of keys in setup_vars whose VariablePath values should be passed through as-is without resolution."""
-    if workflow_uuid.value not in global_workflows:
+    if workflow_uuid.value not in instance.ctx.workflows:
         instance.log_line(f"Error: Unable to find a Workflow with the uuid {workflow_uuid.value} to spawn an instance of.")
         return CommandReturnStatus.Error
 
-    workflow = global_workflows[workflow_uuid.value]
+    workflow = instance.ctx.workflows[workflow_uuid.value]
 
     for key in setup_vars.value:
         if key not in workflow.setup_variables:
@@ -265,10 +265,10 @@ def set_variable_value_in_another_instance(instance: Instance, instance_uuid:Str
   instance_uuid: UUID of the target instance to modify.
   variable_name: Name of the variable to set on the target instance.
   value: The value to assign."""
-    if not instance_uuid.value in global_instances:
+    if not instance_uuid.value in instance.ctx.instances:
         instance.log_line(f"Unable to find an instance with the UUID {instance_uuid.value} to set a variable in")
         return CommandReturnStatus.Error
-    other_instance = global_instances[instance_uuid.value]
+    other_instance = instance.ctx.instances[instance_uuid.value]
     other_instance[variable_name.value] = value
     return CommandReturnStatus.Success
 

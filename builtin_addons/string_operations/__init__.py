@@ -38,7 +38,7 @@ async def str_buildWithVars(instance: Instance, inputString:String, outputVarnam
     for name,var in instance.get_associated_workflow().constants.items():
         if not name in vars:
             vars[name] = var.convert_to_python_type()
-    for name,var in global_variables.items():
+    for name,var in instance.ctx.variables.items():
         if not name in vars:
             vars[name] = var.convert_to_python_type()
     # TODO : Errors on list types so we need to recusivly convert values down if they are WorkVariables and their value is iterable
