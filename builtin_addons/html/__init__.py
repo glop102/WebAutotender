@@ -16,10 +16,10 @@ from pipeline_backend.event_callbacks import (
     ServerSideSignalsQueue,
     eventsCallbackManager,
 )
-from pipeline_backend.instances import Instance, global_instances
+from pipeline_backend.instances import Instance
 from pipeline_backend.manager import pipelineManager
-from pipeline_backend.variables import WorkVariable, global_variables, global_secrets
-from pipeline_backend.workflows import RunStates, Workflow, global_workflows, ProcessingStep
+from pipeline_backend.variables import WorkVariable
+from pipeline_backend.workflows import RunStates, Workflow, ProcessingStep
 
 # ---------------------------------------------------------------------------
 # Router + templates
@@ -47,17 +47,17 @@ workflow_drafts: dict[str, Workflow] = {}
 
 
 def _get_or_create_workflow_draft(uuid: str) -> Workflow | None:
-    if uuid not in global_workflows:
+    if uuid not in pipelineManager.ctx.workflows:
         return None
     if uuid not in workflow_drafts:
-        workflow_drafts[uuid] = deepcopy(global_workflows[uuid])
+        workflow_drafts[uuid] = deepcopy(pipelineManager.ctx.workflows[uuid])
     return workflow_drafts[uuid]
 
 
 def _is_draft_dirty(uuid: str) -> bool:
-    if uuid not in workflow_drafts or uuid not in global_workflows:
+    if uuid not in workflow_drafts or uuid not in pipelineManager.ctx.workflows:
         return False
-    return global_workflows[uuid].json_savable() != workflow_drafts[uuid].json_savable()
+    return pipelineManager.ctx.workflows[uuid].json_savable() != workflow_drafts[uuid].json_savable()
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +140,7 @@ class VariableStore:
 
 
 globals_store = VariableStore(
-    live=global_variables,
+    live=pipelineManager.ctx.variables,
     ctx_type="global",
     prefix="/ui/globals",
     pane_id="globals-pane",
@@ -153,7 +153,7 @@ globals_store = VariableStore(
 )
 
 secrets_store = VariableStore(
-    live=global_secrets,
+    live=pipelineManager.ctx.secrets,
     ctx_type="secret",
     prefix="/ui/secrets",
     pane_id="secrets-pane",
@@ -218,7 +218,7 @@ def _design_context(workflow_uuid: str, draft: Workflow) -> dict:
 
 
 def _instances_context(workflow: Workflow) -> dict:
-    insts = [i for i in global_instances.values() if i.workflow_uuid == workflow.uuid]
+    insts = [i for i in pipelineManager.ctx.instances.values() if i.workflow_uuid == workflow.uuid]
     return {
         "workflow": workflow,
         "workflow_uuid": workflow.uuid,
@@ -411,7 +411,7 @@ class UISignalsQueue(ServerSideSignalsQueue):
         data: str = "",
     ):
         if event == EventCallbacksManager.Events.RefreshInstance:
-            inst = global_instances.get(uuid)
+            inst = pipelineManager.ctx.instances.get(uuid)
             uuid = inst.workflow_uuid if inst else uuid
         await super().add_new_message(event, uuid, data)
 
@@ -431,7 +431,7 @@ async def sse_stream(request: Request):
 @router.get("/", response_class=HTMLResponse)
 @router.get("", response_class=HTMLResponse)
 def get_ui(request: Request):
-    workflows = list(global_workflows.values())
+    workflows = list(pipelineManager.ctx.workflows.values())
     return templates.TemplateResponse(
         "base.html",
         {
@@ -454,7 +454,7 @@ def get_sidebar(request: Request, selected_uuid: str = ""):
         "sidebar.html",
         {
             "request": request,
-            "workflows": list(global_workflows.values()),
+            "workflows": list(pipelineManager.ctx.workflows.values()),
             "selected_uuid": selected_uuid,
             "globals_dirty": globals_store.is_dirty(),
             "secrets_dirty": secrets_store.is_dirty(),
@@ -468,7 +468,7 @@ def get_sidebar(request: Request, selected_uuid: str = ""):
 
 @router.get("/workflow/{uuid}", response_class=HTMLResponse)
 def get_workflow_pane(request: Request, uuid: str):
-    wf = global_workflows.get(uuid)
+    wf = pipelineManager.ctx.workflows.get(uuid)
     if not wf:
         return HTMLResponse("Workflow not found", status_code=404)
     ctx = _instances_context(wf)
@@ -485,7 +485,7 @@ def get_workflow_pane(request: Request, uuid: str):
 
 @router.get("/workflow/{uuid}/instances", response_class=HTMLResponse)
 def get_instances_tab(request: Request, uuid: str):
-    wf = global_workflows.get(uuid)
+    wf = pipelineManager.ctx.workflows.get(uuid)
     if not wf:
         return HTMLResponse("Workflow not found", status_code=404)
     ctx = _instances_context(wf)
@@ -539,10 +539,10 @@ def get_secrets_pane(request: Request):
 
 @router.post("/workflow/add", response_class=HTMLResponse)
 async def add_workflow(request: Request):
-    wf = Workflow()
+    wf = Workflow(pipelineManager.ctx)
     wf.uuid = str(uuid4())
     wf.name = "Untitled"
-    global_workflows[wf.uuid] = wf
+    pipelineManager.ctx.workflows[wf.uuid] = wf
     await eventsCallbackManager.signal_event(EventCallbacksManager.Events.RefreshWorkflows)
     pipelineManager.save_state()
     return HTMLResponse("")
@@ -554,12 +554,12 @@ async def add_workflow(request: Request):
 
 @router.post("/workflow/{uuid}/delete", response_class=HTMLResponse)
 async def delete_workflow(uuid: str):
-    global_workflows.pop(uuid, None)
+    pipelineManager.ctx.workflows.pop(uuid, None)
     workflow_drafts.pop(uuid, None)
     await eventsCallbackManager.signal_event(EventCallbacksManager.Events.RefreshWorkflows)
     pipelineManager.save_state()
     sidebar = templates.get_template("sidebar.html").render(
-        workflows=list(global_workflows.values()),
+        workflows=list(pipelineManager.ctx.workflows.values()),
         selected_uuid=None,
         globals_dirty=globals_store.is_dirty(),
         secrets_dirty=secrets_store.is_dirty(),
@@ -577,7 +577,7 @@ async def delete_workflow(uuid: str):
 
 @router.post("/workflow/{uuid}/toggle_pause", response_class=HTMLResponse)
 async def toggle_workflow_pause(uuid: str):
-    wf = global_workflows.get(uuid)
+    wf = pipelineManager.ctx.workflows.get(uuid)
     if not wf:
         return HTMLResponse("Not found", status_code=404)
     wf.state = RunStates.Paused if wf.state == RunStates.Running else RunStates.Running
@@ -586,7 +586,7 @@ async def toggle_workflow_pause(uuid: str):
     if wf.state == RunStates.Running:
         await pipelineManager.notify_of_something_happening()
     sidebar = templates.get_template("sidebar.html").render(
-        workflows=list(global_workflows.values()),
+        workflows=list(pipelineManager.ctx.workflows.values()),
         selected_uuid=None,
         globals_dirty=globals_store.is_dirty(),
         secrets_dirty=secrets_store.is_dirty(),
@@ -789,7 +789,7 @@ async def save_workflow(request: Request, uuid: str):
     draft = workflow_drafts.get(uuid)
     if not draft:
         return HTMLResponse("No draft found", status_code=404)
-    saved = global_workflows.get(uuid)
+    saved = pipelineManager.ctx.workflows.get(uuid)
     if not saved:
         return HTMLResponse("Workflow not found", status_code=404)
 
@@ -801,9 +801,9 @@ async def save_workflow(request: Request, uuid: str):
     draft.state = saved.state
 
     # Flush draft → saved
-    global_workflows[uuid] = deepcopy(draft)
+    pipelineManager.ctx.workflows[uuid] = deepcopy(draft)
     # Reset draft to freshly saved state
-    workflow_drafts[uuid] = deepcopy(global_workflows[uuid])
+    workflow_drafts[uuid] = deepcopy(pipelineManager.ctx.workflows[uuid])
 
     await eventsCallbackManager.signal_event(EventCallbacksManager.Events.RefreshWorkflows)
     pipelineManager.save_state()
@@ -818,8 +818,8 @@ async def save_workflow(request: Request, uuid: str):
 
 @router.post("/workflow/{uuid}/design/discard", response_class=HTMLResponse)
 def discard_design(request: Request, uuid: str):
-    if uuid in global_workflows:
-        workflow_drafts[uuid] = deepcopy(global_workflows[uuid])
+    if uuid in pipelineManager.ctx.workflows:
+        workflow_drafts[uuid] = deepcopy(pipelineManager.ctx.workflows[uuid])
     ctx = _design_context(uuid, workflow_drafts[uuid])
     return templates.TemplateResponse("workflow_design.html", {"request": request, **ctx})
 
@@ -830,7 +830,7 @@ def discard_design(request: Request, uuid: str):
 
 @router.get("/workflow/{uuid}/instances/spawn_dialog", response_class=HTMLResponse)
 def spawn_dialog(request: Request, uuid: str):
-    wf = global_workflows.get(uuid)
+    wf = pipelineManager.ctx.workflows.get(uuid)
     if not wf:
         return HTMLResponse("Not found", status_code=404)
     return templates.TemplateResponse(
@@ -845,7 +845,7 @@ def spawn_dialog(request: Request, uuid: str):
 
 @router.get("/workflow/{uuid}/instances/{iuuid}", response_class=HTMLResponse)
 def get_instance_row(request: Request, uuid: str, iuuid: str):
-    inst = global_instances.get(iuuid)
+    inst = pipelineManager.ctx.instances.get(iuuid)
     if not inst:
         return HTMLResponse("", status_code=204)
     return HTMLResponse(templates.get_template("partials/instance_row.html").render(
@@ -861,7 +861,7 @@ def get_instance_row(request: Request, uuid: str, iuuid: str):
 
 @router.post("/workflow/{uuid}/instances/spawn", response_class=HTMLResponse)
 async def spawn_instance(request: Request, uuid: str):
-    wf = global_workflows.get(uuid)
+    wf = pipelineManager.ctx.workflows.get(uuid)
     if not wf:
         return HTMLResponse("Not found", status_code=404)
 
@@ -903,9 +903,9 @@ async def spawn_instance(request: Request, uuid: str):
 
 @router.post("/workflow/{uuid}/instances/{iuuid}/delete", response_class=HTMLResponse)
 async def delete_instance(uuid: str, iuuid: str):
-    global_instances.pop(iuuid, None)
+    pipelineManager.ctx.instances.pop(iuuid, None)
     pipelineManager.save_state()
-    wf = global_workflows.get(uuid)
+    wf = pipelineManager.ctx.workflows.get(uuid)
     if not wf:
         return HTMLResponse("Not found", status_code=404)
     ctx = _instances_context(wf)
@@ -918,13 +918,13 @@ async def delete_instance(uuid: str, iuuid: str):
 
 @router.post("/workflow/{uuid}/instances/{iuuid}/toggle_pause", response_class=HTMLResponse)
 async def toggle_instance_pause(uuid: str, iuuid: str):
-    inst = global_instances.get(iuuid)
+    inst = pipelineManager.ctx.instances.get(iuuid)
     if inst:
         inst.state = RunStates.Paused if inst.state == RunStates.Running else RunStates.Running
         pipelineManager.save_state()
         if inst.state == RunStates.Running:
             await pipelineManager.notify_of_something_happening()
-    wf = global_workflows.get(uuid)
+    wf = pipelineManager.ctx.workflows.get(uuid)
     if not wf:
         return HTMLResponse("Not found", status_code=404)
     ctx = _instances_context(wf)
