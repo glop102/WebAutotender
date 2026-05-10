@@ -5,6 +5,7 @@ from copy import deepcopy,copy
 from uuid import uuid4
 import pipeline_backend.variables as variables
 import pipeline_backend.instances as instances
+from pipeline_backend.context import PipelineContext
 
 
 class RunStates(Enum):
@@ -59,7 +60,10 @@ class Workflow:
     # A free space for a user to leave notes for whatever reason. Probably a description of the workflow and reminder of how it works.
     user_notes: str
 
-    def __init__(self) -> None:
+    ctx: PipelineContext
+
+    def __init__(self, ctx: PipelineContext) -> None:
+        self.ctx = ctx
         self.name = ""
         self.uuid = ""
         self.constants = {}
@@ -71,7 +75,7 @@ class Workflow:
     def spawn_instance(self, setup_var_non_defaults: dict[str, variables.WorkVariable] = {}) -> instances.Instance:
         """Create a new Instance with some variables. The setup variables are optional, and if not everything is specified, will be filled with defaults as setup in the workflow. Can also be used to shadow values that are constants in the parent workflow."""
         #Note: Make sure Variables are a copy that we give to the instance, so the instance permuting does not change future workflow defaults
-        new = instances.Instance()
+        new = instances.Instance(self.ctx)
         new.uuid = str(uuid4())
         new.workflow_uuid = str(self.uuid)
 
@@ -80,12 +84,12 @@ class Workflow:
         for varname in setup_var_non_defaults:
             new.variables[varname] = deepcopy(setup_var_non_defaults[varname])
 
-        if self.uuid in global_workflows:
-            instances.global_instances[new.uuid] = new
+        if self.uuid in self.ctx.workflows:
+            self.ctx.instances[new.uuid] = new
         return new
-    
+
     def get_instances(self) -> list[instances.Instance]:
-        return [i for i in instances.global_instances.values() if i.workflow_uuid == self.uuid]
+        return [i for i in self.ctx.instances.values() if i.workflow_uuid == self.uuid]
 
     def __str__(self) -> str:
         return f"Workflow \"{self.name}\" - {self.state.name}"
