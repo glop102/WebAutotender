@@ -137,11 +137,3 @@ class Workflow:
                 proc_steps.append(step)
             self.procedures[proc_name] = proc_steps
     
-# =====================================================================================
-# Tracking available items
-# =====================================================================================
-# It is a little weird feeling to put these here, but Instances with their procedures will
-# have commands that create or delete instances, so we need to track what is available
-# internally to the module.
-
-global_workflows:dict[str,Workflow] = {}

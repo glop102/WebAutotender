@@ -175,6 +175,3 @@ class Instance:
             var = variables.WorkVariable()
             var.json_loadable(data['variables'][var_name])
             self.variables[var_name] = var
-
-
-global_instances: dict[str, Instance] = {}
