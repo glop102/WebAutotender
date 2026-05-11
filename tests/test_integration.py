@@ -163,6 +163,90 @@ class TestSpawnChainWorkflow:
         assert len(child_instances) == 1
 
 
+class TestSampleInstanceSpawnerWorkflow:
+    """Replicates the 'Sample Instance Spawner' + 'Sample Instance Receiver' workflows
+    from pipeline_state.json: the spawner loops 5 times, each iteration creating one
+    receiver instance (passing the current counter as its setup variable), then deletes itself.
+    Each receiver pauses immediately on start."""
+
+    SPAWNER_UUID = "76ce41d0-ff26-4380-86c0-b479e3c2db7e"
+    RECEIVER_UUID = "e2982037-7ca5-453c-9cee-7b779ff47789"
+
+    @pytest.fixture
+    def spawn_workflows(self, mgr):
+        receiver_wf = Workflow(mgr.ctx)
+        receiver_wf.uuid = self.RECEIVER_UUID
+        receiver_wf.name = "Sample Instance Receiver"
+        receiver_wf.setup_variables["instance number"] = Integer(0)
+        receiver_wf.procedures["start"] = [
+            ProcessingStep("pause_this_instance"),
+            ProcessingStep("delete_this_instance"),
+        ]
+        mgr.ctx.workflows[receiver_wf.uuid] = receiver_wf
+
+        spawner_wf = Workflow(mgr.ctx)
+        spawner_wf.uuid = self.SPAWNER_UUID
+        spawner_wf.name = "Sample Instance Spawner"
+        spawner_wf.constants["dest uuid"] = String(self.RECEIVER_UUID)
+        spawner_wf.setup_variables["num to spawn"] = Integer(5)
+        spawner_wf.procedures["start"] = [
+            ProcessingStep("make_new_instance",
+                           workflow_uuid=VariablePath("dest uuid"),
+                           setup_vars=Dictionary({"instance number": VariablePath("num to spawn")}),
+                           do_not_deref=VariableNameList([])),
+            ProcessingStep("math_subtract",
+                           first=VariablePath("num to spawn"),
+                           second=Integer(1),
+                           output_variable=VariablePath("num to spawn")),
+            ProcessingStep("goto_if_first_larger",
+                           procedure_name=String("start"),
+                           value1=VariablePath("num to spawn"),
+                           value2=Integer(0)),
+            ProcessingStep("delete_this_instance"),
+        ]
+        mgr.ctx.workflows[spawner_wf.uuid] = spawner_wf
+
+        return spawner_wf, receiver_wf
+
+    async def test_spawner_creates_five_receiver_instances(self, mgr, spawn_workflows):
+        spawner_wf, _ = spawn_workflows
+        spawner_inst = spawner_wf.spawn_instance()
+        await ProcedureRunner(spawner_inst).run_instance_until_yield()
+
+        receiver_instances = [i for i in mgr.ctx.instances.values()
+                              if i.workflow_uuid == self.RECEIVER_UUID]
+        assert len(receiver_instances) == 5
+
+    async def test_spawner_instance_is_deleted_after_completion(self, mgr, spawn_workflows):
+        spawner_wf, _ = spawn_workflows
+        spawner_inst = spawner_wf.spawn_instance()
+        spawner_uuid = spawner_inst.uuid
+        await ProcedureRunner(spawner_inst).run_instance_until_yield()
+
+        assert spawner_uuid not in mgr.ctx.instances
+
+    async def test_all_receiver_instances_are_waiting_to_run(self, mgr, spawn_workflows):
+        """Spawned instances are created in Running state but not yet executed;
+        they will pause on their first run when the scheduler picks them up."""
+        spawner_wf, _ = spawn_workflows
+        spawner_inst = spawner_wf.spawn_instance()
+        await ProcedureRunner(spawner_inst).run_instance_until_yield()
+
+        receiver_instances = [i for i in mgr.ctx.instances.values()
+                              if i.workflow_uuid == self.RECEIVER_UUID]
+        assert all(i.state == RunStates.Running for i in receiver_instances)
+
+    async def test_receiver_instances_have_correct_instance_numbers(self, mgr, spawn_workflows):
+        spawner_wf, _ = spawn_workflows
+        spawner_inst = spawner_wf.spawn_instance()
+        await ProcedureRunner(spawner_inst).run_instance_until_yield()
+
+        receiver_instances = [i for i in mgr.ctx.instances.values()
+                              if i.workflow_uuid == self.RECEIVER_UUID]
+        instance_numbers = sorted(i.variables["instance number"].value for i in receiver_instances)
+        assert instance_numbers == [1, 2, 3, 4, 5]
+
+
 class TestDotNotationWorkflowScenario:
     """Exercises list_pop_next + dot-notation output paths in a realistic workflow scenario."""
 
