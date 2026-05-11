@@ -188,7 +188,13 @@ def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,infohas
   infohash: The infohash string of the torrent to wait on."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
-    if torrent.is_complete():
+    try:
+        complete = torrent.is_complete()
+    except OSError as e:
+        instance.log_line(f"Connection error checking torrent completion, will retry: {e}")
+        yield_for_seconds(instance,Integer(30))
+        return CommandReturnStatus.Yield|CommandReturnStatus.Keep_Position
+    if complete:
         return CommandReturnStatus.Success
     yield_for_seconds(instance,Integer(30))
     return CommandReturnStatus.Yield|CommandReturnStatus.Keep_Position
@@ -201,9 +207,15 @@ def rtorrent_wait_until_ratio(instance:Instance,serverInfo:Dictionary,infohash:S
   ratio: The minimum seed ratio to wait for (e.g. 1.0 for 1:1)."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
-    if torrent.get_ratio() >= ratio.value:
+    try:
+        current_ratio = torrent.get_ratio()
+    except OSError as e:
+        instance.log_line(f"Connection error checking torrent ratio, will retry: {e}")
+        yield_for_seconds(instance,Integer(30))
+        return CommandReturnStatus.Yield|CommandReturnStatus.Keep_Position
+    if current_ratio >= ratio.value:
         return CommandReturnStatus.Success
-    yield_for_seconds(instance,Integer(30))
+    yield_for_seconds(instance,Integer(300))
     return CommandReturnStatus.Yield|CommandReturnStatus.Keep_Position
 
 @Commands.register_command(category="rTorrent")
