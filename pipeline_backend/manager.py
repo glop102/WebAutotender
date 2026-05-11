@@ -1,4 +1,5 @@
-from asyncio import Handle, TimerHandle, get_running_loop, gather
+import asyncio
+from asyncio import Handle, TimerHandle, get_running_loop
 from datetime import datetime, timedelta
 import importlib.util
 import json
@@ -22,6 +23,7 @@ class PipelineManager:
         super().__init__()
         self.ctx = PipelineContext()
         self.delayedTask = None
+        self._running_instance_tasks: dict[str, asyncio.Task] = {}
         self.__backing_store_filename = ""
         self.__secrets_filename = ""
 
@@ -87,23 +89,28 @@ class PipelineManager:
 
     # ── Scheduling ────────────────────────────────────────────────────────────
 
-    async def run_due_instances(self) -> None:
-        """Runs all the instances that are due to be run until they yield."""
-        current_time = datetime.now()
-        due_instances = [i for i in self.ctx.instances.values()
-                         if i.is_allowed_to_run() and i.past_time_to_run(current_time)]
-
-        async def run_one(instance):
+    async def _run_one_instance(self, instance) -> None:
+        try:
             runner = ProcedureRunner(instance)
             await runner.run_instance_until_yield()
             await eventsCallbackManager.signal_event(
                 EventCallbacksManager.Events.RefreshInstance,
                 instance.uuid
             )
-
-        await gather(*[run_one(i) for i in due_instances])
-        if len(due_instances) > 0:
+        finally:
+            self._running_instance_tasks.pop(instance.uuid, None)
             self.save_state()
+            await self.notify_of_something_happening()
+
+    async def run_due_instances(self) -> None:
+        """Launches all instances that are due as independent concurrent tasks."""
+        current_time = datetime.now()
+        for instance in list(self.ctx.instances.values()):
+            if (instance.is_allowed_to_run()
+                    and instance.past_time_to_run(current_time)
+                    and instance.uuid not in self._running_instance_tasks):
+                task = get_running_loop().create_task(self._run_one_instance(instance))
+                self._running_instance_tasks[instance.uuid] = task
 
     def get_next_due_time(self) -> datetime | None:
         current_time = datetime.now()
@@ -111,7 +118,7 @@ class PipelineManager:
         minimum_next_due_time = current_time + timedelta(seconds=1)
 
         possible_instances = [i for i in self.ctx.instances.values()
-                              if i.is_allowed_to_run()]
+                              if i.is_allowed_to_run() and i.uuid not in self._running_instance_tasks]
         if len(possible_instances) == 0:
             return None
         for instance in possible_instances:
