@@ -1,4 +1,4 @@
-from asyncio import Handle, TimerHandle, get_running_loop
+from asyncio import Handle, TimerHandle, get_running_loop, gather
 from datetime import datetime, timedelta
 import importlib.util
 import json
@@ -92,13 +92,16 @@ class PipelineManager:
         current_time = datetime.now()
         due_instances = [i for i in self.ctx.instances.values()
                          if i.is_allowed_to_run() and i.past_time_to_run(current_time)]
-        for instance in due_instances:
+
+        async def run_one(instance):
             runner = ProcedureRunner(instance)
             await runner.run_instance_until_yield()
             await eventsCallbackManager.signal_event(
                 EventCallbacksManager.Events.RefreshInstance,
                 instance.uuid
             )
+
+        await gather(*[run_one(i) for i in due_instances])
         if len(due_instances) > 0:
             self.save_state()
 
