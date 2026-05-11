@@ -2,9 +2,49 @@ from pipeline_backend import *
 from pipeline_backend.commands_builtin import *
 from pipeline_backend.commands_builtin import yield_for_seconds
 
+import hashlib
+import urllib.parse
 import xmlrpc.client
 import urllib.request
-from time import sleep
+
+def _bencode_find_end(data: bytes, start: int) -> int:
+    """Return the index just past the end of the bencoded value starting at data[start]."""
+    c = data[start:start+1]
+    if c == b'i':
+        return data.index(b'e', start + 1) + 1
+    elif c in (b'd', b'l'):
+        pos = start + 1
+        while data[pos:pos+1] != b'e':
+            pos = _bencode_find_end(data, pos)
+        return pos + 1
+    elif c.isdigit():
+        colon = data.index(b':', start)
+        length = int(data[start:colon])
+        return colon + 1 + length
+    raise ValueError(f"Invalid bencode byte {c!r} at position {start}")
+
+def _infohash_from_torrent_bytes(data: bytes) -> str:
+    """Compute the infohash of a .torrent file from its raw bytes."""
+    info_key = b"4:info"
+    idx = data.find(info_key)
+    if idx == -1:
+        raise ValueError("No 'info' key found — not a valid .torrent file")
+    info_start = idx + len(info_key)
+    info_end = _bencode_find_end(data, info_start)
+    return hashlib.sha1(data[info_start:info_end]).hexdigest().upper()
+
+def _infohash_from_magnet(magnet: str) -> str:
+    """Extract the infohash from a magnet URI."""
+    import base64
+    params = urllib.parse.parse_qs(urllib.parse.urlparse(magnet).query)
+    xt = params.get('xt', [''])[0]
+    if not xt.startswith('urn:btih:'):
+        raise ValueError(f"Cannot extract infohash from magnet: {magnet}")
+    h = xt[9:]
+    if len(h) == 32:  # base32-encoded
+        return base64.b32decode(h.upper()).hex().upper()
+    return h.upper()
+
 
 class Server:
     instance:Instance
@@ -49,33 +89,22 @@ class Server:
         infohashes = self.connection.download_list()
         return [Torrent(self,infohash) for infohash in infohashes]
     
-    def add_url_to_rtorrent(self,url:str|String)->"Torrent":
-        """
-        Add a torrent file or magnet link to rtorrent.
-        This method is intentionally synchronous and blocking. The sleep below must NOT be
-        replaced with asyncio.sleep: we need the event loop blocked for the entire
-        submit -> detect-new-hash sequence so that no other coroutine can add a torrent
-        concurrently and cause us to detect the wrong infohash as our result.
-        """
-        if isinstance(url,WorkVariable):
+    def add_url_to_rtorrent(self, url: str|String) -> "Torrent":
+        """Add a torrent file URL or magnet link to rtorrent.
+        The infohash is computed locally from the torrent bytes (or extracted from the
+        magnet URI) before submission, so no polling loop is needed."""
+        if isinstance(url, WorkVariable):
             url = url.value
-        orig_hashes:list[str] = self.connection.download_list()
-        if(url.startswith("http")):
-            #workaround for whatbox getting banned from downloading from nyaa.si
-            #we download it on the current system and then send the actual file over to rtorrent
-            torrentFile = urllib.request.urlopen(url).read()
-            self.connection.load.raw_start("",torrentFile)
+        if url.startswith("magnet:"):
+            infohash = _infohash_from_magnet(url)
+            self.connection.load.start("", url)
         else:
-            #if it is just a magnet link, then rtorrent already knows how to deal with it
-            self.connection.load.start("",url)
-        
-        while True:
-            sleep(0.5)
-            new_hashes:list[str] = [h for h in self.connection.download_list() if not h in orig_hashes]
-            if len(new_hashes) > 1:
-                raise Exception("Error: more than 1 new hash found when adding URL : {}\n{}".format(url, new_hashes))
-            elif len(new_hashes) == 1:
-                return Torrent(self,new_hashes[0])
+            # workaround for whatbox getting banned from downloading from nyaa.si:
+            # download the torrent file here and push the raw bytes to rtorrent
+            torrent_bytes = urllib.request.urlopen(url).read()
+            infohash = _infohash_from_torrent_bytes(torrent_bytes)
+            self.connection.load.raw_start("", torrent_bytes)
+        return Torrent(self, infohash)
 
 class Torrent:
     server:Server
