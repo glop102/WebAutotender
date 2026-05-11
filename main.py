@@ -32,6 +32,5 @@ async def lifespan(app:FastAPI):
 
     print("Shutting down Pipeline")
     await pipelineManager.stop()
-    pipelineManager.save_state()
 
 app = FastAPI(lifespan=lifespan)

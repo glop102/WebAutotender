@@ -24,6 +24,7 @@ class PipelineManager:
         self.ctx = PipelineContext()
         self.delayedTask = None
         self._running_instance_tasks: dict[str, asyncio.Task] = {}
+        self._shutting_down = False
         self.__backing_store_filename = ""
         self.__secrets_filename = ""
 
@@ -136,17 +137,24 @@ class PipelineManager:
             )
 
     async def notify_of_something_happening(self):
+        if self._shutting_down:
+            return
         # Cancel the callback to run() and instead call run() asap
         if self.delayedTask:
             self.delayedTask.cancel()
         self.delayedTask = get_running_loop().call_soon(lambda: get_running_loop().create_task(self.run()))
 
     async def start(self):
+        self._shutting_down = False
         await self.notify_of_something_happening()
 
     async def stop(self):
+        self._shutting_down = True
         if self.delayedTask:
             self.delayedTask.cancel()
+        if self._running_instance_tasks:
+            await asyncio.gather(*self._running_instance_tasks.values(), return_exceptions=True)
+        self.save_state()
 
     def import_addons_from_folder(self, foldername: str) -> list:
         """This will attempt to import all the folders in a folder in the assumption they are modules. This will let them run naturally and do things like register commands. It will return a list of these sucessfully imported modules."""
