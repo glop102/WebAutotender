@@ -153,7 +153,12 @@ class PipelineManager:
         if self.delayedTask:
             self.delayedTask.cancel()
         if self._running_instance_tasks:
+            uuids = list(self._running_instance_tasks.keys())
+            print(f"Waiting for {len(uuids)} running instance(s) to yield before shutdown:")
+            for uuid in uuids:
+                print(f"  {uuid}")
             await asyncio.gather(*self._running_instance_tasks.values(), return_exceptions=True)
+            print("All instances have yielded, shutting down.")
         self.save_state()
 
     def import_addons_from_folder(self, foldername: str) -> list:
