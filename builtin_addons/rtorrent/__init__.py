@@ -4,9 +4,19 @@ from pipeline_backend.commands_builtin import yield_for_seconds
 
 import asyncio
 import hashlib
+import http.client
 import urllib.parse
 import xmlrpc.client
 import urllib.request
+
+class _TimeoutTransport(xmlrpc.client.SafeTransport):
+    def __init__(self, timeout:int, **kwargs):
+        super().__init__(**kwargs)
+        self._timeout = timeout
+    def make_connection(self, host):
+        conn = super().make_connection(host)
+        conn.timeout = self._timeout
+        return conn
 
 def _bencode_find_end(data: bytes, start: int) -> int:
     """Return the index just past the end of the bencoded value starting at data[start]."""
@@ -62,7 +72,8 @@ class Server:
         proto_idx = url.index("://")+3
         url_filled = url[:proto_idx] + f"{username}:{password}@" + url[proto_idx:]
 
-        return xmlrpc.client.Server(url_filled)
+        transport = _TimeoutTransport(timeout=10)
+        return xmlrpc.client.Server(url_filled, transport=transport)
 
     def __connect_to_server(self)->xmlrpc.client.Server:
         valid = True
