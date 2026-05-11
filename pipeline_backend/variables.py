@@ -314,5 +314,3 @@ class Dictionary(WorkVariable):
     def convert_to_python_type(self)->dict[str,Any]:
         return {name:var.convert_to_python_type() for name,var in self.value.items()}
 
-global_variables: dict[str,WorkVariable] = {}
-global_secrets: dict[str,WorkVariable] = {}

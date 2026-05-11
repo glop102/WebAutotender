@@ -1,11 +1,11 @@
 from fastapi import APIRouter, status, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from uuid import uuid4
-from .workflows import *
-from .instances import *
-from .variables import *
-from .commands import *
-from .manager import PipelineManager, pipelineManager
+from .workflows import Workflow, RunStates, ProcessingStep
+from .instances import Instance
+from .variables import WorkVariable
+from .commands import Commands
+from .manager import pipelineManager
 from .event_callbacks import *
 
 router = APIRouter()
@@ -16,20 +16,20 @@ workflow_router = APIRouter(tags=["workflows"])
 
 @workflow_router.get("/workflows")
 async def get_all_workflows():
-    return {uuid: w.json_savable() for uuid,w in global_workflows.items()}
+    return {uuid: w.json_savable() for uuid,w in pipelineManager.ctx.workflows.items()}
 
 @workflow_router.get("/workflows/{uuid}")
 async def get_workflow(uuid: str):
-    if not uuid in global_workflows:
+    if not uuid in pipelineManager.ctx.workflows:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    w = global_workflows[uuid]
+    w = pipelineManager.ctx.workflows[uuid]
     return w.json_savable()
 
 @workflow_router.delete("/workflows/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_workflow(uuid: str):
-    if not uuid in global_workflows:
+    if not uuid in pipelineManager.ctx.workflows:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    del global_workflows[uuid]
+    del pipelineManager.ctx.workflows[uuid]
     await eventsCallbackManager.signal_event(
         EventCallbacksManager.Events.DeleteWorkflow,
         uuid
@@ -42,13 +42,13 @@ async def delete_workflow(uuid: str):
 async def edit_workflow(uuid: str, data: dict):
     """Will create a new workflow or edit a workflow that already exists."""
     try:
-        w_new = Workflow()
+        w_new = Workflow(pipelineManager.ctx)
         w_new.json_loadable(data)
     except:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     if uuid != w_new.uuid:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
-    global_workflows[uuid] = w_new
+    pipelineManager.ctx.workflows[uuid] = w_new
     await eventsCallbackManager.signal_event(
         EventCallbacksManager.Events.RefreshWorkflow,
         uuid
@@ -62,9 +62,9 @@ async def spawn_instance_of_workflow(uuid: str, setup_variables:dict):
     """Give a json list of WorkVariables to be used to setup the Instance that is spawned."""
     if not setup_variables:
         setup_variables = {}
-    if not uuid in global_workflows:
+    if not uuid in pipelineManager.ctx.workflows:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    w = global_workflows[uuid]
+    w = pipelineManager.ctx.workflows[uuid]
     try:
         setup_variables_cleaned = {}
         for arg_name,arg_data in setup_variables.items():
@@ -83,16 +83,16 @@ async def spawn_instance_of_workflow(uuid: str, setup_variables:dict):
 
 @workflow_router.get("/workflows/{uuid}/instances")
 async def get_workflow_instances(uuid: str):
-    if not uuid in global_workflows:
+    if not uuid in pipelineManager.ctx.workflows:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    w = global_workflows[uuid]
+    w = pipelineManager.ctx.workflows[uuid]
     return {i.uuid:i.json_savable() for i in w.get_instances()}
 
 @workflow_router.post("/workflows/{uuid}/pause", status_code=status.HTTP_204_NO_CONTENT)
 async def pause_workflow(uuid: str):
-    if not uuid in global_workflows:
+    if not uuid in pipelineManager.ctx.workflows:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    w = global_workflows[uuid]
+    w = pipelineManager.ctx.workflows[uuid]
     w.state = RunStates.Paused
     await eventsCallbackManager.signal_event(
         EventCallbacksManager.Events.RefreshWorkflow,
@@ -101,9 +101,9 @@ async def pause_workflow(uuid: str):
 
 @workflow_router.post("/workflows/{uuid}/unpause", status_code=status.HTTP_204_NO_CONTENT)
 async def unpause_workflow(uuid: str):
-    if not uuid in global_workflows:
+    if not uuid in pipelineManager.ctx.workflows:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    w = global_workflows[uuid]
+    w = pipelineManager.ctx.workflows[uuid]
     w.state = RunStates.Running
     await pipelineManager.notify_of_something_happening()
     await eventsCallbackManager.signal_event(
@@ -113,9 +113,9 @@ async def unpause_workflow(uuid: str):
 
 @workflow_router.post("/workflows/{uuid}/toggle_pause", status_code=status.HTTP_204_NO_CONTENT)
 async def toggle_pause_workflow(uuid: str):
-    if not uuid in global_workflows:
+    if not uuid in pipelineManager.ctx.workflows:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    w = global_workflows[uuid]
+    w = pipelineManager.ctx.workflows[uuid]
     if w.state == RunStates.Running:
         w.state = RunStates.Paused
     else:
@@ -132,29 +132,29 @@ instance_router = APIRouter(tags=["instances"])
 
 @instance_router.get("/instances")
 async def get_all_instances():
-    return {i_name: global_instances[i_name].json_savable() for i_name in global_instances}
+    return {i_name: pipelineManager.ctx.instances[i_name].json_savable() for i_name in pipelineManager.ctx.instances}
 
 @instance_router.get("/instances/orphans")
 async def get_instance_orphans():
-    workflow_uuids = list(global_workflows.keys())
+    workflow_uuids = list(pipelineManager.ctx.workflows.keys())
     return { 
         uuid: i.json_savable() 
-        for uuid,i in global_instances.items()
+        for uuid,i in pipelineManager.ctx.instances.items()
         if not i.workflow_uuid in workflow_uuids
     }
 
 @instance_router.get("/instances/{uuid}")
 async def get_instance(uuid: str):
-    if not uuid in global_instances:
+    if not uuid in pipelineManager.ctx.instances:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    i = global_instances[uuid]
+    i = pipelineManager.ctx.instances[uuid]
     return i.json_savable()
 
 @instance_router.delete("/instances/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_instance(uuid:str):
-    if not uuid in global_instances:
+    if not uuid in pipelineManager.ctx.instances:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    del global_instances[uuid]
+    del pipelineManager.ctx.instances[uuid]
     await eventsCallbackManager.signal_event(
         EventCallbacksManager.Events.DeleteInstance,
         uuid
@@ -163,13 +163,13 @@ async def delete_instance(uuid:str):
 @instance_router.put("/instances/{uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def edit_instance(uuid:str,data:dict):
     try:
-        i_new = Instance()
+        i_new = Instance(pipelineManager.ctx)
         i_new.json_loadable(data)
     except:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     if uuid != i_new.uuid:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
-    global_instances[uuid] = i_new
+    pipelineManager.ctx.instances[uuid] = i_new
     await pipelineManager.notify_of_something_happening()
     await eventsCallbackManager.signal_event(
         EventCallbacksManager.Events.RefreshInstance,
@@ -178,9 +178,9 @@ async def edit_instance(uuid:str,data:dict):
 
 @instance_router.post("/instances/{uuid}/pause", status_code=status.HTTP_204_NO_CONTENT)
 async def pause_instance(uuid: str):
-    if not uuid in global_instances:
+    if not uuid in pipelineManager.ctx.instances:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    i = global_instances[uuid]
+    i = pipelineManager.ctx.instances[uuid]
     i.state = RunStates.Paused
     await eventsCallbackManager.signal_event(
         EventCallbacksManager.Events.RefreshInstance,
@@ -189,9 +189,9 @@ async def pause_instance(uuid: str):
 
 @instance_router.post("/instances/{uuid}/unpause", status_code=status.HTTP_204_NO_CONTENT)
 async def unpause_instance(uuid: str):
-    if not uuid in global_instances:
+    if not uuid in pipelineManager.ctx.instances:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    i = global_instances[uuid]
+    i = pipelineManager.ctx.instances[uuid]
     i.state = RunStates.Running
     await pipelineManager.notify_of_something_happening()
     await eventsCallbackManager.signal_event(
@@ -201,9 +201,9 @@ async def unpause_instance(uuid: str):
 
 @instance_router.post("/instances/{uuid}/toggle_pause", status_code=status.HTTP_204_NO_CONTENT)
 async def toggle_pause_instance(uuid: str):
-    if not uuid in global_instances:
+    if not uuid in pipelineManager.ctx.instances:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    i = global_instances[uuid]
+    i = pipelineManager.ctx.instances[uuid]
     if i.state == RunStates.Running:
         i.state = RunStates.Paused
     else:
@@ -216,9 +216,9 @@ async def toggle_pause_instance(uuid: str):
 
 @instance_router.post("/instances/{uuid}/run_now", status_code=status.HTTP_204_NO_CONTENT)
 async def run_now_instance(uuid: str):
-    if not uuid in global_instances:
+    if not uuid in pipelineManager.ctx.instances:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    i = global_instances[uuid]
+    i = pipelineManager.ctx.instances[uuid]
     i.state = RunStates.Running
     i.next_processing_time = datetime.now()
     await pipelineManager.notify_of_something_happening()
@@ -232,28 +232,28 @@ async def run_now_instance(uuid: str):
 # Global Variables
 variable_router = APIRouter(tags=["variables"])
 
-@variable_router.get("/global_variables")
+@variable_router.get("/pipelineManager.ctx.variables")
 async def get_all_global_vars():
-    # {uuid: w.json_savable() for uuid, w in global_workflows.items()}
-    return {varname: gv.json_savable() for varname,gv in global_variables.items()}
+    # {uuid: w.json_savable() for uuid, w in pipelineManager.ctx.workflows.items()}
+    return {varname: gv.json_savable() for varname,gv in pipelineManager.ctx.variables.items()}
 
-@variable_router.get("/global_variables/{var_name}")
+@variable_router.get("/pipelineManager.ctx.variables/{var_name}")
 async def get_global_var(var_name:str):
-    if var_name in global_variables:
-        return global_variables[var_name].json_savable()
+    if var_name in pipelineManager.ctx.variables:
+        return pipelineManager.ctx.variables[var_name].json_savable()
     return Response(status_code=status.HTTP_404_NOT_FOUND)
 
-@variable_router.delete("/global_variables/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
+@variable_router.delete("/pipelineManager.ctx.variables/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_global_var(var_name:str):
-    if not var_name in global_variables:
+    if not var_name in pipelineManager.ctx.variables:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    del global_variables[var_name]
+    del pipelineManager.ctx.variables[var_name]
     await eventsCallbackManager.signal_event(
         EventCallbacksManager.Events.DeleteGlobal,
         var_name
     )
 
-@variable_router.put("/global_variables/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
+@variable_router.put("/pipelineManager.ctx.variables/{var_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def create_global_var(var_name: str, data: dict):
     new_var = WorkVariable()
     try:
@@ -261,15 +261,15 @@ async def create_global_var(var_name: str, data: dict):
     except:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
     
-    if var_name in global_variables:
-        global_variables[var_name] = new_var
+    if var_name in pipelineManager.ctx.variables:
+        pipelineManager.ctx.variables[var_name] = new_var
         await eventsCallbackManager.signal_event(
             EventCallbacksManager.Events.RefreshGlobal,
             var_name
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     else:
-        global_variables[var_name] = new_var
+        pipelineManager.ctx.variables[var_name] = new_var
         await eventsCallbackManager.signal_event(
             EventCallbacksManager.Events.RefreshGlobal,
             var_name
