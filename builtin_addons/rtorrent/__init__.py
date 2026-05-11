@@ -2,6 +2,7 @@ from pipeline_backend import *
 from pipeline_backend.commands_builtin import *
 from pipeline_backend.commands_builtin import yield_for_seconds
 
+import asyncio
 import hashlib
 import urllib.parse
 import xmlrpc.client
@@ -89,10 +90,10 @@ class Server:
         infohashes = self.connection.download_list()
         return [Torrent(self,infohash) for infohash in infohashes]
     
-    def add_url_to_rtorrent(self, url: str|String) -> "Torrent":
+    async def add_url_to_rtorrent(self, url: str|String) -> "Torrent":
         """Add a torrent file URL or magnet link to rtorrent.
         The infohash is computed locally from the torrent bytes (or extracted from the
-        magnet URI) before submission, so no polling loop is needed."""
+        magnet URI) before submission, then we poll until rtorrent registers it."""
         if isinstance(url, WorkVariable):
             url = url.value
         if url.startswith("magnet:"):
@@ -104,6 +105,8 @@ class Server:
             torrent_bytes = urllib.request.urlopen(url).read()
             infohash = _infohash_from_torrent_bytes(torrent_bytes)
             self.connection.load.raw_start("", torrent_bytes)
+        while infohash not in self.connection.download_list():
+            await asyncio.sleep(0.1)
         return Torrent(self, infohash)
 
 class Torrent:
@@ -168,13 +171,13 @@ class Torrent:
         self.server.connection.d.erase(self.infohash)
 
 @Commands.register_command(category="rTorrent")
-def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary,url:String,outputHashName:VariablePath)->CommandReturnStatus:
+async def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary,url:String,outputHashName:VariablePath)->CommandReturnStatus:
     """Add a torrent URL or magnet link to an rTorrent server and store the resulting infohash.
   serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
   url: HTTP/HTTPS URL to a .torrent file, or a magnet link.
   outputHashName: Name of the variable to store the torrent infohash string in."""
     server = Server(instance,serverInfo)
-    torrent = server.add_url_to_rtorrent(url)
+    torrent = await server.add_url_to_rtorrent(url)
     instance[outputHashName] = String(torrent.infohash)
     return CommandReturnStatus.Success
 
