@@ -847,7 +847,7 @@ def spawn_dialog(request: Request, uuid: str):
 def get_instance_row(request: Request, uuid: str, iuuid: str):
     inst = pipelineManager.ctx.instances.get(iuuid)
     if not inst:
-        return HTMLResponse("", status_code=204)
+        return HTMLResponse("", status_code=200)
     return HTMLResponse(templates.get_template("partials/instance_row.html").render(
         inst=inst,
         workflow_uuid=uuid,
