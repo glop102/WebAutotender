@@ -152,6 +152,7 @@ class PipelineManager:
         self._shutting_down = True
         if self.delayedTask:
             self.delayedTask.cancel()
+        await eventsCallbackManager.signal_event(EventCallbacksManager.Events.ClosingDown)
         if self._running_instance_tasks:
             uuids = list(self._running_instance_tasks.keys())
             print(f"Waiting for {len(uuids)} running instance(s) to yield before shutdown:")

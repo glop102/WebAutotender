@@ -54,6 +54,9 @@ class ServerSideSignalsQueue:
     async def message_generator(self):
         while True:
             msg = await self.message_queue.get()
+            if msg['event'] == EventCallbacksManager.Events.ClosingDown.name:
+                eventsCallbackManager.unsubscribe_callback(self.add_new_message)
+                return
             if await self.client.is_disconnected():
                 eventsCallbackManager.unsubscribe_callback(self.add_new_message)
                 return
