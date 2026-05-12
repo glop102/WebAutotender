@@ -23,7 +23,14 @@
             <option value="{{ t }}" {% if t == var.typename %}selected{% endif %}>{{ t }}</option>
             {% endfor %}
           </select>
+          {% if var.typename == 'Boolean' %}
+          <select class="var-input" name="arg__{{ var_name }}">
+            <option value="true"  {% if var.value %}selected{% endif %}>true</option>
+            <option value="false" {% if not var.value %}selected{% endif %}>false</option>
+          </select>
+          {% else %}
           <input type="text" class="var-input" name="arg__{{ var_name }}" value="{{ var.value }}">
+          {% endif %}
         </div>
         {% endfor %}
       {% else %}
