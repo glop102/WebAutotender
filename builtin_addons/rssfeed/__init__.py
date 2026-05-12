@@ -1,4 +1,5 @@
 from pipeline_backend import *
+import asyncio
 import feedparser
 import traceback
 
@@ -7,14 +8,14 @@ from pipeline_backend.commands_builtin import yield_for_seconds
 # RSS Spec https://www.rssboard.org/rss-specification#requiredChannelElements
 
 @Commands.register_command(category="RSS Feed")
-def rssfeed_get_entries(instance:Instance,feed_url:URL,output_list_name:VariablePath) -> CommandReturnStatus:
+async def rssfeed_get_entries(instance:Instance,feed_url:URL,output_list_name:VariablePath) -> CommandReturnStatus:
     """Fetch all entries from an RSS feed and store them as a VariableList of Dictionaries, sorted oldest-first. Yields and retries on network errors.
   feed_url: URL of the RSS feed to fetch.
   output_list_name: Name of the variable to store the VariableList of entry Dictionaries in. Each entry may have keys: title, link, summary, id, published."""
     # gets all the items in an rssfeed at the given url and saves it to a variable, the first item being the oldest, the last being the newest
 
     try:
-        parser = feedparser.parse(feed_url.value)
+        parser = await asyncio.get_event_loop().run_in_executor(None, lambda: feedparser.parse(feed_url.value))
     except Exception as e:
         instance.log_line(traceback.format_exc())
         # Try again later, it is likely only a transitory problem

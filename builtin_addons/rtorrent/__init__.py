@@ -115,20 +115,21 @@ class Server:
         magnet URI) before submission, then we poll until rtorrent registers it."""
         if isinstance(url, WorkVariable):
             url = url.value
+        loop = asyncio.get_event_loop()
         lock = _get_server_lock(self.serverInfo.value['URL'].value)
         if url.startswith("magnet:"):
             infohash = _infohash_from_magnet(url)
             async with lock:
-                self.connection.load.start("", url)
+                await loop.run_in_executor(None, lambda: self.connection.load.start("", url))
         else:
             # workaround for whatbox getting banned from downloading from nyaa.si:
             # download the torrent file here and push the raw bytes to rtorrent
-            torrent_bytes = urllib.request.urlopen(url).read()
+            torrent_bytes = await loop.run_in_executor(None, lambda: urllib.request.urlopen(url).read())
             infohash = _infohash_from_torrent_bytes(torrent_bytes)
             async with lock:
-                self.connection.load.raw_start("", torrent_bytes)
-        while infohash not in self.connection.download_list():
-            await asyncio.sleep(0.1)
+                await loop.run_in_executor(None, lambda: self.connection.load.raw_start("", torrent_bytes))
+        while infohash not in await loop.run_in_executor(None, self.connection.download_list):
+            await asyncio.sleep(1)
         return Torrent(self, infohash)
 
 class Torrent:
