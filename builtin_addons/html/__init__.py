@@ -802,6 +802,7 @@ async def save_workflow(request: Request, uuid: str):
 
     # Flush draft → saved
     pipelineManager.ctx.workflows[uuid] = deepcopy(draft)
+    pipelineManager.ctx.workflows[uuid].ctx = pipelineManager.ctx  # reattach — deepcopy detaches ctx
     # Reset draft to freshly saved state
     workflow_drafts[uuid] = deepcopy(pipelineManager.ctx.workflows[uuid])
 
