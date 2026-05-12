@@ -225,6 +225,20 @@ function handleRenameKey(evt, input) {
     if (evt.key === 'Escape') { cancelRename(input); }
 }
 
+// Track selected workflow for sidebar highlight
+let _selectedWorkflowUuid = '';
+document.addEventListener('click', evt => {
+    const wfEl = evt.target.closest('.sidebar-workflow[data-uuid]');
+    if (wfEl) { _selectedWorkflowUuid = wfEl.dataset.uuid; return; }
+    if (evt.target.closest('.sidebar-globals')) _selectedWorkflowUuid = '';
+});
+
+function _reapplySidebarActive() {
+    document.querySelectorAll('.sidebar-workflow[data-uuid]').forEach(el => {
+        el.classList.toggle('active', el.dataset.uuid === _selectedWorkflowUuid);
+    });
+}
+
 // SSE
 const _sse = new EventSource('/ui/events');
 _sse.addEventListener('RefreshInstance', e => {
@@ -253,6 +267,7 @@ document.addEventListener('htmx:afterSwap', () => {
         const el = document.getElementById(id);
         if (el) el.open = true;
     }
+    _reapplySidebarActive();
     initSortable();
     scrollConsoleLogs();
 });

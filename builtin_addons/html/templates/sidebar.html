@@ -6,6 +6,7 @@
   <h2>Workflows</h2>
   {% for wf in workflows %}
   <div class="sidebar-workflow {% if selected_uuid == wf.uuid %}active{% endif %}"
+       data-uuid="{{ wf.uuid }}"
        hx-get="/ui/workflow/{{ wf.uuid }}"
        hx-target="#right-pane"
        hx-swap="innerHTML">
