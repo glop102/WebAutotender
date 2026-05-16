@@ -25,7 +25,7 @@ class TestStepAdvancement:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result == CommandReturnStatus.Success
+        assert CommandReturnStatus.Success in result
         assert inst.processing_step == ("start", 1)
 
     async def test_yield_stops_loop(self, workflow):
@@ -35,7 +35,7 @@ class TestStepAdvancement:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Yield in result
         assert inst.state != RunStates.Error  # stopped for yield, not error
         assert inst.processing_step == ("start", 1)
 
@@ -46,7 +46,8 @@ class TestStepAdvancement:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result == CommandReturnStatus.Success
+        assert CommandReturnStatus.Success in result
+        assert CommandReturnStatus.Keep_Position in result
         assert inst.processing_step == ("start", 0)
 
     async def test_jump_to_other_procedure_changes_proc_and_step(self, workflow):
@@ -61,15 +62,12 @@ class TestStepAdvancement:
 
 
 class TestErrorConditions:
-    # Note: run_single_step returns (command_finish_state & Success), so errors
-    # produce != Success rather than == Error. Instance state carries the Error.
-
     async def test_missing_procedure_marks_error(self, workflow):
         inst = workflow.spawn_instance()
         inst.processing_step = ("nonexistent_proc", 0)
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error
 
     async def test_out_of_bounds_step_marks_error(self, workflow):
@@ -80,7 +78,7 @@ class TestErrorConditions:
         inst.processing_step = ("start", 99)
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error
 
     async def test_unknown_command_marks_error(self, workflow):
@@ -90,7 +88,7 @@ class TestErrorConditions:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error
 
     async def test_empty_command_name_marks_error(self, workflow):
@@ -100,7 +98,7 @@ class TestErrorConditions:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error
 
     async def test_wrong_arg_count_marks_error(self, workflow):
@@ -111,7 +109,7 @@ class TestErrorConditions:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error
 
     async def test_orphan_instance_marks_error(self, mgr):
@@ -120,7 +118,7 @@ class TestErrorConditions:
         inst.workflow_uuid = "workflow-that-does-not-exist"
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error
 
     async def test_error_command_marks_instance_error(self, workflow):
@@ -130,7 +128,7 @@ class TestErrorConditions:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error
 
 
@@ -145,7 +143,7 @@ class TestMathEdgeCases:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error
 
     async def test_string_arg_to_math_add_marks_error(self, workflow):
@@ -159,7 +157,7 @@ class TestMathEdgeCases:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error
 
 
@@ -172,7 +170,7 @@ class TestVariableResolution:
         inst.variables["my_msg"] = String("dereffed message")
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result == CommandReturnStatus.Success
+        assert CommandReturnStatus.Success in result
         assert "dereffed message" in inst.console_log
 
     async def test_variablename_derefs_from_workflow_constant(self, workflow):
@@ -183,7 +181,7 @@ class TestVariableResolution:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result == CommandReturnStatus.Success
+        assert CommandReturnStatus.Success in result
         assert "hello from constant" in inst.console_log
 
     async def test_integer_passes_as_integer_or_float(self, workflow):
@@ -204,7 +202,7 @@ class TestVariableResolution:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result == CommandReturnStatus.Success
+        assert CommandReturnStatus.Success in result
         assert "42" in inst.console_log
 
     async def test_incompatible_type_marks_error(self, workflow):
@@ -215,7 +213,7 @@ class TestVariableResolution:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error
 
     async def test_missing_variable_name_marks_error(self, workflow):
@@ -226,5 +224,5 @@ class TestVariableResolution:
         inst = workflow.spawn_instance()
         runner = ProcedureRunner(inst)
         result = await runner.run_single_step()
-        assert result != CommandReturnStatus.Success
+        assert CommandReturnStatus.Error in result
         assert inst.state == RunStates.Error

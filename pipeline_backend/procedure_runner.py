@@ -76,10 +76,10 @@ class ProcedureRunner:
             case _:
                 return self.__mark_error(f"Error: Unknown return state from the command {proc_step.command_name} - {command_finish_state} {type(command_finish_state)}")
 
-        return command_finish_state & CommandReturnStatus.Success
+        return command_finish_state
     
     async def run_instance_until_yield(self):
-        while await self.run_single_step() == CommandReturnStatus.Success:
+        while CommandReturnStatus.Success in await self.run_single_step():
             pass
 
 
