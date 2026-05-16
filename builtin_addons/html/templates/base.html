@@ -156,7 +156,8 @@
     }
 
     /* Toast */
-    #toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #5a1a1a; border: 1px solid #f44747; color: #f44747; padding: 0.625rem 1rem; border-radius: 0.25rem; z-index: 9998; display: flex; align-items: center; gap: 0.625rem; }
+    #toast { display: none; position: fixed; bottom: 1.5rem; right: 1.5rem; background: #5a1a1a; border: 1px solid #f44747; color: #f44747; padding: 0.625rem 1rem; border-radius: 0.25rem; z-index: 9998; align-items: center; gap: 0.625rem; }
+    #toast:not(:empty) { display: flex; }
 
     /* Offline overlay */
     #offline-overlay { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.75); align-items: center; justify-content: center; pointer-events: auto; }
@@ -187,8 +188,35 @@
   <p>Server is offline</p>
 </div>
 
+<div id="toast"></div>
+
 <script>
 // Variable rename helpers
+function showToast(message) {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.innerHTML = '';
+
+    const span = document.createElement('span');
+    span.textContent = message;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.innerHTML = '&times;';
+    button.onclick = () => { toast.innerHTML = ''; };
+
+    toast.append(span, button);
+}
+
+document.addEventListener('htmx:responseError', evt => {
+    const xhr = evt.detail.xhr;
+    showToast(xhr.responseText || `Request failed with status ${xhr.status}`);
+});
+
+document.addEventListener('htmx:sendError', () => {
+    showToast('Unable to reach server.');
+});
+
 function startRename(btn) {
     const row = btn.closest('.var-row');
     row.querySelector('[data-varname]').style.display = 'none';

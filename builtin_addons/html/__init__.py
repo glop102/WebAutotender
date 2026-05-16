@@ -1,6 +1,7 @@
 import json
 import mimetypes
 from copy import deepcopy
+from html import escape
 from pathlib import Path
 from uuid import uuid4
 
@@ -245,9 +246,11 @@ def _section_vars(draft: Workflow, section: str) -> dict[str, WorkVariable]:
 # ---------------------------------------------------------------------------
 
 def _toast_oob(message: str) -> str:
+    message = escape(message, quote=True)
     return (
-        f'<div id="toast" hx-swap-oob="outerHTML:#toast">'
-        f'{message} <button onclick="this.closest(\'#toast\').remove()">×</button>'
+        '<div id="toast" hx-swap-oob="innerHTML:#toast">'
+        f'<span>{message}</span> '
+        '<button onclick="this.closest(\'#toast\').innerHTML = \'\'">&times;</button>'
         f'</div>'
     )
 
