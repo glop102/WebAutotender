@@ -17,6 +17,11 @@ def _get_server_lock(url: str) -> asyncio.Lock:
     return _server_locks[url]
 
 
+async def _run_for_server(url: str, func):
+    async with _get_server_lock(url):
+        return await asyncio.to_thread(func)
+
+
 class _TimeoutTransport(xmlrpc.client.SafeTransport):
     def __init__(self, timeout:int, **kwargs):
         super().__init__(**kwargs)
@@ -104,9 +109,16 @@ class Server:
             raise Exception("Insufficent information to log in to rtorrent")
 
         return self.__connect_to_server_basic(url,username,password)
+
+    @property
+    def url(self) -> str:
+        return self.serverInfo.value['URL'].value
+
+    async def run_rpc(self, func):
+        return await _run_for_server(self.url, func)
     
-    def get_total_torrents_list(self)->list["Torrent"]:
-        infohashes = self.connection.download_list()
+    async def get_total_torrents_list(self)->list["Torrent"]:
+        infohashes = await self.run_rpc(self.connection.download_list)
         return [Torrent(self,infohash) for infohash in infohashes]
     
     async def add_url_to_rtorrent(self, url: str|String) -> "Torrent":
@@ -115,20 +127,16 @@ class Server:
         magnet URI) before submission, then we poll until rtorrent registers it."""
         if isinstance(url, WorkVariable):
             url = url.value
-        loop = asyncio.get_event_loop()
-        lock = _get_server_lock(self.serverInfo.value['URL'].value)
         if url.startswith("magnet:"):
             infohash = _infohash_from_magnet(url)
-            async with lock:
-                await loop.run_in_executor(None, lambda: self.connection.load.start("", url))
+            await self.run_rpc(lambda: self.connection.load.start("", url))
         else:
             # workaround for whatbox getting banned from downloading from nyaa.si:
             # download the torrent file here and push the raw bytes to rtorrent
-            torrent_bytes = await loop.run_in_executor(None, lambda: urllib.request.urlopen(url).read())
+            torrent_bytes = await asyncio.to_thread(lambda: urllib.request.urlopen(url).read())
             infohash = _infohash_from_torrent_bytes(torrent_bytes)
-            async with lock:
-                await loop.run_in_executor(None, lambda: self.connection.load.raw_start("", torrent_bytes))
-        while infohash not in await loop.run_in_executor(None, self.connection.download_list):
+            await self.run_rpc(lambda: self.connection.load.raw_start("", torrent_bytes))
+        while infohash not in await self.run_rpc(self.connection.download_list):
             await asyncio.sleep(1)
         return Torrent(self, infohash)
 
@@ -138,51 +146,55 @@ class Torrent:
     def __init__(self,server:Server,infohash:str):
         self.server = server
         self.infohash = infohash
-    def is_complete(self)->bool:
+    async def is_complete(self)->bool:
         """
         Query if the torrent is finished downloading. (seed ratios and limits on the server do not prevent it from completing)
         """
-        return True if self.server.connection.d.complete(self.infohash) == 1 else False
-    def is_multifile(self)->bool:
+        complete = await self.server.run_rpc(lambda: self.server.connection.d.complete(self.infohash))
+        return True if complete == 1 else False
+    async def is_multifile(self)->bool:
         """
         Torrents can be either single file or multifile which determines if the files are put in a subfolder.
         A lot of torrents are lsited as multifile even though it contains only a single one though, which is why sometimes they make a folder with the one file inside of it.
         """
-        res = int(self.server.connection.d.is_multi_file(self.infohash))
+        res = int(await self.server.run_rpc(lambda: self.server.connection.d.is_multi_file(self.infohash)))
         if res == 1: return True
         return False
     async def set_label(self,label:str):
-        async with _get_server_lock(self.server.serverInfo.value['URL'].value):
-            self.server.connection.d.custom1.set(self.infohash,label)
-    def get_name(self)->str:
-        return self.server.connection.d.name(self.infohash)
-    def get_ratio(self)->float:
-        raw_ratio = self.server.connection.d.ratio(self.infohash)
+        await self.server.run_rpc(lambda: self.server.connection.d.custom1.set(self.infohash,label))
+    async def get_name(self)->str:
+        return await self.server.run_rpc(lambda: self.server.connection.d.name(self.infohash))
+    async def get_ratio(self)->float:
+        raw_ratio = await self.server.run_rpc(lambda: self.server.connection.d.ratio(self.infohash))
         #docs say it is an int of the ratio multiplied by a thousand, so i need to divide by a thousand to get the real ratio
         return float( raw_ratio ) / 1000.0
-    def get_filecount(self)->int:
-        return self.server.connection.d.size_files(self.infohash)
-    def get_filepaths_absolute(self)->list[str]:
+    async def get_filecount(self)->int:
+        return await self.server.run_rpc(lambda: self.server.connection.d.size_files(self.infohash))
+    async def get_filepaths_absolute(self)->list[str]:
         # filename_glob - glob based filename filtering
-        paths = self.server.connection.f.multicall(
-            self.infohash,
-            "", # filename_glob - just passing in nothing now to get everything
-            [ "f.frozen_path=" ]
+        paths = await self.server.run_rpc(
+            lambda: self.server.connection.f.multicall(
+                self.infohash,
+                "", # filename_glob - just passing in nothing now to get everything
+                [ "f.frozen_path=" ]
+            )
         )
         return [path[0] for path in paths]
-    def get_filepaths_relative(self)->list[str]:
+    async def get_filepaths_relative(self)->list[str]:
         # filename_glob - glob based filename filtering
-        paths = self.server.connection.f.multicall(
-            self.infohash,
-            "", # filename_glob - just passing in nothing now to get everything
-            [ "f.path=" ]
+        paths = await self.server.run_rpc(
+            lambda: self.server.connection.f.multicall(
+                self.infohash,
+                "", # filename_glob - just passing in nothing now to get everything
+                [ "f.path=" ]
+            )
         )
         return [path[0] for path in paths]
-    def get_torrent_basepath(self)->str:
+    async def get_torrent_basepath(self)->str:
         """
         The base path of the torrent is where all files are saved relative too
         """
-        path = self.server.connection.d.base_path(self.infohash)
+        path = await self.server.run_rpc(lambda: self.server.connection.d.base_path(self.infohash))
         if path == "":
             print("ERROR : Empty path reported from server : "+self.infohash)
         return path
@@ -191,9 +203,10 @@ class Torrent:
         Will remove the torrent from rtorrent but leave the files on the server.
         Recomended to either get the list of files or the base path and then delete the files right after deleting the torrent.
         """
-        async with _get_server_lock(self.server.serverInfo.value['URL'].value):
+        def delete():
             self.server.connection.d.delete_tied(self.infohash)
             self.server.connection.d.erase(self.infohash)
+        await self.server.run_rpc(delete)
 
 @Commands.register_command(category="rTorrent")
 async def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary,url:String,outputHashName:VariablePath)->CommandReturnStatus:
@@ -207,14 +220,14 @@ async def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="rTorrent")
-def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,infohash:String)->CommandReturnStatus:
+async def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,infohash:String)->CommandReturnStatus:
     """Yield and re-check every 30 seconds until a torrent finishes downloading.
   serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
   infohash: The infohash string of the torrent to wait on."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
     try:
-        complete = torrent.is_complete()
+        complete = await torrent.is_complete()
     except OSError as e:
         instance.log_line(f"Connection error checking torrent completion, will retry: {e}")
         yield_for_seconds(instance,Integer(30))
@@ -225,7 +238,7 @@ def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,infohas
     return CommandReturnStatus.Yield|CommandReturnStatus.Keep_Position
 
 @Commands.register_command(category="rTorrent")
-def rtorrent_wait_until_ratio(instance:Instance,serverInfo:Dictionary,infohash:String,ratio:Float)->CommandReturnStatus:
+async def rtorrent_wait_until_ratio(instance:Instance,serverInfo:Dictionary,infohash:String,ratio:Float)->CommandReturnStatus:
     """Yield and re-check every 30 seconds until a torrent's seed ratio reaches the target.
   serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
   infohash: The infohash string of the torrent to wait on.
@@ -233,7 +246,7 @@ def rtorrent_wait_until_ratio(instance:Instance,serverInfo:Dictionary,infohash:S
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
     try:
-        current_ratio = torrent.get_ratio()
+        current_ratio = await torrent.get_ratio()
     except OSError as e:
         instance.log_line(f"Connection error checking torrent ratio, will retry: {e}")
         yield_for_seconds(instance,Integer(30))
@@ -255,26 +268,26 @@ async def rtorrent_set_torrent_label(instance:Instance,serverInfo:Dictionary,inf
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="rTorrent")
-def rtorrent_get_torrent_name(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariablePath)->CommandReturnStatus:
+async def rtorrent_get_torrent_name(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariablePath)->CommandReturnStatus:
     """Retrieve the display name of a torrent and store it in a variable.
   serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
   infohash: The infohash string of the torrent.
   varnameOut: Name of the variable to store the torrent name string in."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
-    name = torrent.get_name()
+    name = await torrent.get_name()
     instance[varnameOut] = String(name)
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="rTorrent")
-def rtorrent_get_torrents_path(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariablePath)->CommandReturnStatus:
+async def rtorrent_get_torrents_path(instance:Instance,serverInfo:Dictionary,infohash:String,varnameOut:VariablePath)->CommandReturnStatus:
     """Retrieve the base download path of a torrent (where its files are saved) and store it in a variable.
   serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
   infohash: The infohash string of the torrent.
   varnameOut: Name of the variable to store the base path string in."""
     server = Server(instance,serverInfo)
     torrent = Torrent(server,infohash.value)
-    path = torrent.get_torrent_basepath()
+    path = await torrent.get_torrent_basepath()
     instance[varnameOut] = String(path)
     return CommandReturnStatus.Success
 
