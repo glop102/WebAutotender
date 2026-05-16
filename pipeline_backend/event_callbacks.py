@@ -32,7 +32,7 @@ class EventCallbacksManager:
     async def signal_event(self,event:Events, uuid:str="", data:str=""):
         if not event in self.subscribers:
             return
-        for callback in self.subscribers[event]:
+        for callback in list(self.subscribers[event]):
             await callback(event,uuid,data)
 
 
