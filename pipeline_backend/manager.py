@@ -3,6 +3,7 @@ from asyncio import Handle, TimerHandle, get_running_loop
 from datetime import datetime, timedelta
 import importlib.util
 import json
+import os
 import pathlib
 
 from .context import PipelineContext
@@ -30,6 +31,20 @@ class PipelineManager:
 
     # ── Persistence ───────────────────────────────────────────────────────────
 
+    def _atomic_write_json(self, target: str, data: dict) -> None:
+        tmp_target = f"{target}.tmp"
+        try:
+            with open(tmp_target, "w") as f:
+                f.write(json.dumps(data, indent=4))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_target, target)
+        finally:
+            try:
+                os.remove(tmp_target)
+            except FileNotFoundError:
+                pass
+
     def save_state(self, filename: str = "") -> None:
         target = filename or self.__backing_store_filename or "pipeline_state.json"
         data = {
@@ -37,8 +52,7 @@ class PipelineManager:
             "instances": {uuid: i.json_savable() for uuid, i in self.ctx.instances.items()},
             "variables": {name: v.json_savable() for name, v in self.ctx.variables.items()},
         }
-        with open(target, "w") as f:
-            f.write(json.dumps(data, indent=4))
+        self._atomic_write_json(target, data)
 
     def restore_state(self, filename: str = "pipeline_state.json") -> None:
         self.__backing_store_filename = filename
@@ -70,8 +84,7 @@ class PipelineManager:
     def save_secrets(self, filename: str = "") -> None:
         target = filename or self.__secrets_filename or "secrets.json"
         data = {name: v.json_savable() for name, v in self.ctx.secrets.items()}
-        with open(target, "w") as f:
-            f.write(json.dumps(data, indent=4))
+        self._atomic_write_json(target, data)
 
     def restore_secrets(self, filename: str = "secrets.json") -> None:
         self.__secrets_filename = filename

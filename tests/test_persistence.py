@@ -1,6 +1,8 @@
 """Tests for pipeline state save/load round-trips via PipelineManager."""
+import os
 import pytest
 from datetime import datetime
+from unittest.mock import patch
 
 from pipeline_backend.workflows import Workflow, RunStates, ProcessingStep
 from pipeline_backend.variables import String, Integer, Float, VariablePath, Dictionary
@@ -240,3 +242,41 @@ class TestFullStateRoundtrip:
         mgr.restore_state(state_file)
         assert "wf-old" in mgr.ctx.workflows
         assert "wf-new" not in mgr.ctx.workflows
+
+
+# ---------------------------------------------------------------------------
+# Atomic saves
+# ---------------------------------------------------------------------------
+
+class TestAtomicSaves:
+    def test_save_state_replaces_existing_file(self, mgr, tmp_path):
+        state_file = tmp_path / "state.json"
+        state_file.write_text("old contents")
+        make_workflow(mgr, "wf-1", "Atomic")
+
+        mgr.save_state(str(state_file))
+
+        assert "old contents" not in state_file.read_text()
+        assert not (tmp_path / "state.json.tmp").exists()
+
+    def test_save_state_preserves_existing_file_if_replace_fails(self, mgr, tmp_path):
+        state_file = tmp_path / "state.json"
+        state_file.write_text("old contents")
+        make_workflow(mgr, "wf-1", "Atomic")
+
+        with patch("pipeline_backend.manager.os.replace", side_effect=RuntimeError("boom")):
+            with pytest.raises(RuntimeError):
+                mgr.save_state(str(state_file))
+
+        assert state_file.read_text() == "old contents"
+        assert not (tmp_path / "state.json.tmp").exists()
+
+    def test_save_secrets_uses_atomic_replace(self, mgr, tmp_path):
+        secrets_file = tmp_path / "secrets.json"
+        mgr.ctx.secrets["api_key"] = String("secret123")
+
+        with patch("pipeline_backend.manager.os.replace", wraps=os.replace) as mock_replace:
+            mgr.save_secrets(str(secrets_file))
+
+        mock_replace.assert_called_once_with(str(secrets_file) + ".tmp", str(secrets_file))
+        assert not (tmp_path / "secrets.json.tmp").exists()
