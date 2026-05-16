@@ -1,4 +1,5 @@
 """Tests for the scheduling predicates and PipelineManager.run_due_instances / get_next_due_time."""
+import asyncio
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
@@ -21,6 +22,12 @@ def make_workflow(mgr, uuid="wf-sched", name="Sched Test"):
     wf.procedures["start"] = [ProcessingStep("pause_this_instance")]
     mgr.ctx.workflows[wf.uuid] = wf
     return wf
+
+
+async def wait_for_running_tasks(mgr):
+    tasks = list(mgr._running_instance_tasks.values())
+    assert tasks
+    await asyncio.gather(*tasks)
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +114,8 @@ class TestRunDueInstances:
         inst.next_processing_time = datetime.now() - timedelta(seconds=1)
         with patch.object(mgr, 'save_state'):
             await mgr.run_due_instances()
+            assert inst.uuid in mgr._running_instance_tasks
+            await wait_for_running_tasks(mgr)
         assert inst.state == RunStates.Paused  # pause_this_instance ran
 
     async def test_skips_future_instance(self, mgr):
@@ -115,6 +124,7 @@ class TestRunDueInstances:
         inst.next_processing_time = datetime.now() + timedelta(seconds=60)
         with patch.object(mgr, 'save_state'):
             await mgr.run_due_instances()
+        assert mgr._running_instance_tasks == {}
         assert inst.state == RunStates.Running  # untouched
 
     async def test_skips_paused_instance(self, mgr):
@@ -125,6 +135,7 @@ class TestRunDueInstances:
         with patch.object(mgr, 'save_state') as mock_save:
             await mgr.run_due_instances()
         mock_save.assert_not_called()
+        assert mgr._running_instance_tasks == {}
 
     async def test_skips_instance_when_workflow_paused(self, mgr):
         wf = make_workflow(mgr)
@@ -134,6 +145,7 @@ class TestRunDueInstances:
         with patch.object(mgr, 'save_state') as mock_save:
             await mgr.run_due_instances()
         mock_save.assert_not_called()
+        assert mgr._running_instance_tasks == {}
         assert inst.state == RunStates.Running  # untouched
 
     async def test_saves_state_when_instances_ran(self, mgr):
@@ -142,6 +154,7 @@ class TestRunDueInstances:
         inst.next_processing_time = datetime.now() - timedelta(seconds=1)
         with patch.object(mgr, 'save_state') as mock_save:
             await mgr.run_due_instances()
+            await wait_for_running_tasks(mgr)
         mock_save.assert_called_once()
 
     async def test_does_not_save_state_when_nothing_ran(self, mgr):
@@ -151,6 +164,7 @@ class TestRunDueInstances:
         with patch.object(mgr, 'save_state') as mock_save:
             await mgr.run_due_instances()
         mock_save.assert_not_called()
+        assert mgr._running_instance_tasks == {}
 
     async def test_runs_multiple_due_instances(self, mgr):
         wf = make_workflow(mgr)
@@ -161,6 +175,8 @@ class TestRunDueInstances:
         inst_b.next_processing_time = past
         with patch.object(mgr, 'save_state'):
             await mgr.run_due_instances()
+            assert set(mgr._running_instance_tasks) == {inst_a.uuid, inst_b.uuid}
+            await wait_for_running_tasks(mgr)
         assert inst_a.state == RunStates.Paused
         assert inst_b.state == RunStates.Paused
 
