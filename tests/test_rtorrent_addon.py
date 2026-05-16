@@ -1,17 +1,19 @@
 import asyncio
 import threading
 import time
+import xmlrpc.client
 
 from builtin_addons import rtorrent
 from pipeline_backend.commands import CommandReturnStatus
 from pipeline_backend.instances import Instance
 from pipeline_backend.manager import PipelineManager
-from pipeline_backend.variables import Dictionary, Float, String
+from pipeline_backend.variables import Dictionary, Float, String, VariablePath
 
 
 class FakeConnection:
-    def __init__(self, ratio=0, delay=0.0, tracker=None):
+    def __init__(self, ratio=0, delay=0.0, tracker=None, filepaths=None, require_list_multicall=False):
         self.d = FakeDownloadMethods(ratio, delay, tracker)
+        self.f = FakeFileMethods(filepaths or [], require_list_multicall)
 
 
 class FakeDownloadMethods:
@@ -32,6 +34,17 @@ class FakeDownloadMethods:
             if self.tracker is not None:
                 with self.tracker["lock"]:
                     self.tracker["active"] -= 1
+
+
+class FakeFileMethods:
+    def __init__(self, filepaths, require_list_multicall=False):
+        self.filepaths = filepaths
+        self.require_list_multicall = require_list_multicall
+
+    def multicall(self, infohash, filename_glob, *fields):
+        if self.require_list_multicall and not isinstance(fields[0], list):
+            raise xmlrpc.client.Fault(-500, "Wrong object type: expected: array actual: string")
+        return [[path] for path in self.filepaths]
 
 
 def make_server_info(url="https://example.invalid/xmlrpc"):
@@ -85,3 +98,55 @@ async def test_wait_until_ratio_serializes_calls_per_server(monkeypatch):
         CommandReturnStatus.Yield | CommandReturnStatus.Keep_Position,
     ]
     assert tracker["max_active"] == 1
+
+
+async def test_get_torrent_download_url_encodes_relative_file_path(monkeypatch):
+    patch_connection(monkeypatch, FakeConnection(filepaths=["[SubsPlease] Jigokuraku - 23 (1080p) [B7561A67].mkv"]))
+    instance = make_instance()
+
+    result = await rtorrent.rtorrent_get_torrent_download_url(
+        instance,
+        make_server_info("https://download-url-test.invalid/xmlrpc"),
+        String("hash"),
+        String("https://rtorrent.example/download/files/"),
+        VariablePath("download_url"),
+    )
+
+    assert result == CommandReturnStatus.Success
+    assert instance.variables["download_url"].value == (
+        "https://rtorrent.example/download/files/"
+        "%5BSubsPlease%5D%20Jigokuraku%20-%2023%20%281080p%29%20%5BB7561A67%5D.mkv"
+    )
+
+
+async def test_get_torrent_download_url_errors_for_multifile_torrent(monkeypatch):
+    patch_connection(monkeypatch, FakeConnection(filepaths=["folder/a.mkv", "folder/b.mkv"]))
+
+    result = await rtorrent.rtorrent_get_torrent_download_url(
+        make_instance(),
+        make_server_info("https://multifile-test.invalid/xmlrpc"),
+        String("hash"),
+        String("https://rtorrent.example/download/files"),
+        VariablePath("download_url"),
+    )
+
+    assert result == CommandReturnStatus.Error
+
+
+async def test_get_torrent_download_url_falls_back_to_list_multicall(monkeypatch):
+    patch_connection(monkeypatch, FakeConnection(
+        filepaths=["single.mkv"],
+        require_list_multicall=True,
+    ))
+    instance = make_instance()
+
+    result = await rtorrent.rtorrent_get_torrent_download_url(
+        instance,
+        make_server_info("https://list-multicall-test.invalid/xmlrpc"),
+        String("hash"),
+        String("https://rtorrent.example/download/files"),
+        VariablePath("download_url"),
+    )
+
+    assert result == CommandReturnStatus.Success
+    assert instance.variables["download_url"].value == "https://rtorrent.example/download/files/single.mkv"

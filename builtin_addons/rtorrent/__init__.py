@@ -70,6 +70,10 @@ def _infohash_from_magnet(magnet: str) -> str:
     return h.upper()
 
 
+def _rutorrent_download_url(download_base_url: str, relative_path: str) -> str:
+    return download_base_url.rstrip("/") + "/" + urllib.parse.quote(relative_path.lstrip("/"), safe="/")
+
+
 class Server:
     instance:Instance
     serverInfo:Dictionary
@@ -170,25 +174,30 @@ class Torrent:
         return float( raw_ratio ) / 1000.0
     async def get_filecount(self)->int:
         return await self.server.run_rpc(lambda: self.server.connection.d.size_files(self.infohash))
-    async def get_filepaths_absolute(self)->list[str]:
-        # filename_glob - glob based filename filtering
-        paths = await self.server.run_rpc(
-            lambda: self.server.connection.f.multicall(
-                self.infohash,
-                "", # filename_glob - just passing in nothing now to get everything
-                [ "f.frozen_path=" ]
+    async def _file_multicall(self, field: str):
+        try:
+            return await self.server.run_rpc(
+                lambda: self.server.connection.f.multicall(
+                    self.infohash,
+                    "", # filename_glob - just passing in nothing now to get everything
+                    field
+                )
             )
-        )
+        except xmlrpc.client.Fault as e:
+            if "Wrong object type" not in e.faultString:
+                raise
+            return await self.server.run_rpc(
+                lambda: self.server.connection.f.multicall(
+                    self.infohash,
+                    "", # filename_glob - just passing in nothing now to get everything
+                    [field]
+                )
+            )
+    async def get_filepaths_absolute(self)->list[str]:
+        paths = await self._file_multicall("f.frozen_path=")
         return [path[0] for path in paths]
     async def get_filepaths_relative(self)->list[str]:
-        # filename_glob - glob based filename filtering
-        paths = await self.server.run_rpc(
-            lambda: self.server.connection.f.multicall(
-                self.infohash,
-                "", # filename_glob - just passing in nothing now to get everything
-                [ "f.path=" ]
-            )
-        )
+        paths = await self._file_multicall("f.path=")
         return [path[0] for path in paths]
     async def get_torrent_basepath(self)->str:
         """
@@ -289,6 +298,23 @@ async def rtorrent_get_torrents_path(instance:Instance,serverInfo:Dictionary,inf
     torrent = Torrent(server,infohash.value)
     path = await torrent.get_torrent_basepath()
     instance[varnameOut] = String(path)
+    return CommandReturnStatus.Success
+
+
+@Commands.register_command(category="rTorrent")
+async def rtorrent_get_torrent_download_url(instance:Instance,serverInfo:Dictionary,infohash:String,downloadBaseUrl:String,varnameOut:VariablePath)->CommandReturnStatus:
+    """Build a ruTorrent-style HTTPS download URL for a single-file torrent and store it in a variable.
+  serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
+  infohash: The infohash string of the torrent.
+  downloadBaseUrl: Base URL for direct file downloads, e.g. https://host/download/files.
+  varnameOut: Name of the variable to store the download URL string in."""
+    server = Server(instance,serverInfo)
+    torrent = Torrent(server,infohash.value)
+    filepaths = await torrent.get_filepaths_relative()
+    if len(filepaths) != 1:
+        instance.log_line(f"Unable to build a single download URL for torrent '{infohash.value}' with {len(filepaths)} files")
+        return CommandReturnStatus.Error
+    instance[varnameOut] = String(_rutorrent_download_url(downloadBaseUrl.value, filepaths[0]))
     return CommandReturnStatus.Success
 
 @Commands.register_command(category="rTorrent")
