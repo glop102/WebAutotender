@@ -17,11 +17,8 @@ async def lifespan(app:FastAPI):
         prefix="/api"
         )
 
-    for module in pipelineManager.import_addons_from_folder("builtin_addons"):
+    for module in pipelineManager.import_addons():
         if hasattr(module,"router"):
-            app.include_router(module.router)
-    for module in pipelineManager.import_addons_from_folder("user_addons"):
-        if hasattr(module, "router"):
             app.include_router(module.router)
 
     yield

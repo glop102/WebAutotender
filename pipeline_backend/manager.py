@@ -27,6 +27,36 @@ def _ensure_addon_namespace() -> None:
         sys.modules[ADDON_NAMESPACE] = types.ModuleType(ADDON_NAMESPACE)
 
 
+def addon_search_paths() -> list[pathlib.Path]:
+    """Every folder that may hold addons, highest priority first. An addon found earlier in this list shadows one of the same name found later."""
+    paths: list[pathlib.Path] = []
+
+    # Deployment escape hatch - a nix module or systemd unit can point this at store
+    # paths. It prepends rather than replaces so setting it cannot hide the builtins.
+    for entry in os.environ.get("WEBAUTOTENDER_ADDON_PATH", "").split(os.pathsep):
+        if entry.strip():
+            paths.append(pathlib.Path(entry.strip()))
+
+    # Relative to the working directory, which is how a git checkout gets run
+    paths.append(pathlib.Path("user_addons"))
+
+    # Not using pathlib.Path.home() since it throws when HOME is unset, which happens
+    # in a bare service environment
+    xdg_data_home = os.environ.get("XDG_DATA_HOME", "")
+    if not xdg_data_home and os.environ.get("HOME", ""):
+        xdg_data_home = os.environ["HOME"] + "/.local/share"
+    if xdg_data_home:
+        paths.append(pathlib.Path(xdg_data_home) / "webautotender" / "addons")
+
+    paths.append(pathlib.Path("/etc/webautotender/addons"))
+
+    # Builtins go last so a user addon of the same name wins, and are found relative to
+    # this file so the install location does not have to be the working directory
+    paths.append(pathlib.Path(__file__).resolve().parent.parent / "builtin_addons")
+
+    return paths
+
+
 class PipelineManager:
     ctx: PipelineContext
     delayedTask: Handle | TimerHandle | None
@@ -190,16 +220,27 @@ class PipelineManager:
             print("All instances have yielded, shutting down.")
         self.save_state()
 
-    def import_addons_from_folder(self, foldername: str) -> list:
-        """This will attempt to import all the folders in a folder in the assumption they are modules. This will let them run naturally and do things like register commands. It will return a list of these sucessfully imported modules."""
-        modules_parent = pathlib.Path(foldername)
-        if not modules_parent.exists():
-            print(f"Unable to find the location {foldername}")
-            return []
-        succesful_modules = []
-        for module_path in sorted(modules_parent.iterdir()):
-            if not module_path.is_dir():
+    def discover_addons(self) -> dict[str, pathlib.Path]:
+        """Map each addon name to the folder it will be loaded from. The first match along the search path wins, so a higher priority location shadows a lower one."""
+        found: dict[str, pathlib.Path] = {}
+        for search_path in addon_search_paths():
+            if not search_path.is_dir():
                 continue
+            for module_path in sorted(search_path.iterdir()):
+                if not module_path.is_dir():
+                    continue
+                if not (module_path / "__init__.py").is_file():
+                    continue
+                if module_path.name in found:
+                    print(f"Addon '{module_path.name}' at {module_path} is shadowed by {found[module_path.name]}")
+                    continue
+                found[module_path.name] = module_path
+        return found
+
+    def import_addons(self) -> list:
+        """Import every addon found along the search path. This lets them run naturally and do things like register commands. Returns the list of modules that imported sucessfully."""
+        succesful_modules = []
+        for module_path in self.discover_addons().values():
             module = self.import_addon(module_path)
             if module is not None:
                 succesful_modules.append(module)
