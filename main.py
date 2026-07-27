@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pipeline_backend import *
-import pipeline_backend.fastpi_endpoints
+import pipeline_backend.event_callbacks
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
@@ -12,10 +12,6 @@ async def lifespan(app:FastAPI):
     pipelineManager.restore_secrets()
     await pipelineManager.start()
 
-    app.include_router(
-        pipeline_backend.fastpi_endpoints.router,
-        prefix="/api"
-        )
     app.include_router(
         pipeline_backend.event_callbacks.router,
         prefix="/api"
