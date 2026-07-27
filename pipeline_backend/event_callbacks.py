@@ -52,15 +52,18 @@ class ServerSideSignalsQueue:
             'data':uuid
         })
     async def message_generator(self):
-        while True:
-            msg = await self.message_queue.get()
-            if msg['event'] == EventCallbacksManager.Events.ClosingDown.name:
-                eventsCallbackManager.unsubscribe_callback(self.add_new_message)
-                return
-            if await self.client.is_disconnected():
-                eventsCallbackManager.unsubscribe_callback(self.add_new_message)
-                return
-            yield msg
+        try:
+            while True:
+                msg = await self.message_queue.get()
+                if msg['event'] == EventCallbacksManager.Events.ClosingDown.name:
+                    return
+                if await self.client.is_disconnected():
+                    return
+                yield msg
+        finally:
+            # Also runs when the generator is cancelled, which is how a client that
+            # disconnects while idle gets unsubscribed instead of leaking its queue.
+            eventsCallbackManager.unsubscribe_callback(self.add_new_message)
 
 @router.get('/events_stream')
 async def events_stream_registry(request:Request):
