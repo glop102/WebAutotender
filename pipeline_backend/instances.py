@@ -6,6 +6,11 @@ import pipeline_backend.variables as variables
 import pipeline_backend.workflows as workflows
 from pipeline_backend.context import PipelineContext
 
+# Enough to hold a stack trace plus some context, which is what the log is really for.
+# Without a cap a long lived instance grows the log - and the saved state file - forever.
+CONSOLE_LOG_MAX_LINES = 50
+
+
 class Instance:
     uuid: str
     workflow_uuid: str
@@ -49,6 +54,15 @@ class Instance:
     def log_line(self, line):
         """Will add a line to the log. This will add its own newline to the end of the line"""
         self.console_log += line+"\n"
+        self.trim_console_log()
+
+    def trim_console_log(self) -> None:
+        """Keep only the most recent CONSOLE_LOG_MAX_LINES lines of the log."""
+        # A logged line can itself be multi-line (tracebacks), so count real lines.
+        # console_log always ends in a newline, hence the trailing empty entry.
+        lines = self.console_log.split("\n")
+        if len(lines) > CONSOLE_LOG_MAX_LINES + 1:
+            self.console_log = "\n".join(lines[-(CONSOLE_LOG_MAX_LINES+1):])
 
     def __getitem__(self, var_name: str|variables.VariablePath) -> variables.WorkVariable:
         """Get the value of the variable at the given name or dot-notation path (e.g. 'entry.link').
@@ -171,6 +185,7 @@ class Instance:
         self.processing_step = tuple(data['processing_step'])
         self.next_processing_time = datetime.fromisoformat( data['next_processing_time'] )
         self.console_log = data['console_log']
+        self.trim_console_log()
         for var_name in data['variables']:
             var = variables.WorkVariable()
             var.json_loadable(data['variables'][var_name])
