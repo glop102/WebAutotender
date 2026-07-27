@@ -5,6 +5,9 @@ import importlib.util
 import json
 import os
 import pathlib
+import sys
+import traceback
+import types
 
 from .context import PipelineContext
 from .workflows import Workflow
@@ -12,6 +15,16 @@ from .instances import Instance
 from .variables import WorkVariable
 from .procedure_runner import ProcedureRunner
 from .event_callbacks import eventsCallbackManager, EventCallbacksManager
+
+# Addons are imported as submodules of this synthetic package. Giving each one a unique
+# name keeps them from clobbering each other in sys.modules, and registering them there
+# is what lets an addon split itself across files and use relative imports.
+ADDON_NAMESPACE = "webautotender_addons"
+
+
+def _ensure_addon_namespace() -> None:
+    if ADDON_NAMESPACE not in sys.modules:
+        sys.modules[ADDON_NAMESPACE] = types.ModuleType(ADDON_NAMESPACE)
 
 
 class PipelineManager:
@@ -184,19 +197,31 @@ class PipelineManager:
             print(f"Unable to find the location {foldername}")
             return []
         succesful_modules = []
-        for module_path in modules_parent.iterdir():
+        for module_path in sorted(modules_parent.iterdir()):
             if not module_path.is_dir():
                 continue
-            try:
-                spec = importlib.util.spec_from_file_location("module.name", module_path.as_posix() + "/__init__.py")
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-            except Exception as e:
-                import traceback
-                print(traceback.format_exc())
-                continue
-            succesful_modules.append(module)
+            module = self.import_addon(module_path)
+            if module is not None:
+                succesful_modules.append(module)
         return succesful_modules
+
+    def import_addon(self, module_path: pathlib.Path):
+        """Import a single addon directory as a submodule of ADDON_NAMESPACE. Returns the module, or None if it failed to import."""
+        _ensure_addon_namespace()
+        module_name = f"{ADDON_NAMESPACE}.{module_path.name}"
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, module_path.as_posix() + "/__init__.py")
+            module = importlib.util.module_from_spec(spec)
+            # Has to be registered before it is executed, otherwise a relative import
+            # inside the addon cannot find the package it belongs to.
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+        except Exception:
+            sys.modules.pop(module_name, None)
+            print(f"Unable to import the addon at {module_path}")
+            print(traceback.format_exc())
+            return None
+        return module
 
 
 pipelineManager = PipelineManager()
