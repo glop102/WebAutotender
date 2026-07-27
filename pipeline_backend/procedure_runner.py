@@ -1,3 +1,4 @@
+import asyncio
 import traceback
 from copy import deepcopy
 from inspect import iscoroutinefunction
@@ -80,7 +81,9 @@ class ProcedureRunner:
     
     async def run_instance_until_yield(self):
         while CommandReturnStatus.Success in await self.run_single_step():
-            pass
+            # Sync commands have no suspension point, so a self-looping workflow would
+            # spin the event loop forever and lock up the web UI and Ctrl+C.
+            await asyncio.sleep(0)
 
 
     def __mark_error(self,message:str="",also_mark_workflow:bool=False)->CommandReturnStatus:
