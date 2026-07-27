@@ -128,16 +128,18 @@ class PipelineManager:
 
     def get_next_due_time(self) -> datetime | None:
         current_time = datetime.now()
-        next_due_time = current_time
         minimum_next_due_time = current_time + timedelta(seconds=1)
 
         possible_instances = [i for i in self.ctx.instances.values()
                               if i.is_allowed_to_run() and i.uuid not in self._running_instance_tasks]
         if len(possible_instances) == 0:
             return None
-        for instance in possible_instances:
-            next_due_time = min(next_due_time, instance.next_processing_time)
-        return max(next_due_time, minimum_next_due_time)
+        # An instance with no next_processing_time gets marked Error by past_time_to_run(),
+        # so just wake on the floor and let the next pass sort it out.
+        due_times = [i.next_processing_time for i in possible_instances if i.next_processing_time]
+        if not due_times:
+            return minimum_next_due_time
+        return max(min(due_times), minimum_next_due_time)
 
     async def run(self):
         await self.run_due_instances()
