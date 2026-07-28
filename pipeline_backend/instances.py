@@ -52,7 +52,7 @@ class Instance:
         return self.ctx.workflows[self.workflow_uuid]
 
     def log_line(self, line):
-        """Will add a line to the log. This will add its own newline to the end of the line"""
+        """Will add a line to the log. This will add its own newline to the end of the line. Only the most recent CONSOLE_LOG_MAX_LINES lines are kept."""
         self.console_log += line+"\n"
         self.trim_console_log()
 

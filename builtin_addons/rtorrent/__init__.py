@@ -230,7 +230,7 @@ async def rtorrent_add_torrent_to_server(instance:Instance,serverInfo:Dictionary
 
 @Commands.register_command(category="rTorrent")
 async def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,infohash:String)->CommandReturnStatus:
-    """Yield and re-check every 30 seconds until a torrent finishes downloading.
+    """Yield and re-check every 30 seconds until a torrent finishes downloading. Seed ratios and limits on the server do not prevent it from counting as complete.
   serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
   infohash: The infohash string of the torrent to wait on."""
     server = Server(instance,serverInfo)
@@ -248,7 +248,7 @@ async def rtorrent_wait_until_complete(instance:Instance,serverInfo:Dictionary,i
 
 @Commands.register_command(category="rTorrent")
 async def rtorrent_wait_until_ratio(instance:Instance,serverInfo:Dictionary,infohash:String,ratio:Float)->CommandReturnStatus:
-    """Yield and re-check every 30 seconds until a torrent's seed ratio reaches the target.
+    """Yield and re-check every 5 minutes until a torrent's seed ratio reaches the target. Retries after 30 seconds instead if the server cannot be reached.
   serverInfo: Dictionary with keys URL, username, and password for the rTorrent XMLRPC endpoint.
   infohash: The infohash string of the torrent to wait on.
   ratio: The minimum seed ratio to wait for (e.g. 1.0 for 1:1)."""

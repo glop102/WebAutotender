@@ -9,9 +9,9 @@ from pipeline_backend.commands_builtin import yield_for_seconds
 
 @Commands.register_command(category="RSS Feed")
 async def rssfeed_get_entries(instance:Instance,feed_url:URL,output_list_name:VariablePath) -> CommandReturnStatus:
-    """Fetch all entries from an RSS feed and store them as a VariableList of Dictionaries, sorted oldest-first. Yields and retries on network errors.
+    """Fetch all entries from an RSS feed and store them as a VariableList of Dictionaries, oldest-first. Yields and retries after 60 seconds on network errors.
   feed_url: URL of the RSS feed to fetch.
-  output_list_name: Name of the variable to store the VariableList of entry Dictionaries in. Each entry may have keys: title, link, summary, id, published."""
+  output_list_name: Name of the variable to store the VariableList of entry Dictionaries in. Each entry may have keys: title, link, summary, id, published. Entries are reversed on the assumption the feed is newest-first, and only truly sorted when they carry a published date."""
     # gets all the items in an rssfeed at the given url and saves it to a variable, the first item being the oldest, the last being the newest
 
     try:
