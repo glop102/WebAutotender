@@ -22,10 +22,16 @@ async def str_regex_firstMatch(instance: Instance, regexPatern:String, inputStri
 @Commands.register_command(category="Strings")
 async def str_regex_matchAll(instance: Instance, regexPatern: String, inputString: String, outputVarname: VariablePath) -> CommandReturnStatus:
     """Find all regex matches in a string using extended regex syntax (supports \\K and other extras). Stores an empty list if there are no matches.
-  regexPatern: The regex pattern to search with. Use at most one capture group - with none you get the whole match, with one you get that group, and with several the results come back as tuples rather than strings.
+  regexPatern: The regex pattern to search with. At most one capture group - with none you get the whole match, with one you get that group. More than one is an error.
   inputString: The string to search in.
   outputVarname: Name of the variable to store the StringList of matched strings in."""
-    matches = re.findall(regexPatern.value, inputString.value)
+    pattern = re.compile(regexPatern.value)
+    if pattern.groups > 1:
+        # findall hands back a tuple per match once there is more than one group, which
+        # would quietly leave a StringList holding tuples instead of strings
+        instance.log_line(f"Error: The pattern '{regexPatern.value}' has {pattern.groups} capture groups but at most one is allowed. Make the ones you do not want back non-capturing with (?:...)")
+        return CommandReturnStatus.Error
+    matches = pattern.findall(inputString.value)
     instance[outputVarname] = StringList(matches)
     return CommandReturnStatus.Success
 
