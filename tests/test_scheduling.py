@@ -217,6 +217,38 @@ class TestGetNextDueTime:
         inst_b = wf.spawn_instance()
         inst_a.next_processing_time = soon
         inst_b.next_processing_time = later
-        result = mgr.get_next_due_time()
-        assert result <= later
-        assert result >= datetime.now()
+        # Exactly the soonest, not just something before the later one - a bounds check
+        # here still passed when the function always returned the one second floor
+        assert mgr.get_next_due_time() == soon
+
+    def test_returns_a_distant_due_time_unchanged(self, mgr):
+        wf = make_workflow(mgr)
+        inst = wf.spawn_instance()
+        inst.next_processing_time = datetime.now() + timedelta(seconds=300)
+        # The scheduler should sleep until the instance is actually due rather than
+        # waking every second to find there is nothing to do
+        assert mgr.get_next_due_time() == inst.next_processing_time
+
+    async def test_ignores_instances_that_are_already_running(self, mgr):
+        wf = make_workflow(mgr)
+        running = wf.spawn_instance()
+        waiting = wf.spawn_instance()
+        running.next_processing_time = datetime.now() + timedelta(seconds=5)
+        waiting.next_processing_time = datetime.now() + timedelta(seconds=30)
+        task = asyncio.create_task(asyncio.sleep(0))
+        mgr._running_instance_tasks[running.uuid] = task
+        try:
+            assert mgr.get_next_due_time() == waiting.next_processing_time
+        finally:
+            await task
+
+    async def test_returns_none_when_every_instance_is_running(self, mgr):
+        wf = make_workflow(mgr)
+        inst = wf.spawn_instance()
+        inst.next_processing_time = datetime.now() + timedelta(seconds=5)
+        task = asyncio.create_task(asyncio.sleep(0))
+        mgr._running_instance_tasks[inst.uuid] = task
+        try:
+            assert mgr.get_next_due_time() is None
+        finally:
+            await task

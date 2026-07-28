@@ -1,5 +1,5 @@
 import pytest
-from pipeline_backend.instances import Instance
+from pipeline_backend.instances import CONSOLE_LOG_MAX_LINES, Instance
 from pipeline_backend.workflows import Workflow
 from pipeline_backend.variables import String, Integer, Float, VariablePath, StringList, VariableList, VariableNameList, Dictionary
 from pipeline_backend.manager import PipelineManager
@@ -248,3 +248,53 @@ class TestDotNotationSet:
         inst.variables["x"] = String("flat")
         with pytest.raises(TypeError):
             inst["x.key"] = String("val")
+
+
+def log_lines(inst):
+    """The log always ends in a newline, so drop the trailing empty entry."""
+    return inst.console_log.split("\n")[:-1]
+
+
+class TestConsoleLog:
+    def test_short_log_is_left_alone(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.log_line("first")
+        inst.log_line("second")
+        assert log_lines(inst) == ["first", "second"]
+
+    def test_log_is_capped(self, workflow):
+        inst = workflow.spawn_instance()
+        for i in range(200):
+            inst.log_line(f"line {i}")
+        assert len(log_lines(inst)) == CONSOLE_LOG_MAX_LINES
+
+    def test_cap_keeps_the_most_recent_lines(self, workflow):
+        inst = workflow.spawn_instance()
+        for i in range(200):
+            inst.log_line(f"line {i}")
+        lines = log_lines(inst)
+        assert lines[-1] == "line 199"
+        assert lines[0] == f"line {200 - CONSOLE_LOG_MAX_LINES}"
+
+    def test_a_multi_line_entry_counts_as_many_lines(self, workflow):
+        inst = workflow.spawn_instance()
+        # Tracebacks arrive as one call holding many lines, so the cap has to count
+        # rendered lines rather than the number of log_line calls
+        inst.log_line("trace\n" * 200)
+        assert len(log_lines(inst)) == CONSOLE_LOG_MAX_LINES
+
+    def test_log_still_ends_with_a_newline_after_trimming(self, workflow):
+        inst = workflow.spawn_instance()
+        for i in range(200):
+            inst.log_line(f"line {i}")
+        assert inst.console_log.endswith("\n")
+
+    def test_oversized_log_from_an_old_state_file_is_trimmed_on_load(self, workflow):
+        inst = workflow.spawn_instance()
+        inst.uuid = "inst-oversized"
+        data = inst.json_savable()
+        data["console_log"] = "".join(f"old line {i}\n" for i in range(200))
+        restored = Instance(workflow.ctx)
+        restored.json_loadable(data)
+        assert len(log_lines(restored)) == CONSOLE_LOG_MAX_LINES
+        assert log_lines(restored)[-1] == "old line 199"
